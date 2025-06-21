@@ -1,0 +1,103 @@
+<!-- Step 4: Test -->
+<div id="step-4" class="hidden opacity-0 translate-x-5 transition-all duration-500 ease-out">
+    <div class="space-y-8">
+        <div class="text-center mb-8">
+            <h3 class="text-2xl font-semibold text-neutral-900 mb-2">Test Your Translation</h3>
+            <p class="text-neutral-600">Select a well-known Bible passage to see your translation model in action</p>
+        </div>
+
+        <div class="space-y-6">
+            <!-- Passage Selection -->
+            <div class="bg-neutral-50 rounded-lg p-6">
+                <h4 class="font-semibold text-neutral-900 mb-4">Choose a Bible Passage</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {% set test_passages = [
+                        {
+                            'value': 'john3:16',
+                            'title': 'John 3:16',
+                            'preview': '"For God so loved the world that he gave his one and only Son..."'
+                        },
+                        {
+                            'value': 'genesis1:1',
+                            'title': 'Genesis 1:1',
+                            'preview': '"In the beginning God created the heavens and the earth."'
+                        },
+                        {
+                            'value': 'psalm23:1',
+                            'title': 'Psalm 23:1',
+                            'preview': '"The Lord is my shepherd, I lack nothing."'
+                        },
+                        {
+                            'value': 'matthew28:19',
+                            'title': 'Matthew 28:19',
+                            'preview': '"Therefore go and make disciples of all nations..."'
+                        },
+                        {
+                            'value': 'romans3:23',
+                            'title': 'Romans 3:23',
+                            'preview': '"For all have sinned and fall short of the glory of God."'
+                        },
+                        {
+                            'value': 'revelation21:4',
+                            'title': 'Revelation 21:4',
+                            'preview': '"He will wipe every tear from their eyes..."'
+                        }
+                    ] %}
+
+                    {% for passage in test_passages %}
+                    <label class="passage-option flex items-start space-x-3 p-4 border-2 border-neutral-200 rounded-lg cursor-pointer hover:border-neutral-300 transition-colors" data-passage="{{ passage.value }}">
+                        <input type="radio" name="test_passage" value="{{ passage.value }}" class="mt-1 text-neutral-900 focus:ring-neutral-900">
+                        <div class="flex-grow">
+                            <div class="font-medium text-neutral-900">{{ passage.title }}</div>
+                            <div class="text-sm text-neutral-600 mt-1">{{ passage.preview }}</div>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+
+                <div class="mt-6 text-center">
+                    <button type="button" id="generate-test" class="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        <i class="fas fa-magic mr-2"></i>
+                        Generate Translation
+                    </button>
+                </div>
+            </div>
+
+            <!-- Translation Result -->
+            <div id="translation-result" class="hidden bg-white border border-neutral-200 rounded-lg p-6">
+                <h4 class="font-semibold text-neutral-900 mb-4">Translation Result</h4>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-sm font-medium text-neutral-600">Original (English)</label>
+                        <div id="original-text" class="mt-1 p-3 bg-neutral-50 rounded border text-neutral-900"></div>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-neutral-600">Translation</label>
+                        <div id="translated-text" class="mt-1 p-3 bg-green-50 rounded border text-neutral-900 font-medium"></div>
+                    </div>
+                    <div id="translation-error" class="hidden bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div class="flex items-start">
+                            <i class="fas fa-exclamation-triangle text-red-500 mt-0.5 mr-3"></i>
+                            <div>
+                                <h5 class="text-red-800 font-medium">Translation Error</h5>
+                                <p id="error-message" class="text-red-700 text-sm mt-1"></p>
+                                <p class="text-red-600 text-xs mt-2">Please check your internet connection and try again.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="flex justify-between pt-8">
+        <button type="button" id="prev-step-4" class="text-neutral-600 hover:text-neutral-900 transition-colors px-6 py-3">
+            <i class="fas fa-arrow-left mr-2"></i>
+            Back
+        </button>
+        <button type="submit" class="bg-neutral-900 text-white px-8 py-3 rounded-subtle hover:bg-neutral-800 transition-colors">
+            <i class="fas fa-plus mr-2"></i>
+            Create Project
+        </button>
+    </div>
+</div> 

@@ -1,0 +1,49 @@
+<!-- Step 2: Language Details -->
+<div id="step-2" class="hidden opacity-0 translate-x-5 transition-all duration-500 ease-out">
+    <div class="space-y-8">
+        <div class="text-center mb-8">
+            <h3 class="text-2xl font-semibold text-neutral-900 mb-2">Language Rules & Context</h3>
+            <p class="text-neutral-600">Add custom rules for <span id="language-display" class="text-green-500 font-semibold">this language</span> to guide the AI translator</p>
+        </div>
+
+        <!-- Language Rules -->
+        <div id="language-rules-container" class="space-y-4">
+            <!-- Existing rules will be populated here -->
+        </div>
+
+        <!-- Add New Rule Button -->
+        <div class="text-center">
+            <button type="button" id="add-rule-btn" class="inline-flex items-center px-4 py-2 text-sm text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded-sm transition-all duration-200">
+                <i class="fas fa-plus mr-2"></i>
+                Add Language Rule
+            </button>
+        </div>
+
+        <!-- Rule Template (hidden) -->
+        <div id="rule-template" class="hidden">
+            <div class="rule-item p-4 border border-neutral-200 rounded-sm group hover:border-neutral-300 transition-colors duration-200">
+                <div class="flex items-start justify-between mb-3">
+                    <input type="text" class="rule-title flex-grow text-sm font-medium bg-transparent border-none outline-none focus:bg-neutral-50 p-1 rounded-sm" placeholder="Outdated Words" maxlength="100">
+                    <button type="button" class="remove-rule opacity-0 group-hover:opacity-100 ml-3 text-red-600 hover:text-red-800 hover:bg-red-50 p-1 rounded-sm transition-all duration-200">
+                        <i class="fas fa-trash text-xs"></i>
+                    </button>
+                </div>
+                <textarea class="rule-description w-full text-sm bg-transparent border border-neutral-200 rounded-sm p-3 focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 resize-none" rows="2" placeholder="Don't use words like 'hence' as they are outdated" maxlength="500"></textarea>
+                <div class="flex justify-between items-center mt-2">
+                    <span class="text-xs text-neutral-400">Characters: <span class="char-count">0</span>/500</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="flex justify-between pt-8">
+        <button type="button" id="prev-step-2" class="text-neutral-600 hover:text-neutral-900 transition-colors px-6 py-3">
+            <i class="fas fa-arrow-left mr-2"></i>
+            Back
+        </button>
+        <button type="button" id="next-step-2" class="bg-neutral-900 text-white px-8 py-3 rounded-sm hover:bg-neutral-800 transition-all duration-200">
+            <span>Next</span>
+            <i class="fas fa-arrow-right ml-2"></i>
+        </button>
+    </div>
+</div> 

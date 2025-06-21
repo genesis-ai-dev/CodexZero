@@ -1,0 +1,746 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.target_language }} Translation - CodexZero{% endblock %}
+
+{% block content %}
+<section class="py-12 px-6">
+    <div class="max-w-4xl mx-auto">
+        <div class="mb-8">
+            <a href="{{ url_for('dashboard') }}" class="text-sm text-neutral-600 hover:text-neutral-900 transition-colors">
+                <i class="fas fa-arrow-left mr-1"></i>
+                Back to Projects
+            </a>
+        </div>
+        
+        <div class="flex items-center justify-between mb-12">
+            <h1 class="text-4xl font-bold tracking-tight">{{ project.target_language }} Translation</h1>
+            <div class="flex items-center space-x-3">
+                {% set has_completed_jobs = completed_jobs_count > 0 %}
+                {% set has_instructions = project.instructions and project.instructions|trim %}
+                {% set can_translate = has_completed_jobs or has_instructions %}
+                
+                <a href="{{ url_for('translation.translate_page', project_id=project.id) }}" 
+                   class="px-6 py-3 rounded-sm transition-all duration-200 {% if can_translate %}bg-blue-600 text-white hover:bg-blue-700{% else %}bg-neutral-300 text-neutral-500 cursor-not-allowed{% endif %}"
+                   {% if not can_translate %}onclick="return false;" title="Complete back translation setup or add instructions to enable translation"{% endif %}>
+                    <i class="fas fa-language mr-2"></i>
+                    Translate
+                </a>
+                
+                <a href="{{ url_for('translation.test_page', project_id=project.id) }}" 
+                   class="px-6 py-3 rounded-sm transition-all duration-200 {% if has_completed_jobs %}bg-green-600 text-white hover:bg-green-700{% else %}bg-neutral-300 text-neutral-500 cursor-not-allowed{% endif %}"
+                   {% if not has_completed_jobs %}onclick="return false;" title="Complete back translation setup to enable benchmarking"{% endif %}>
+                    <i class="fas fa-chart-line mr-2"></i>
+                    Benchmark Translation Methods
+                </a>
+                
+                <a href="{{ url_for('edit_project', project_id=project.id) }}" class="bg-neutral-900 text-white px-6 py-3 rounded-sm hover:bg-neutral-800 transition-all duration-200">
+                    <i class="fas fa-edit mr-2"></i>
+                    Edit Project
+                </a>
+            </div>
+        </div>
+
+        <div class="space-y-6">
+            <!-- Project Info -->
+            <div class="group block py-6 px-4 -mx-4 rounded-lg hover:bg-neutral-50 transition-all duration-200">
+                <div class="flex items-center justify-between">
+                    <div class="flex-grow">
+                        <h3 class="text-xl font-semibold text-neutral-900 group-hover:text-neutral-800 transition-colors mb-2">
+                            Project Details
+                        </h3>
+                        <p class="text-neutral-600 text-sm mb-3 leading-relaxed">
+                            For {{ project.audience }} • {{ project.style }} style
+                        </p>
+                        <div class="flex items-center text-xs text-neutral-500">
+                            <i class="fas fa-calendar mr-2"></i>
+                            Updated {{ project.updated_at.strftime('%b %d, %Y') }}
+                            {% if project.files %}
+                            <span class="mx-2">•</span>
+                            <i class="fas fa-file-alt mr-1"></i>
+                            {{ project.files|length }} file{{ 's' if project.files|length != 1 else '' }}
+                            {% endif %}
+                            {% if project.language_rules %}
+                            <span class="mx-2">•</span>
+                            <i class="fas fa-list mr-1"></i>
+                            {{ project.language_rules|length }} language rule{{ 's' if project.language_rules|length != 1 else '' }}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Management -->
+            <div class="group block py-6 px-4 -mx-4 rounded-lg hover:bg-neutral-50 transition-all duration-200">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-semibold text-neutral-900 group-hover:text-neutral-800 transition-colors">
+                        Project Files
+                    </h3>
+                    <button id="open-upload-modal-btn" class="text-sm text-blue-600 hover:text-blue-800 transition-colors">
+                        <i class="fas fa-plus mr-1"></i>
+                        Add Files
+                    </button>
+                </div>
+                
+                {% if project.files %}
+                <div class="space-y-3">
+                    {% for file in project.files %}
+                    <div class="flex items-center justify-between py-3 px-4 border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors">
+                        <div class="flex items-center space-x-3">
+                            <i class="fas {% if file.file_type == 'ebible' %}fa-book text-blue-600{% elif file.file_type == 'text' %}fa-file-alt text-green-600{% elif file.file_type == 'back_translation' %}fa-exchange-alt text-orange-600{% elif file.file_type == 'usfm' %}fa-code text-purple-600{% elif file.file_type == 'usfm_ebible' %}fa-book-open text-purple-600{% else %}fa-file text-neutral-400{% endif %}"></i>
+                            <div>
+                                <div class="font-medium text-sm text-neutral-900">{{ file.original_filename }}</div>
+                                <div class="text-xs text-neutral-500">
+                                    {{ file.file_type | title }}
+                                    {% if file.file_type == 'ebible' %} (eBible Format)
+                                    {% elif file.file_type == 'text' %} (Plain Text)
+                                    {% elif file.file_type == 'back_translation' %} (Back Translation)
+                                    {% elif file.file_type == 'usfm' %} (USFM Format)
+                                    {% elif file.file_type == 'usfm_ebible' %} (eBible from USFM)
+                                    {% endif %}
+                                    • {{ (file.file_size / 1024) | round(1) }} KB
+                                    • Uploaded {{ file.created_at.strftime('%b %d, %Y') }}
+                                    {% if file.file_type == 'back_translation' and file.paired_with %}
+                                    <br><span class="text-amber-600"><i class="fas fa-link mr-1"></i>Paired with {{ file.paired_with.original_filename }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <a href="{{ url_for('download_project_file', project_id=project.id, file_id=file.id) }}" 
+                               class="text-xs text-blue-600 hover:text-blue-800 transition-colors px-3 py-1 border border-blue-200 rounded hover:bg-blue-50">
+                                <i class="fas fa-download mr-1"></i>
+                                Download
+                            </a>
+                            <button type="button" class="delete-file-btn text-xs text-red-600 hover:text-red-800 transition-colors px-3 py-1 border border-red-200 rounded hover:bg-red-50"
+                                    data-file-id="{{ file.id }}" 
+                                    data-filename="{{ file.original_filename }}">
+                                <i class="fas fa-trash mr-1"></i>
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-8">
+                    <div class="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-file-alt text-neutral-400 text-xl"></i>
+                    </div>
+                    <h4 class="font-medium text-neutral-900 mb-2">No files uploaded yet</h4>
+                    <p class="text-neutral-600 text-sm mb-4">Upload some training files to get started with translation.</p>
+                    <button id="open-upload-modal-btn-empty" class="inline-flex items-center px-4 py-2 bg-neutral-900 text-white text-sm rounded-sm hover:bg-neutral-800 transition-colors">
+                        <i class="fas fa-plus mr-2"></i>
+                        Upload Files
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Translation Methods -->
+            <div class="mb-8">
+                <h3 class="text-2xl font-semibold text-neutral-900 mb-4">Translation Setup</h3>
+                <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div class="flex items-start">
+                        <i class="fas fa-info-circle text-blue-600 mr-3 mt-0.5"></i>
+                        <div class="text-sm text-blue-700">
+                            <strong>Combine both methods for best results:</strong> Back translation provides contextual examples from your target language, while instruction-based translation gives you direct control over style and guidelines. Use them together!
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Method 1: Back Translation -->
+            <div class="border border-neutral-200 rounded-lg p-6 bg-white hover:shadow-lg transition-all duration-300 mb-6">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
+                            <i class="fas fa-language text-blue-600 text-lg"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-semibold text-neutral-900 mb-1">
+                                Back Translation Examples
+                            </h3>
+                            <p class="text-neutral-600 text-sm">
+                                Generate translation patterns from your target language materials
+                            </p>
+                        </div>
+                    </div>
+                    {% if total_available_lines > 0 %}
+                    <div class="text-right">
+                        <div class="text-sm font-medium text-green-600">Ready</div>
+                        <div class="text-xs text-neutral-500">{{ total_available_lines }} lines available</div>
+                    </div>
+                    {% elif project.files %}
+                    <div class="text-right">
+                        <div class="text-sm font-medium text-yellow-600">No text files</div>
+                        <div class="text-xs text-neutral-500">Upload text files to enable</div>
+                    </div>
+                    {% else %}
+                    <div class="text-right">
+                        <div class="text-sm font-medium text-neutral-400">Not ready</div>
+                        <div class="text-xs text-neutral-500">Upload files to enable</div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="space-y-4 text-sm">
+                    <div class="flex items-start">
+                        <div class="w-6 h-6 bg-neutral-100 rounded-full flex items-center justify-center mr-3 mt-0.5 flex-shrink-0">
+                            <span class="text-xs font-medium text-neutral-600">1</span>
+                        </div>
+                        <div class="flex-grow">
+                            <div class="flex items-center space-x-4 mb-2">
+                                <a href="#" id="start-back-translation-btn" class="font-medium text-neutral-900 hover:text-blue-600 transition-colors {% if total_available_lines == 0 %}opacity-50 cursor-not-allowed{% endif %}" {% if total_available_lines == 0 %}onclick="return false;"{% endif %}>
+                                    <span id="btn-text">Generate back translations</span>
+                                </a>
+                                
+                                <!-- File selection button -->
+                                {% if text_files %}
+                                <button id="select-file-btn" class="text-xs bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 rounded px-3 py-1 transition-colors">
+                                    <span id="selected-file-text">
+                                        {% if text_files|length == 1 %}
+                                        {{ text_files[0].original_filename }}
+                                        {% else %}
+                                        Select file to translate
+                                        {% endif %}
+                                    </span>
+                                    <i class="fas fa-chevron-down ml-2"></i>
+                                </button>
+                                {% endif %}
+                                
+                                <!-- Line count selector -->
+                                {% if total_available_lines > 0 %}
+                                <div class="flex items-center space-x-2">
+                                    <label for="line-count" class="text-neutral-600 text-xs">Lines:</label>
+                                    <select id="line-count" class="text-xs border border-neutral-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                        <option value="all">All {{ total_available_lines }}</option>
+                                        {% if total_available_lines > 10 %}<option value="10">First 10</option>{% endif %}
+                                        {% if total_available_lines > 25 %}<option value="25">First 25</option>{% endif %}
+                                        {% if total_available_lines > 50 %}<option value="50">First 50</option>{% endif %}
+                                        {% if total_available_lines > 100 %}<option value="100">First 100</option>{% endif %}
+                                        {% if total_available_lines > 250 %}<option value="250">First 250</option>{% endif %}
+                                        {% if total_available_lines > 500 %}<option value="500">First 500</option>{% endif %}
+                                    </select>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="text-neutral-500 text-xs mb-2">(May take up to 24 hours to reduce costs)</div>
+                            
+                            <!-- Job Status -->
+                            <div id="job-status" class="hidden">
+                                <div class="flex items-center p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                                    <i class="fas fa-clock text-blue-600 mr-2"></i>
+                                    <span id="job-progress" class="text-blue-700">Processing...</span>
+                                </div>
+                            </div>
+
+                            <!-- Results -->
+                            <div id="back-translation-results" class="hidden">
+                                <div class="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded text-xs">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-check text-green-600 mr-2"></i>
+                                        <a href="#" id="download-results-btn" class="text-green-700 hover:text-green-800 transition-colors font-medium">
+                                            Download results
+                                        </a>
+                                        {% if completed_jobs_count > 1 %}
+                                        <span class="text-green-600 text-xs ml-2">({{ completed_jobs_count }} completed)</span>
+                                        {% endif %}
+                                    </div>
+                                    <button id="redo-back-translation-btn" class="text-green-600 hover:text-green-800 transition-colors">
+                                        <i class="fas fa-redo mr-1"></i>
+                                        Run again
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Method 2: Instruction-Based Translation -->
+            <div class="border border-neutral-200 rounded-lg p-6 bg-white hover:shadow-lg transition-all duration-300">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
+                            <i class="fas fa-magic text-purple-600 text-lg"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-semibold text-neutral-900 mb-1">
+                                Custom Translation Instructions
+                            </h3>
+                            <p class="text-neutral-600 text-sm">
+                                Direct AI guidance with your specific style and context requirements
+                            </p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        {% if project.instructions and project.instructions|trim %}
+                        <div class="text-sm font-medium text-green-600">Instructions Set</div>
+                        <div class="text-xs text-neutral-500">{{ project.instructions|length }} characters</div>
+                        {% else %}
+                        <div class="text-sm font-medium text-neutral-400">No Instructions</div>
+                        <div class="text-xs text-neutral-500">Add instructions below</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="space-y-4 text-sm">
+                    <div class="flex items-start">
+                        <div class="w-6 h-6 bg-neutral-100 rounded-full flex items-center justify-center mr-3 mt-0.5 flex-shrink-0">
+                            <span class="text-xs font-medium text-neutral-600">1</span>
+                        </div>
+                        <div class="flex-grow">
+                            <div class="font-medium text-neutral-900 mb-3">
+                                Set translation guidelines
+                            </div>
+                            <form id="instructions-form" class="space-y-3">
+                                <textarea 
+                                    id="translation-instructions" 
+                                    name="instructions"
+                                    maxlength="4000"
+                                    rows="4"
+                                    class="w-full p-3 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-sm"
+                                    placeholder="Enter specific translation instructions, style guidelines, or context that should guide the AI translation..."
+                                >{{ project.instructions or '' }}</textarea>
+                                <div class="flex justify-between items-center">
+                                    <span id="char-count" class="text-xs text-neutral-500">{{ (project.instructions or '')|length }} / 4,000</span>
+                                    <button type="button" id="save-instructions-btn" class="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded transition-colors">
+                                        Save Instructions
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Translation Ready Section -->
+            <div class="mt-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg">
+                <div class="text-center">
+                    <h3 class="text-xl font-semibold text-neutral-900 mb-2">Ready to Translate?</h3>
+                    <p class="text-neutral-600 mb-4">
+                        {% if can_translate %}
+                        You have {% if has_completed_jobs %}back translation examples{% endif %}{% if has_completed_jobs and has_instructions %} and {% endif %}{% if has_instructions %}custom instructions{% endif %} set up.
+                        {% else %}
+                        Set up back translation examples or custom instructions above to start translating.
+                        {% endif %}
+                    </p>
+                    <div class="flex items-center justify-center space-x-4">
+                        <a href="{{ url_for('translation.translate_page', project_id=project.id) }}" 
+                           class="px-6 py-3 rounded-sm transition-all duration-200 {% if can_translate %}bg-blue-600 text-white hover:bg-blue-700{% else %}bg-neutral-300 text-neutral-500 cursor-not-allowed{% endif %}"
+                           {% if not can_translate %}onclick="return false;"{% endif %}>
+                            <i class="fas fa-language mr-2"></i>
+                            Start Translating
+                        </a>
+                        {% if has_completed_jobs %}
+                        <a href="{{ url_for('translation.test_page', project_id=project.id) }}" 
+                           class="px-6 py-3 bg-green-600 text-white rounded-sm hover:bg-green-700 transition-all duration-200">
+                            <i class="fas fa-chart-line mr-2"></i>
+                            Benchmark Methods
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+
+        </div>
+    </div>
+</section>
+
+<!-- File Selection Modal -->
+<div id="file-selection-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div class="px-6 py-4 border-b border-neutral-200">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-neutral-900">Select File to Back Translate</h3>
+                <button id="close-modal-btn" class="text-neutral-400 hover:text-neutral-600 transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="px-6 py-4">
+            {% if text_files %}
+            <div class="space-y-3">
+                {% for file in text_files %}
+                <label class="flex items-center p-3 border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors">
+                    <input type="radio" name="selected-file" value="{{ file.id }}" data-line-count="{{ file.line_count }}" data-filename="{{ file.original_filename }}" class="mr-3 text-blue-600 focus:ring-blue-500" {% if loop.first %}checked{% endif %}>
+                    <div class="flex-grow">
+                        <div class="font-medium text-neutral-900">{{ file.original_filename }}</div>
+                        <div class="text-xs text-neutral-500">{{ file.file_type|title }} • {{ "%.1f"|format(file.file_size / 1024) }} KB • {{ file.line_count }} lines</div>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div class="flex items-start">
+                    <i class="fas fa-info-circle text-blue-600 mr-2 mt-0.5"></i>
+                    <div class="text-xs text-blue-700">
+                        <strong>Need more files?</strong> You can upload additional text files by editing this project.
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="px-6 py-4 border-t border-neutral-200 flex justify-end space-x-3">
+            <button id="cancel-modal-btn" class="px-4 py-2 text-neutral-600 hover:text-neutral-800 transition-colors">
+                Cancel
+            </button>
+            <button id="confirm-file-btn" class="px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-neutral-800 transition-colors">
+                Select File
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- File Deletion Modal -->
+<div id="delete-file-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+        <div class="px-6 py-4 border-b border-neutral-200">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-neutral-900">Delete File</h3>
+                <button id="close-delete-modal-btn" class="text-neutral-400 hover:text-neutral-600 transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="px-6 py-4">
+            <div class="mb-4">
+                <p class="text-neutral-700 mb-3">
+                    You are about to delete <strong id="delete-filename"></strong>. 
+                    This action cannot be undone.
+                </p>
+                
+                <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
+                    <div class="flex items-start">
+                        <i class="fas fa-exclamation-triangle text-yellow-600 mr-2 mt-0.5"></i>
+                        <div class="text-sm text-yellow-700">
+                            <strong>Required:</strong> You must download the original file and any associated back translations before deletion.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="space-y-3">
+                <div class="flex items-center justify-between p-3 border border-neutral-200 rounded">
+                    <span class="text-sm">Original file</span>
+                    <button id="download-original-btn" class="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-download mr-1"></i>
+                        Download
+                    </button>
+                </div>
+                
+                <div id="back-translation-download-section" class="hidden">
+                    <div class="flex items-center justify-between p-3 border border-neutral-200 rounded">
+                        <span class="text-sm">Back translation</span>
+                        <button id="download-back-translation-btn" class="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors">
+                            <i class="fas fa-download mr-1"></i>
+                            Download
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="px-6 py-4 border-t border-neutral-200 flex justify-end space-x-3">
+            <button id="cancel-delete-btn" class="px-4 py-2 text-neutral-600 hover:text-neutral-800 transition-colors">
+                Cancel
+            </button>
+            <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 text-white rounded-sm hover:bg-red-700 transition-colors" disabled>
+                Delete File
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- File Upload Modal -->
+<div id="file-upload-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+        <div class="px-6 py-4 border-b border-neutral-200">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-neutral-900">Upload File</h3>
+                <button id="close-file-upload-modal-btn" class="text-neutral-400 hover:text-neutral-600 transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="px-6 py-4">
+            <form id="file-upload-form">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-neutral-700 mb-2">
+                        Choose upload method
+                    </label>
+                    <div class="space-y-3">
+                        <label class="flex items-center p-3 border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors">
+                            <input type="radio" name="upload_method" value="file" class="mr-3 text-blue-600 focus:ring-blue-500" checked>
+                            <div>
+                                <div class="font-medium text-neutral-900">Upload File</div>
+                                <div class="text-xs text-neutral-500">Upload a .txt file</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center p-3 border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors">
+                            <input type="radio" name="upload_method" value="text" class="mr-3 text-blue-600 focus:ring-blue-500">
+                            <div>
+                                <div class="font-medium text-neutral-900">Paste Text</div>
+                                <div class="text-xs text-neutral-500">Paste text directly into a text area</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <div id="file-upload-section-modal" class="mb-4">
+                    <label for="text-file-upload" class="block text-sm font-medium text-neutral-700 mb-2">
+                        Select text file
+                    </label>
+                    <input type="file" 
+                           id="text-file-upload" 
+                           name="text_file" 
+                           accept=".txt"
+                           class="block w-full text-sm text-neutral-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-neutral-100 file:text-neutral-700 hover:file:bg-neutral-200">
+                </div>
+                
+                <div id="text-paste-section-modal" class="mb-4 hidden">
+                    <label for="text-content-upload" class="block text-sm font-medium text-neutral-700 mb-2">
+                        Paste text content
+                    </label>
+                    <textarea id="text-content-upload" 
+                              name="text_content" 
+                              rows="8" 
+                              maxlength="16000"
+                              class="w-full p-4 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-neutral-900 focus:border-transparent resize-none" 
+                              placeholder="Paste your text here..."></textarea>
+                    <div class="flex justify-between items-center mt-2">
+                        <p class="text-sm text-neutral-600">Maximum 16,000 characters</p>
+                        <span id="upload-char-count" class="text-sm text-neutral-500">0 / 16,000</span>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-neutral-700 mb-2">
+                        File type
+                    </label>
+                    <div class="space-y-3">
+                        <label class="flex items-start p-3 border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors">
+                            <input type="radio" name="file_type" value="ebible" class="mr-3 text-blue-600 focus:ring-blue-500 mt-0.5" checked>
+                            <div>
+                                <div class="font-medium text-neutral-900">eBible Format</div>
+                                <div class="text-xs text-neutral-500">Bible text in eBible format</div>
+                            </div>
+                        </label>
+                        <label class="flex items-start p-3 border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors">
+                            <input type="radio" name="file_type" value="text" class="mr-3 text-blue-600 focus:ring-blue-500 mt-0.5">
+                            <div>
+                                <div class="font-medium text-neutral-900">Plain Text</div>
+                                <div class="text-xs text-neutral-500">General text content for training or reference</div>
+                            </div>
+                        </label>
+                        <label class="flex items-start p-3 border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors">
+                            <input type="radio" name="file_type" value="back_translation" class="mr-3 text-blue-600 focus:ring-blue-500 mt-0.5">
+                            <div>
+                                <div class="font-medium text-neutral-900">Back Translation</div>
+                                <div class="text-xs text-neutral-500">Back translation that needs to be paired with a forward translation</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Pairing Section (for back translations) -->
+                <div id="pairing-section-modal" class="hidden mb-4">
+                    <label class="block text-sm font-medium text-neutral-700 mb-2">
+                        Pair with forward translation
+                    </label>
+                    <div class="space-y-3" id="pairing-options">
+                        {% if project.files %}
+                        {% for file in project.files %}
+                        {% if file.file_type in ['ebible', 'text'] %}
+                        <label class="flex items-center p-3 border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors">
+                            <input type="radio" name="paired_with_id" value="{{ file.id }}" class="mr-3 text-blue-600 focus:ring-blue-500">
+                            <div class="flex-grow">
+                                <div class="font-medium text-neutral-900">{{ file.original_filename }}</div>
+                                <div class="text-xs text-neutral-500">{{ file.file_type | title }} • {{ (file.file_size / 1024) | round(1) }} KB</div>
+                            </div>
+                        </label>
+                        {% endif %}
+                        {% endfor %}
+                        {% else %}
+                        <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <div class="flex items-start space-x-2">
+                                <i class="fas fa-info-circle text-amber-600 mt-0.5"></i>
+                                <div class="text-sm text-amber-700">
+                                    You need to upload a forward translation first before you can add a back translation.
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="text-xs text-neutral-500">
+                    Supported file types: .txt files with one verse or sentence per line.
+                </div>
+            </form>
+        </div>
+        
+        <div class="px-6 py-4 border-t border-neutral-200 flex justify-end space-x-3">
+            <button id="cancel-file-upload-btn" class="px-4 py-2 text-neutral-600 hover:text-neutral-800 transition-colors">
+                Cancel
+            </button>
+            <button id="confirm-file-upload-btn" class="px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-neutral-800 transition-colors">
+                Upload File
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Back Translation Modal -->
+<div id="upload-back-translation-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+        <div class="px-6 py-4 border-b border-neutral-200">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-neutral-900">Upload Back Translation</h3>
+                <button id="close-upload-modal-btn" class="text-neutral-400 hover:text-neutral-600 transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="px-6 py-4">
+            <div class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div class="flex items-start">
+                    <i class="fas fa-lightbulb text-amber-600 mr-2 mt-0.5"></i>
+                    <div class="text-sm text-amber-700">
+                        <strong>Recommendation:</strong> Auto-generated back translations are usually more accurate and consistent. 
+                        Only upload manually if you have a specific reason.
+                    </div>
+                </div>
+            </div>
+            
+            <form id="upload-back-translation-form">
+                <div class="mb-4">
+                    <label for="back-translation-file" class="block text-sm font-medium text-neutral-700 mb-2">
+                        Select back translation file (.txt)
+                    </label>
+                    <input type="file" 
+                           id="back-translation-file" 
+                           name="back_translation_file" 
+                           accept=".txt"
+                           class="block w-full text-sm text-neutral-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-neutral-100 file:text-neutral-700 hover:file:bg-neutral-200"
+                           required>
+                </div>
+                
+                <div class="text-xs text-neutral-500 mt-2">
+                    The file should contain one back translation per line, matching the line count of your source text.
+                </div>
+            </form>
+        </div>
+        
+        <div class="px-6 py-4 border-t border-neutral-200 flex justify-end space-x-3">
+            <button id="cancel-upload-btn" class="px-4 py-2 text-neutral-600 hover:text-neutral-800 transition-colors">
+                Cancel
+            </button>
+            <button id="confirm-upload-btn" class="px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-neutral-800 transition-colors">
+                Upload File
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Target Text Modal -->
+<div id="upload-target-text-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+        <div class="px-6 py-4 border-b border-neutral-200">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-neutral-900">Upload Target Text</h3>
+                <button id="close-target-upload-modal-btn" class="text-neutral-400 hover:text-neutral-600 transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="px-6 py-4">
+            <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div class="flex items-start">
+                    <i class="fas fa-info-circle text-blue-600 mr-2 mt-0.5"></i>
+                    <div class="text-sm text-blue-700">
+                        Upload target language text to use for back translation training. This can be biblical text, sample translations, or reference materials in your target language.
+                    </div>
+                </div>
+            </div>
+            
+            <form id="upload-target-text-form">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-neutral-700 mb-2">
+                        Choose upload method
+                    </label>
+                    <div class="space-y-3">
+                        <label class="flex items-center p-3 border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors">
+                            <input type="radio" name="upload_method" value="file" class="mr-3 text-blue-600 focus:ring-blue-500" checked>
+                            <div>
+                                <div class="font-medium text-neutral-900">Upload File</div>
+                                <div class="text-xs text-neutral-500">Upload a .txt file or eBible .txt file</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center p-3 border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors">
+                            <input type="radio" name="upload_method" value="text" class="mr-3 text-blue-600 focus:ring-blue-500">
+                            <div>
+                                <div class="font-medium text-neutral-900">Paste Text</div>
+                                <div class="text-xs text-neutral-500">Paste text directly into a text area</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <div id="file-upload-section" class="mb-4">
+                    <label for="target-text-file" class="block text-sm font-medium text-neutral-700 mb-2">
+                        Select target text file
+                    </label>
+                    <input type="file" 
+                           id="target-text-file" 
+                           name="target_text_file" 
+                           accept=".txt"
+                           class="block w-full text-sm text-neutral-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-neutral-100 file:text-neutral-700 hover:file:bg-neutral-200">
+                </div>
+                
+                <div id="text-paste-section" class="mb-4 hidden">
+                    <label for="target-text-content" class="block text-sm font-medium text-neutral-700 mb-2">
+                        Paste target text
+                    </label>
+                    <textarea id="target-text-content" 
+                              name="target_text_content" 
+                              rows="8" 
+                              maxlength="16000"
+                              class="w-full p-4 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-neutral-900 focus:border-transparent resize-none" 
+                              placeholder="Paste your target language text here..."></textarea>
+                    <div class="flex justify-between items-center mt-2">
+                        <p class="text-sm text-neutral-600">Maximum 16,000 characters</p>
+                        <span id="target-char-count" class="text-sm text-neutral-500">0 / 16,000</span>
+                    </div>
+                </div>
+                
+                <div class="text-xs text-neutral-500">
+                    Supported file types: .txt files with one verse or sentence per line.
+                </div>
+            </form>
+        </div>
+        
+        <div class="px-6 py-4 border-t border-neutral-200 flex justify-end space-x-3">
+            <button id="cancel-target-upload-btn" class="px-4 py-2 text-neutral-600 hover:text-neutral-800 transition-colors">
+                Cancel
+            </button>
+            <button id="confirm-target-upload-btn" class="px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-neutral-800 transition-colors">
+                Upload
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/project.js') }}"></script>
+{% endblock %} 

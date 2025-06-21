@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Projects - CodexZero{% endblock %}
+
+{% block content %}
+<section class="py-12 px-6">
+    <div class="max-w-4xl mx-auto">
+        <div class="flex items-center justify-between mb-12">
+            <h1 class="text-4xl font-bold tracking-tight">Your Projects</h1>
+            <a href="{{ url_for('new_project') }}" class="bg-neutral-900 text-white px-6 py-3 rounded-sm hover:bg-neutral-800 transition-all duration-200">
+                <i class="fas fa-plus mr-2"></i>
+                New Project
+            </a>
+        </div>
+        
+        {% if projects %}
+            <div class="space-y-6">
+                {% for project in projects %}
+                <a href="{{ url_for('view_project', project_id=project.id) }}" class="group block py-6 px-4 -mx-4 rounded-lg hover:bg-neutral-50 transition-all duration-200">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-grow">
+                            <h3 class="text-xl font-semibold text-neutral-900 group-hover:text-neutral-800 transition-colors mb-2">
+                                {{ project.target_language }} Translation
+                            </h3>
+                            <p class="text-neutral-600 text-sm mb-3 leading-relaxed">
+                                For {{ project.audience }} • {{ project.style }} style
+                            </p>
+                            <div class="flex items-center text-xs text-neutral-500">
+                                <i class="fas fa-calendar mr-2"></i>
+                                Updated {{ project.updated_at.strftime('%b %d, %Y') }}
+                                {% if project.files %}
+                                <span class="mx-2">•</span>
+                                <i class="fas fa-file-alt mr-1"></i>
+                                {{ project.files|length }} file{{ 's' if project.files|length != 1 else '' }}
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <i class="fas fa-arrow-right text-neutral-400"></i>
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-24">
+                <div class="w-16 h-16 bg-neutral-100 rounded-lg mb-6 flex items-center justify-center mx-auto">
+                    <i class="fas fa-folder-open text-2xl text-neutral-400"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-4">No projects yet</h3>
+                <p class="text-neutral-600 mb-8 max-w-md mx-auto">
+                    Create your first translation project to get started.
+                </p>
+                <a href="{{ url_for('new_project') }}" class="bg-neutral-900 text-white px-6 py-3 rounded-sm hover:bg-neutral-800 transition-all duration-200 inline-block">
+                    <i class="fas fa-plus mr-2"></i>
+                    Create Your First Project
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %} 

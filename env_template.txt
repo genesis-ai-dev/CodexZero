@@ -1,0 +1,32 @@
+# Copy this to .env and fill in your actual values
+
+# Database Configuration
+DATABASE_URL=mysql+pymysql://codex_zero:codex_pass@localhost/codex_db
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID=your_google_client_id_here
+GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+
+# AI Translation Configuration
+# Anthropic API key is required for Claude-3.5-sonnet translation functionality
+ANTHROPIC_KEY=your_anthropic_api_key_here
+
+# Storage Configuration
+# For local development, use 'local'. For production, use 'spaces'
+STORAGE_TYPE=local
+
+# Local Storage (for development)
+LOCAL_STORAGE_PATH=uploads
+
+# DigitalOcean Spaces (for production)
+DO_SPACES_REGION=nyc3
+DO_SPACES_ENDPOINT=https://nyc3.digitaloceanspaces.com
+DO_SPACES_ACCESS_KEY=your_spaces_access_key
+DO_SPACES_SECRET_KEY=your_spaces_secret_key
+DO_SPACES_BUCKET=your_bucket_name
+
+# Flask Configuration
+FLASK_APP=app.py
+FLASK_ENV=development
+FLASK_DEBUG=1
+SECRET_KEY=codex-zero-dev-secret-key-change-in-production 

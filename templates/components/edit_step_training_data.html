@@ -1,0 +1,17 @@
+{% from 'components/file_importer.html' import file_importer %}
+
+<!-- Step 3: Training Data (Edit Mode) -->
+<div id="step-3" class="hidden opacity-0 translate-x-5 transition-all duration-500 ease-out">
+    {{ file_importer(context="edit", project=project, show_back_translation=false, show_usfm=true) }}
+    
+    <div class="flex justify-between pt-8">
+        <button type="button" id="prev-step-3" class="text-neutral-600 hover:text-neutral-900 transition-colors px-6 py-3">
+            <i class="fas fa-arrow-left mr-2"></i>
+            Back
+        </button>
+        <button type="submit" class="bg-neutral-900 text-white px-8 py-3 rounded-sm hover:bg-neutral-800 transition-all duration-200">
+            <i class="fas fa-save mr-2"></i>
+            Update Project
+        </button>
+    </div>
+</div>

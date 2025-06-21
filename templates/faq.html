@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Frequently Asked Questions - CodexZero{% endblock %}
+
+{% block content %}
+<section class="py-12 px-6">
+    <div class="max-w-4xl mx-auto">
+        <div class="mb-16">
+            <h1 class="text-4xl font-bold tracking-tight mb-4">
+                Frequently Asked Questions
+            </h1>
+            <p class="text-xl text-neutral-600">
+                Everything you need to know about CodexZero and the translation process
+            </p>
+        </div>
+
+        <div class="space-y-8">
+            <!-- General Questions -->
+            <div>
+                <h2 class="text-2xl font-semibold text-neutral-900 mb-6">General</h2>
+                <div class="space-y-6">
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">What is CodexZero?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            CodexZero is a tool for generating zero drafts of Bible translations using AI. It helps translators create initial drafts that preserve the target language's natural structure rather than imposing source language patterns.
+                        </p>
+                    </div>
+
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">How does CodexZero work?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            CodexZero uses a three-step translation loop: (1) Generate back translations of your training materials to understand target language structure, (2) Use those patterns to translate new passages, and (3) Review and refine the results. This approach helps avoid imposing source language syntax onto target languages.
+                        </p>
+                    </div>
+
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Is CodexZero free to use?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            The platform itself is free. However, AI translation services have costs. We use batch processing to reduce these costs by 50% compared to real-time translation, making it more affordable for translation projects.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Back Translation Questions -->
+            <div>
+                <h2 class="text-2xl font-semibold text-neutral-900 mb-6">Back Translations</h2>
+                <div class="space-y-6">
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">What are back translations?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            Back translations are literal, word-for-word translations of your target language materials back into English. They help the AI understand the natural structure and patterns of your target language, preventing it from imposing English grammar onto the target language.
+                        </p>
+                    </div>
+
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Why do back translations take so long?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            We use batch processing to reduce costs by 50%. This means your translation requests are queued and processed together with others, which can take up to 24 hours. The trade-off is significant cost savings for large translation projects.
+                        </p>
+                    </div>
+
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Can I leave the page while back translations are processing?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            Yes! You can safely close your browser or navigate away from the page. Your job will continue processing in the background. Just return to your project page later to check the results.
+                        </p>
+                    </div>
+
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">What files can I upload for back translation?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            You can upload eBible files or paste text directly. The system works best with existing translations, reference materials, or any text in your target language that demonstrates natural language patterns.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Language Rules Questions -->
+            <div>
+                <h2 class="text-2xl font-semibold text-neutral-900 mb-6">Language Rules & Context</h2>
+                <div class="space-y-6">
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">What are language rules?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            Language rules are custom instructions you provide to guide the AI translator. They can include grammar preferences, cultural considerations, vocabulary choices, or any specific guidance about how to translate for your target language and audience.
+                        </p>
+                    </div>
+
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">What kind of language rules should I add?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            Examples include: "Use active voice instead of passive voice," "Avoid direct commands as they're considered rude," "Use 'start' instead of 'commence'," or "Use British spelling (colour, honour, etc.)." The more specific, the better.
+                        </p>
+                    </div>
+
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Can I edit language rules after creating a project?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            Yes! You can add, edit, or remove language rules at any time by clicking the "Edit Project" button on your project page.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Technical Questions -->
+            <div>
+                <h2 class="text-2xl font-semibold text-neutral-900 mb-6">Technical</h2>
+                <div class="space-y-6">
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Which AI model does CodexZero use?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            We use Anthropic's Claude Sonnet 4, which is specifically designed for high-quality text processing and translation tasks.
+                        </p>
+                    </div>
+
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Is my data secure?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            Yes. Your projects and files are private to your account. Translation jobs are processed securely through Anthropic's API. Batch results are available for 29 days before being automatically deleted.
+                        </p>
+                    </div>
+
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">What happens if a batch job fails?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            If a batch job fails or expires, you'll see an error message on your project page. You can simply restart the process. Failed jobs don't incur any costs.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">How accurate are the translations?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            CodexZero creates zero drafts - initial translations that require human review and refinement. The quality depends on your training materials and language rules. Always have qualified translators review and revise the output.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-16 p-6 bg-neutral-50 rounded-sm border border-neutral-200">
+            <h3 class="text-lg font-semibold text-neutral-900 mb-2">Still have questions?</h3>
+            <p class="text-neutral-600">
+                If you can't find the answer you're looking for, feel free to reach out for support.
+            </p>
+        </div>
+    </div>
+</section>
+{% endblock %} 

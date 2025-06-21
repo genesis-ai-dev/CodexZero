@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USFM Import - {{ project.name }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-neutral-50 min-h-screen">
+    <!-- Header -->
+    <div class="bg-white border-b border-neutral-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <a href="{{ url_for('view_project', project_id=project.id) }}" 
+                       class="text-neutral-600 hover:text-neutral-900 transition-colors">
+                        <i class="fas fa-arrow-left mr-2"></i>Back to Project
+                    </a>
+                    <div class="h-6 w-px bg-neutral-300"></div>
+                    <h1 class="text-xl font-semibold text-neutral-900">USFM Import</h1>
+                </div>
+                <div class="text-sm text-neutral-600">
+                    Project: <span class="font-medium">{{ project.name }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Progress Overview -->
+        <div class="bg-white rounded-lg shadow-sm border border-neutral-200 p-6 mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-neutral-900">Bible Progress</h2>
+                <div class="text-lg font-bold text-purple-600">
+                    <span id="completion-percentage">0.0%</span>
+                </div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="w-full bg-neutral-200 rounded-full h-4 mb-4">
+                <div id="progress-bar" class="bg-purple-600 h-4 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+            
+            <!-- Stats -->
+            <div class="flex justify-center space-x-8 text-center">
+                <div>
+                    <div class="text-2xl font-bold text-green-600" id="filled-verses">0</div>
+                    <div class="text-sm text-neutral-600">Verses</div>
+                </div>
+                <div class="text-neutral-300">of</div>
+                <div>
+                    <div class="text-2xl font-bold text-neutral-700" id="total-verses">31,170</div>
+                    <div class="text-sm text-neutral-600">Total</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Upload Section -->
+            <div class="bg-white rounded-lg shadow-sm border border-neutral-200 p-6">
+                <h3 class="text-lg font-semibold text-neutral-900 mb-4">Add USFM Files</h3>
+                
+                <div class="space-y-4">
+                    <input type="file" 
+                           id="usfm-files" 
+                           accept=".usfm,.sfm,.txt" 
+                           multiple 
+                           class="block w-full text-sm text-neutral-500 file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700 transition-colors">
+                    
+                    <button id="upload-btn" 
+                            class="w-full px-6 py-3 bg-purple-600 text-white rounded-sm hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-upload mr-2"></i>
+                        Upload & Add to Bible
+                    </button>
+                    
+                    <div class="text-xs text-neutral-500 text-center">
+                        Upload books one at a time or all at once
+                    </div>
+                </div>
+            </div>
+
+            <!-- Uploaded Files -->
+            <div class="bg-white rounded-lg shadow-sm border border-neutral-200 p-6">
+                <h3 class="text-lg font-semibold text-neutral-900 mb-4">Files Added</h3>
+                
+                <div id="uploaded-files-list" class="space-y-2 max-h-64 overflow-y-auto">
+                    <div id="no-files-message" class="text-center py-8 text-neutral-400">
+                        <i class="fas fa-file-code text-2xl mb-2"></i>
+                        <p class="text-sm">No files uploaded yet</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Complete Section -->
+        <div class="mt-6 bg-white rounded-lg shadow-sm border border-neutral-200 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-neutral-900">Create eBible File</h3>
+                    <p class="text-sm text-neutral-600">Finish when you have all the books you want</p>
+                </div>
+                
+                <button id="complete-btn" 
+                        class="px-8 py-3 bg-green-600 text-white rounded-sm hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-lg font-medium"
+                        disabled>
+                    <i class="fas fa-check mr-2"></i>
+                    Complete & Download
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const projectId = {{ project.id }};
+        let uploadedFiles = [];
+        let currentStats = {
+            total_verses: 31170,
+            filled_verses: 0,
+            missing_verses: 31170,
+            completion_percentage: 0
+        };
+
+        // DOM Elements
+        const uploadBtn = document.getElementById('upload-btn');
+        const completeBtn = document.getElementById('complete-btn');
+        const fileInput = document.getElementById('usfm-files');
+        const uploadedFilesList = document.getElementById('uploaded-files-list');
+        const noFilesMessage = document.getElementById('no-files-message');
+
+        // Progress elements
+        const progressBar = document.getElementById('progress-bar');
+        const completionPercentage = document.getElementById('completion-percentage');
+        const filledVerses = document.getElementById('filled-verses');
+
+        // Upload button handler
+        uploadBtn.addEventListener('click', function() {
+            const files = fileInput.files;
+            if (files.length === 0) {
+                alert('Please select at least one USFM file');
+                return;
+            }
+            
+            uploadFiles(files);
+        });
+
+        // Complete button handler
+        completeBtn.addEventListener('click', function() {
+            if (uploadedFiles.length === 0) {
+                alert('Please upload at least one USFM file before completing');
+                return;
+            }
+            
+            completeImport();
+        });
+
+        function uploadFiles(files) {
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading...';
+            
+            const formData = new FormData();
+            
+            // Add all files
+            for (let i = 0; i < files.length; i++) {
+                formData.append('usfm_files', files[i]);
+            }
+            
+            fetch(`/project/${projectId}/usfm-upload`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Add uploaded files to list
+                    data.uploaded_files.forEach(file => {
+                        addUploadedFile(file);
+                    });
+                    
+                    // Update progress
+                    updateProgress(data.stats);
+                    
+                    // Clear file input
+                    fileInput.value = '';
+                    
+                    // Show success message
+                    showMessage(data.message, 'success');
+                    
+                } else {
+                    showMessage(data.error || 'Upload failed', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Upload error:', error);
+                showMessage('Upload failed: ' + error.message, 'error');
+            })
+            .finally(() => {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload Files';
+            });
+        }
+
+        function addUploadedFile(file) {
+            // Hide no files message
+            noFilesMessage.classList.add('hidden');
+            
+            // Create file element
+            const fileElement = document.createElement('div');
+            fileElement.className = 'flex items-center justify-between p-3 border border-neutral-200 rounded-lg bg-neutral-50';
+            fileElement.innerHTML = `
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-check-circle text-green-600"></i>
+                    <div>
+                        <div class="font-medium text-sm text-neutral-900">${file.filename}</div>
+                        <div class="text-xs text-neutral-500">
+                            ${file.verses_count} verses • ${file.books.join(', ')}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            uploadedFilesList.appendChild(fileElement);
+            uploadedFiles.push(file);
+            
+            // Enable complete button if files uploaded
+            if (uploadedFiles.length > 0) {
+                completeBtn.disabled = false;
+            }
+        }
+
+        function updateProgress(stats) {
+            currentStats = stats;
+            
+            // Update progress bar
+            progressBar.style.width = `${stats.completion_percentage}%`;
+            
+            // Update text values
+            completionPercentage.textContent = `${stats.completion_percentage.toFixed(1)}%`;
+            filledVerses.textContent = stats.filled_verses.toLocaleString();
+        }
+
+        function completeImport() {
+            completeBtn.disabled = true;
+            completeBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Completing...';
+            
+            fetch(`/project/${projectId}/usfm-complete`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                    
+                    // Redirect to project page after a short delay
+                    setTimeout(() => {
+                        window.location.href = `/project/${projectId}`;
+                    }, 2000);
+                    
+                } else {
+                    showMessage(data.error || 'Completion failed', 'error');
+                    completeBtn.disabled = false;
+                    completeBtn.innerHTML = '<i class="fas fa-check mr-2"></i>Complete Import';
+                }
+            })
+            .catch(error => {
+                console.error('Completion error:', error);
+                showMessage('Completion failed: ' + error.message, 'error');
+                completeBtn.disabled = false;
+                completeBtn.innerHTML = '<i class="fas fa-check mr-2"></i>Complete Import';
+            });
+        }
+
+        function showMessage(message, type) {
+            // Create message element
+            const messageElement = document.createElement('div');
+            messageElement.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+                type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'
+            }`;
+            messageElement.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            document.body.appendChild(messageElement);
+            
+            // Remove after 5 seconds
+            setTimeout(() => {
+                messageElement.remove();
+            }, 5000);
+        }
+
+        // Load existing progress on page load
+        fetch(`/project/${projectId}/usfm-status`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.stats) {
+                    updateProgress(data.stats);
+                }
+                if (data.uploaded_files && data.uploaded_files.length > 0) {
+                    data.uploaded_files.forEach(file => {
+                        addUploadedFile(file);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error loading status:', error);
+            });
+    </script>
+</body>
+</html> 

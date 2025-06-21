@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Translation Test - {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold text-neutral-800">Translation Quality Test</h1>
+            <p class="text-neutral-500 mt-1">Evaluate AI translation performance for <a href="{{ url_for('view_project', project_id=project.id) }}" class="text-blue-600 hover:underline">{{ project.name }}</a>.</p>
+        </div>
+    </div>
+
+    <div class="max-w-2xl mx-auto space-y-8">
+        <!-- Step 1: Select File and Configuration -->
+        <div class="bg-white border border-neutral-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-neutral-800 mb-1">Configure Translation Test</h3>
+            <p class="text-sm text-neutral-500 mb-4">Choose a completed back-translation job and specify how many random lines to test.</p>
+            
+            <div class="space-y-4 mb-4">
+                <div>
+                    <label for="back-translation-job" class="block text-sm font-medium text-neutral-700">Back-Translation File</label>
+                    <select id="back-translation-job" name="back-translation-job" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-neutral-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                        <option value="" disabled selected>Select a file...</option>
+                        {% for job in back_translation_jobs %}
+                        <option value="{{ job.id }}">{{ job.source_filename }} ({{ job.total_lines }} lines)</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="num-lines" class="block text-sm font-medium text-neutral-700">Lines to Test</label>
+                        <input type="number" id="num-lines" name="num-lines" min="1" max="50" value="1" 
+                               class="mt-1 block w-full px-3 py-2 border border-neutral-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        <p class="mt-1 text-xs text-neutral-500">1-50 lines</p>
+                    </div>
+                    <div>
+                        <label for="example-counts" class="block text-sm font-medium text-neutral-700">Example Counts to Test</label>
+                        <input type="text" id="example-counts" name="example-counts" value="0,5,15" 
+                               class="mt-1 block w-full px-3 py-2 border border-neutral-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        <p class="mt-1 text-xs text-neutral-500">Comma-separated values, 0-25 each, max 10 values (e.g., 0,5,10,15,25)</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-end">
+                <button type="button" id="run-test-btn" disabled
+                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-neutral-300 disabled:cursor-not-allowed">
+                    Run Test
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading state -->
+        <div id="loading-section" class="text-center py-8 hidden">
+            <div class="text-neutral-500">Running tests...</div>
+        </div>
+
+        <!-- Results -->
+        <div id="test-results" class="space-y-6 hidden">
+            <!-- Results will be rendered here by JavaScript -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/test_translation.js') }}"></script>
+{% endblock %} 

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Project - CodexZero{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/new_project.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="py-12 px-6">
+    <div class="max-w-3xl mx-auto">
+        <div class="mb-8">
+            <a href="{{ url_for('view_project', project_id=project.id) }}" class="text-sm text-neutral-600 hover:text-neutral-900 transition-colors">
+                <i class="fas fa-arrow-left mr-1"></i>
+                Back to Project
+            </a>
+        </div>
+        
+        <h1 class="text-4xl font-bold tracking-tight mb-12">Edit Project</h1>
+        
+        {% include 'components/step_indicator.html' %}
+        
+        <div class="p-8">
+            <form method="POST" action="{{ url_for('update_project', project_id=project.id) }}" enctype="multipart/form-data" class="space-y-8">
+                {% include 'components/edit_step_translation_goals.html' %}
+                {% include 'components/edit_step_language_details.html' %}
+                {% include 'components/edit_step_training_data.html' %}
+                
+                {% include 'components/form_datalists.html' %}
+                
+                <div class="fixed bottom-6 left-6">
+                    <a href="{{ url_for('view_project', project_id=project.id) }}" class="text-sm text-neutral-600 hover:text-neutral-900 transition-colors">
+                        <i class="fas fa-arrow-left mr-1"></i>
+                        Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+<script src="{{ url_for('static', filename='js/new_project.js') }}"></script>
+{% endblock %} 

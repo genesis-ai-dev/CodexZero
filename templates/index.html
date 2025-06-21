@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="py-24 px-6">
+    <div class="max-w-4xl mx-auto text-center">
+        <h1 class="text-7xl font-bold tracking-tight mb-6">Codex Zero</h1>
+        <p class="text-2xl text-neutral-600 mb-12 max-w-3xl mx-auto leading-relaxed">
+            Draft the Bible into any language in less than a Day.
+        </p>
+        
+        {% if current_user.is_authenticated %}
+            <a href="{{ url_for('dashboard') }}" class="bg-neutral-900 text-white px-8 py-4 rounded-sm hover:bg-neutral-800 transition-all duration-200 text-lg">
+                <i class="fas fa-folder mr-2"></i>
+                Go to Projects
+            </a>
+        {% else %}
+            <a href="{{ url_for('auth.login') }}" class="bg-neutral-900 text-white px-8 py-4 rounded-sm hover:bg-neutral-800 transition-all duration-200 text-lg">
+                <i class="fab fa-google mr-2"></i>
+                Get Started
+            </a>
+        {% endif %}
+    </div>
+</section>
+
+<section class="py-24 px-6 bg-white">
+    <div class="max-w-6xl mx-auto">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-neutral-100 rounded-lg mb-6 flex items-center justify-center mx-auto">
+                    <i class="fas fa-chart-line text-2xl text-neutral-600"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-4">Superior First Drafts</h3>
+                <p class="text-neutral-600">While zero drafts require extensive human refinement and post-editing, they often outperform human first drafts significantly</p>
+            </div>
+            <div class="text-center">
+                <div class="w-16 h-16 bg-neutral-100 rounded-lg mb-6 flex items-center justify-center mx-auto">
+                    <i class="fas fa-comments text-2xl text-neutral-600"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-4">Freedom to Critique</h3>
+                <p class="text-neutral-600">Even when draft quality is low, zero drafts give your translation team something they can freely criticize and improve upon</p>
+            </div>
+            <div class="text-center">
+                <div class="w-16 h-16 bg-neutral-100 rounded-lg mb-6 flex items-center justify-center mx-auto">
+                    <i class="fas fa-rocket text-2xl text-neutral-600"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-4">Reignite Stagnated Projects</h3>
+                <p class="text-neutral-600">CodexZero can leverage your past work to fill in the blanks and breathe new life into stalled translation projects</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %} 
