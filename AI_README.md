@@ -127,8 +127,23 @@ Project.instructions -> TEXT field for instruction-based translation (max 4000 c
 - Project ownership and access control
 - Session management with secure cookies
 
+### Modern Dashboard Interface
+- Clean, full-width dashboard design without card-based layouts
+- Marker pen aesthetic with black borders and minimal color palette
+- Icon-only header navigation for streamlined user experience
+- Focused information display eliminating redundant metrics
+- Consistent styling across all interactive elements
+
 ## Development Philosophy
 **FAIL FAST AND LOUD** - The codebase explicitly avoids defensive programming patterns, error handling, and input validation. See `CODING_RULES.md` for detailed guidelines on this approach.
+
+## UI/UX Design Philosophy
+**MARKER ON OFF-WHITE** - The interface uses a clean, marker pen aesthetic with black borders and minimal colors (primarily black and green). Design principles include:
+- Full-width dashboard layouts without card styling
+- Consistent rounded corners (≈5px) and black borders on all interactive elements
+- Icon-only buttons in headers for clean navigation
+- Elimination of redundant information displays
+- Focus on essential functionality over decorative metrics
 
 ## Configuration
 - Environment-based configuration via `.env`

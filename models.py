@@ -41,6 +41,7 @@ class Project(db.Model):
     # Relationships
     files = db.relationship('ProjectFile', backref='project', lazy=True, cascade='all, delete-orphan')
     language_rules = db.relationship('LanguageRule', backref='project', lazy=True, cascade='all, delete-orphan')
+    translations = db.relationship('Translation', backref='project', lazy=True, cascade='all, delete-orphan')
     
     def __repr__(self):
         return f'<Project {self.target_language}>'
@@ -114,4 +115,33 @@ class BackTranslationJob(db.Model):
     completed_at = db.Column(db.DateTime)
     
     def __repr__(self):
-        return f'<BackTranslationJob {self.batch_id}>' 
+        return f'<BackTranslationJob {self.batch_id}>'
+
+class Translation(db.Model):
+    __tablename__ = 'translations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    
+    # Translation details
+    name = db.Column(db.String(255), nullable=False)
+    storage_path = db.Column(db.String(500), nullable=False)
+    
+    # Type and source information
+    translation_type = db.Column(db.String(50), default='draft')  # 'draft', 'source', 'back_translation'
+    source_language = db.Column(db.String(100))  # Language code or name
+    target_language = db.Column(db.String(100))  # Language code or name
+    is_complete = db.Column(db.Boolean, default=False)  # Whether this translation is complete
+    
+    # Progress tracking
+    total_verses = db.Column(db.Integer, default=31170)  # Total verses in Bible
+    translated_verses = db.Column(db.Integer, default=0)
+    progress_percentage = db.Column(db.Float, default=0.0)
+    
+    # Metadata
+    description = db.Column(db.Text)  # Optional description
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<Translation {self.name} ({self.translation_type})>' 

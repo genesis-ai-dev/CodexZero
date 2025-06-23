@@ -1551,7 +1551,39 @@ def faq():
     """FAQ page"""
     return render_template('faq.html')
 
+@app.route('/api/project/<int:project_id>')
+@login_required
+def get_project_info(project_id):
+    """Get project information for API access"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    return jsonify({
+        'id': project.id,
+        'target_language': project.target_language,
+        'audience': project.audience,
+        'style': project.style,
+        'instructions': project.instructions
+    })
 
+@app.route('/project/<int:project_id>/back-translation-jobs')
+@login_required
+def get_back_translation_jobs(project_id):
+    """Get completed back translation jobs for a project"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    jobs = BackTranslationJob.query.filter_by(
+        project_id=project_id, 
+        status='completed'
+    ).order_by(BackTranslationJob.created_at.desc()).all()
+    
+    jobs_data = [{
+        'id': job.id,
+        'source_filename': job.source_filename,
+        'total_lines': job.total_lines,
+        'completed_at': job.completed_at.isoformat() if job.completed_at else None
+    } for job in jobs]
+    
+    return jsonify({'jobs': jobs_data})
 
 if __name__ == '__main__':
     # For development only - disable in production

@@ -5,10 +5,13 @@ import random
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from thefuzz import fuzz
+from datetime import datetime
 
-from models import BackTranslationJob, Project
+from models import BackTranslationJob, Project, Translation, ProjectFile, db
 from ai.bot import Chatbot
 from ai.contextquery import ContextQuery
+from utils.translation_manager import VerseReferenceManager, TranslationFileManager
+from storage import get_storage
 
 translation = Blueprint('translation', __name__)
 
@@ -583,4 +586,333 @@ TRANSLATION:"""
 
 def _generate_translation_with_examples(text, target_language, examples, source_descriptions):
     """Generates a translation using the AI, including examples."""
-    return _generate_translation_with_examples_and_instructions(text, target_language, examples, None, source_descriptions) 
+    return _generate_translation_with_examples_and_instructions(text, target_language, examples, None, source_descriptions)
+
+
+# ===== NEW TRANSLATION EDITOR ENDPOINTS =====
+
+@translation.route('/project/<int:project_id>/texts')
+@login_required
+def list_all_texts(project_id):
+    """List all available texts (eBible files + all translations) - unified endpoint"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    texts = []
+    
+    # Add eBible files
+    ebible_files = ProjectFile.query.filter_by(
+        project_id=project_id,
+        file_type='ebible'
+    ).all()
+    
+    for file in ebible_files:
+        texts.append({
+            'id': f"file_{file.id}",
+            'name': file.original_filename,
+            'type': 'eBible File',
+            'progress': 100,  # eBible files are always complete
+            'created_at': file.created_at.isoformat()
+        })
+    
+    # Add back translation files
+    back_translation_files = ProjectFile.query.filter_by(
+        project_id=project_id,
+        file_type='back_translation'
+    ).all()
+    
+    for file in back_translation_files:
+        texts.append({
+            'id': f"file_{file.id}",
+            'name': file.original_filename,
+            'type': 'Back Translation',
+            'progress': 100,  # Back translation files are complete when created
+            'created_at': file.created_at.isoformat()
+        })
+    
+    # Add all translations
+    translations = Translation.query.filter_by(project_id=project_id).all()
+    
+    for trans in translations:
+        # Calculate progress
+        try:
+            file_manager = TranslationFileManager(trans.storage_path)
+            translated_count, progress_percentage = file_manager.calculate_progress()
+            
+            # Update database with current progress
+            trans.translated_verses = translated_count
+            trans.progress_percentage = progress_percentage
+            
+            texts.append({
+                'id': f"translation_{trans.id}",
+                'name': trans.name,
+                'type': 'Translation',
+                'progress': round(progress_percentage, 1),
+                'translated_verses': trans.translated_verses,
+                'created_at': trans.created_at.isoformat()
+            })
+        except Exception as e:
+            print(f"Error calculating progress for translation {trans.id}: {e}")
+            texts.append({
+                'id': f"translation_{trans.id}",
+                'name': trans.name,
+                'type': 'Translation',
+                'progress': 0.0,
+                'translated_verses': 0,
+                'created_at': trans.created_at.isoformat()
+            })
+    
+    # Commit progress updates
+    db.session.commit()
+    
+    return jsonify({'texts': texts})
+
+
+@translation.route('/project/<int:project_id>/translations', methods=['POST'])
+@login_required  
+def create_translation(project_id):
+    """Create new translation"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    
+    if not name:
+        return jsonify({'error': 'Translation name is required'}), 400
+    
+    if len(name) > 255:
+        return jsonify({'error': 'Translation name too long'}), 400
+    
+    # Check if name already exists for this project
+    existing = Translation.query.filter_by(project_id=project_id, name=name).first()
+    if existing:
+        return jsonify({'error': 'Translation name already exists'}), 400
+    
+    try:
+        # Create new translation file
+        storage_path = TranslationFileManager.create_new_translation_file(project_id, name)
+        
+        # Create database record - simple defaults
+        translation = Translation(
+            project_id=project_id,
+            name=name,
+            storage_path=storage_path,
+            translation_type='draft'  # default to draft
+        )
+        
+        db.session.add(translation)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'translation': {
+                'id': translation.id,
+                'name': translation.name,
+                'progress': 0.0,
+                'translated_verses': 0,
+                'total_verses': translation.total_verses,
+                'created_at': translation.created_at.isoformat()
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creating translation: {e}")
+        return jsonify({'error': 'Failed to create translation'}), 500
+
+
+
+
+
+@translation.route('/project/<int:project_id>/translation/<target_id>/chapter/<book>/<int:chapter>')
+@login_required
+def get_chapter_verses(project_id, target_id, book, chapter):
+    """Get all verses for a specific chapter"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    source_id = request.args.get('source_id')
+    if not source_id:
+        return jsonify({'error': 'source_id is required'}), 400
+    
+    try:
+        # Get verse references for this chapter
+        verse_ref_manager = VerseReferenceManager()
+        chapter_verses = verse_ref_manager.get_chapter_verses(book, chapter)
+        
+        if not chapter_verses:
+            return jsonify({'error': 'Chapter not found'}), 404
+        
+        # Get target text - handle both translation IDs and file IDs
+        target_texts = []
+        if target_id.startswith('file_'):
+            # Target is a file (eBible or back translation)
+            file_id = int(target_id.replace('file_', ''))
+            target_file = ProjectFile.query.filter_by(
+                id=file_id,
+                project_id=project_id
+            ).first_or_404()
+            
+            storage = get_storage()
+            target_content = storage.get_file(target_file.storage_path).decode('utf-8')
+            target_lines = target_content.split('\n')
+            
+            # Ensure target file has enough lines
+            while len(target_lines) < 31170:
+                target_lines.append('')
+            
+            verse_indices = [v['index'] for v in chapter_verses]
+            target_texts = [target_lines[i] if i < len(target_lines) else '' for i in verse_indices]
+            
+        elif target_id.startswith('translation_'):
+            # Target is a translation
+            translation_id = int(target_id.replace('translation_', ''))
+            translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
+            
+            translation_manager = TranslationFileManager(translation.storage_path)
+            verse_indices = [v['index'] for v in chapter_verses]
+            target_texts = translation_manager.get_chapter_verses(verse_indices)
+            
+        else:
+            # Assume it's a direct translation ID (for backward compatibility)
+            try:
+                translation_id = int(target_id)
+                translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
+                
+                translation_manager = TranslationFileManager(translation.storage_path)
+                verse_indices = [v['index'] for v in chapter_verses]
+                target_texts = translation_manager.get_chapter_verses(verse_indices)
+            except ValueError:
+                return jsonify({'error': 'Invalid target_id format'}), 400
+        
+        # Get source text - handle both file and translation sources
+        source_lines = []
+        if source_id.startswith('file_'):
+            # eBible file source
+            file_id = int(source_id.replace('file_', ''))
+            source_file = ProjectFile.query.filter_by(
+                id=file_id,
+                project_id=project_id
+            ).first_or_404()
+            
+            storage = get_storage()
+            source_content = storage.get_file(source_file.storage_path).decode('utf-8')
+            source_lines = source_content.split('\n')
+            
+        elif source_id.startswith('translation_'):
+            # Translation source
+            source_translation_id = int(source_id.replace('translation_', ''))
+            source_translation = Translation.query.filter_by(
+                id=source_translation_id,
+                project_id=project_id
+            ).first_or_404()
+            
+            source_manager = TranslationFileManager(source_translation.storage_path)
+            source_lines = source_manager.load_translation_file()
+        
+        else:
+            return jsonify({'error': 'Invalid source_id format'}), 400
+        
+        # Ensure source has enough lines
+        while len(source_lines) < 31170:
+            source_lines.append('')
+        
+        # Build response
+        verses_data = []
+        for i, verse_info in enumerate(chapter_verses):
+            source_text = source_lines[verse_info['index']] if verse_info['index'] < len(source_lines) else ''
+            target_text = target_texts[i] if i < len(target_texts) else ''
+            
+            verses_data.append({
+                'verse': verse_info['verse'],
+                'reference': verse_info['reference'],
+                'source_text': source_text,
+                'target_text': target_text,
+                'index': verse_info['index']
+            })
+        
+        return jsonify({
+            'book': book,
+            'chapter': chapter,
+            'verses': verses_data,
+            'source_id': source_id,
+            'target_id': target_id
+        })
+        
+    except Exception as e:
+        print(f"Error getting chapter verses: {e}")
+        return jsonify({'error': 'Failed to load chapter'}), 500
+
+
+@translation.route('/project/<int:project_id>/translation/<target_id>/verse/<int:verse_index>', methods=['POST'])
+@login_required
+def save_verse(project_id, target_id, verse_index):
+    """Save a single verse"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    data = request.get_json()
+    if not data or 'text' not in data:
+        return jsonify({'error': 'Verse text is required'}), 400
+    
+    verse_text = data['text']
+    
+    try:
+        # Handle different target types - all are now editable
+        if target_id.startswith('file_'):
+            # Target is a file (eBible or back translation) - now editable
+            file_id = int(target_id.replace('file_', ''))
+            target_file = ProjectFile.query.filter_by(
+                id=file_id,
+                project_id=project_id
+            ).first_or_404()
+            
+            # Load file, update verse, and save back
+            storage = get_storage()
+            target_content = storage.get_file(target_file.storage_path).decode('utf-8')
+            target_lines = target_content.split('\n')
+            
+            # Ensure file has enough lines
+            while len(target_lines) < 31170:
+                target_lines.append('')
+            
+            # Update the specific verse
+            target_lines[verse_index] = verse_text
+            
+            # Save back to storage
+            updated_content = '\n'.join(target_lines)
+            storage.store_file_content(updated_content, target_file.storage_path)
+            
+        elif target_id.startswith('translation_'):
+            # Target is a translation
+            translation_id = int(target_id.replace('translation_', ''))
+            translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
+            
+            translation_manager = TranslationFileManager(translation.storage_path)
+            translation_manager.save_verse(verse_index, verse_text)
+            
+            # Update progress
+            translation.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+        else:
+            # Assume it's a direct translation ID (for backward compatibility)
+            try:
+                translation_id = int(target_id)
+                translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
+                
+                translation_manager = TranslationFileManager(translation.storage_path)
+                translation_manager.save_verse(verse_index, verse_text)
+                
+                # Update progress
+                translation.updated_at = datetime.utcnow()
+                db.session.commit()
+                
+            except ValueError:
+                return jsonify({'error': 'Invalid target_id format'}), 400
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        print(f"Error saving verse: {e}")
+        return jsonify({'error': 'Failed to save verse'}), 500
+
+
+ 
