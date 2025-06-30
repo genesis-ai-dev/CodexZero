@@ -1,19 +1,23 @@
 import os
 import json
-import tempfile
 import random
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from thefuzz import fuzz
 from datetime import datetime
+import threading
 
-from models import BackTranslationJob, Project, Translation, ProjectFile, db
+from models import Project, Translation, ProjectFile, db
 from ai.bot import Chatbot
-from ai.contextquery import ContextQuery
+from ai.contextquery import ContextQuery, MemoryContextQuery
 from utils.translation_manager import VerseReferenceManager, TranslationFileManager
+
 from storage import get_storage
 
 translation = Blueprint('translation', __name__)
+
+# Create a lock for each file to prevent concurrent writes
+file_locks = {}
 
 def _parse_source_filenames(job):
     """Parse source filenames from job with proper error handling"""
@@ -31,249 +35,257 @@ def _parse_source_filenames(job):
 def translate_page(project_id):
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     
-    back_translation_jobs = BackTranslationJob.query.filter_by(
-        project_id=project_id, status='completed'
-    ).all()
+    # Load book chapters data
+    import json
+    import os
     
-    back_translation_jobs_data = [{
-        'id': job.id,
-        'source_filename': job.source_filename,
-        'total_lines': job.total_lines
-    } for job in back_translation_jobs]
+    book_chapters_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'book_chapters.json')
+    with open(book_chapters_path, 'r') as f:
+        book_chapters = json.load(f)
     
     return render_template('translate.html', 
                          project=project,
-                         back_translation_jobs=back_translation_jobs_data,
-                         linguistic_analysis_jobs=[])
+                         book_chapters=book_chapters)
 
 
-def _get_back_translation_examples(project_id, job_id, query_text):
-    job = BackTranslationJob.query.filter_by(
-        id=job_id, project_id=project_id, status='completed'
-    ).first()
+
+
+def _get_translation_examples(project_id, source_file_id, target_file_id, query_text, exclude_verse_index=None):
+    """Get examples using source and target files with context query"""
+    print(f"DEBUG: Getting examples for query: '{query_text}'")
+    print(f"DEBUG: source_file_id: {source_file_id}, target_file_id: {target_file_id}")
     
-    if not job:
-        return [], "Back translation job not found"
+    if not query_text:
+        return [], "No query text provided"
     
-    try:
-        # Load results from new storage format first, fallback to old format
-        if job.results_storage_path:
-            from storage import get_storage
-            storage = get_storage()
-            results_content = storage.get_file(job.results_storage_path).decode('utf-8')
-            back_translations = json.loads(results_content)
-        elif job.back_translations:
-            back_translations = json.loads(job.back_translations)
-        else:
-            return [], f"No back translation data in {job.source_filename}"
-    except (json.JSONDecodeError, TypeError) as e:
-        print(f"Failed to parse back translations: {e}")
-        return [], f"Invalid data in {job.source_filename}"
-    
+    # Load source content
     source_lines = []
+    if source_file_id.startswith('file_'):
+        file_id = int(source_file_id.replace('file_', ''))
+        project_file = ProjectFile.query.filter_by(id=file_id, project_id=project_id).first()
+        if project_file:
+            storage = get_storage()
+            file_content = storage.get_file(project_file.storage_path)
+            content = simple_decode_utf8(file_content)
+            source_lines = content.split('\n')
+            print(f"DEBUG: Loaded source file with {len(source_lines)} lines")
+        else:
+            print(f"DEBUG: Source file not found: {file_id}")
+    elif source_file_id.startswith('translation_'):
+        translation_id = int(source_file_id.replace('translation_', ''))
+        translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first()
+        if translation:
+            translation_manager = TranslationFileManager(translation.storage_path)
+            source_lines = translation_manager.load_translation_file()
+            print(f"DEBUG: Loaded source translation with {len(source_lines)} lines")
+        else:
+            print(f"DEBUG: Source translation not found: {translation_id}")
+    
+    # Load target content
     target_lines = []
+    if target_file_id.startswith('file_'):
+        file_id = int(target_file_id.replace('file_', ''))
+        project_file = ProjectFile.query.filter_by(id=file_id, project_id=project_id).first()
+        if project_file:
+            storage = get_storage()
+            file_content = storage.get_file(project_file.storage_path)
+            content = simple_decode_utf8(file_content)
+            target_lines = content.split('\n')
+            print(f"DEBUG: Loaded target file with {len(target_lines)} lines (content length: {len(content)} chars)")
+            print(f"DEBUG: First few lines: {target_lines[:3] if target_lines else []}")
+            print(f"DEBUG: Last few lines: {target_lines[-3:] if len(target_lines) >= 3 else target_lines}")
+        else:
+            print(f"DEBUG: Target file not found: {file_id}")
+    elif target_file_id.startswith('translation_'):
+        translation_id = int(target_file_id.replace('translation_', ''))
+        translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first()
+        if translation:
+            translation_manager = TranslationFileManager(translation.storage_path)
+            target_lines = translation_manager.load_translation_file()
+            print(f"DEBUG: Loaded target translation with {len(target_lines)} lines")
+        else:
+            print(f"DEBUG: Target translation not found: {translation_id}")
     
-    for result in back_translations:
-        back_translation = result.get('back_translation', '')
-        if not back_translation.startswith('[ERROR:'):
-            # Clean newlines from back translations to ensure one line per translation
-            clean_back_translation = ' '.join(back_translation.split())
-            source_lines.append(clean_back_translation)
-            target_lines.append(result.get('original', ''))
+    # Validate content
+    if not source_lines or not target_lines:
+        print(f"DEBUG: Missing content - source_lines: {len(source_lines) if source_lines else 0}, target_lines: {len(target_lines) if target_lines else 0}")
+        return [], "No valid source or target content found"
     
-    if not source_lines:
-        return [], f"No valid examples in {job.source_filename}"
+    # Handle length differences - allow up to 1000 line difference for Bible texts
+    line_diff = abs(len(source_lines) - len(target_lines))
+    if line_diff > 1000:
+        print(f"DEBUG: Length mismatch too large: {len(source_lines)} vs {len(target_lines)} (diff: {line_diff})")
+        return [], f"Source and target files have different lengths: {len(source_lines)} vs {len(target_lines)}"
+    
+    # Always ensure exactly the same line count for MemoryContextQuery
+    if len(source_lines) != len(target_lines):
+        min_len = min(len(source_lines), len(target_lines))
+        print(f"DEBUG: Line count difference of {line_diff} is acceptable. Adjusting lengths from {len(source_lines)}/{len(target_lines)} to {min_len}")
+        source_lines = source_lines[:min_len]
+        target_lines = target_lines[:min_len]
+    else:
+        print(f"DEBUG: Perfect line count match: {len(source_lines)} lines")
+    
+    # Final verification
+    if len(source_lines) != len(target_lines):
+        print(f"DEBUG: ERROR - Still have mismatched lengths after adjustment: {len(source_lines)} vs {len(target_lines)}")
+        return [], "Failed to align source and target files"
+    
+    # Check for non-empty content
+    non_empty_source = [line for line in source_lines if line.strip()]
+    non_empty_target = [line for line in target_lines if line.strip()]
+    print(f"DEBUG: Non-empty lines - source: {len(non_empty_source)}, target: {len(non_empty_target)}")
+    
+    # Use context query for examples
+    print(f"DEBUG: Creating MemoryContextQuery with {len(source_lines)} source and {len(target_lines)} target lines")
+    try:
+        cq = MemoryContextQuery(source_lines, target_lines)
+        print(f"DEBUG: Searching for query: '{query_text}' with top_k=10")
+        results = cq.search_by_text(query_text, top_k=10)
+        print(f"DEBUG: MemoryContextQuery returned {len(results)} results")
+        
+        for i, (verse_id, source_text, target_text, coverage) in enumerate(results[:3]):  # Show first 3
+            print(f"DEBUG: Result {i}: verse_id={verse_id}, coverage={coverage}, source='{source_text[:50]}...', target='{target_text[:50]}...'")
+    except Exception as e:
+        print(f"DEBUG: Error in MemoryContextQuery: {e}")
+        return [], f"Error in context query: {str(e)}"
     
     examples = []
-    try:
-        # Create temporary files for ContextQuery
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as source_file:
-            source_file.write('\n'.join(source_lines))
-            source_path = source_file.name
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as target_file:
-            target_file.write('\n'.join(target_lines))
-            target_path = target_file.name
-        
-        try:
-            # Initialize ContextQuery and find examples
-            cq = ContextQuery(source_path, target_path)
-            results = cq.search_by_text(query_text, top_k=15)
-            
-            # Format examples for the AI
-            for verse_id, source_text, target_text, coverage in results:
-                examples.append(f"English: {source_text.strip()}\n{target_text.strip()}")
-            
-        finally:
-            # Clean up temporary files
-            for path in [source_path, target_path]:
-                if os.path.exists(path):
-                    os.unlink(path)
+    excluded_count = 0
+    for verse_id, source_text, target_text, coverage in results:
+        # Skip the verse we're testing if exclude_verse_index is specified
+        # Note: MemoryContextQuery returns 1-based verse_id, but exclude_verse_index is 0-based
+        if exclude_verse_index is not None and verse_id == (exclude_verse_index + 1):
+            excluded_count += 1
+            print(f"DEBUG: Excluding verse {verse_id} (0-based index {exclude_verse_index}) from examples (test mode)")
+            continue
+        examples.append(f"English: {source_text.strip()}\n{target_text.strip()}")
     
-    except Exception as e:
-        print(f"Example search failed: {e}")
+    status_msg = f"Found {len(examples)} examples using context query"
+    if excluded_count > 0:
+        status_msg += f" (excluded {excluded_count} ground truth verses)"
     
-    return examples, f"Back translation from {job.source_filename}"
+    print(f"DEBUG: Final examples count: {len(examples)}")
+    return examples, status_msg
 
-@translation.route('/project/<int:project_id>/test')
-@login_required
-def test_page(project_id):
-    """Render the translation testing page."""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+def _get_verse_content(project_id, file_id, verse_index):
+    """Get content for a specific verse index"""
+    if file_id.startswith('file_'):
+        file_id_int = int(file_id.replace('file_', ''))
+        project_file = ProjectFile.query.filter_by(id=file_id_int, project_id=project_id).first()
+        if not project_file:
+            return ""
+        
+        storage = get_storage()
+        file_content = storage.get_file(project_file.storage_path)
+        content = simple_decode_utf8(file_content)
+        lines = content.split('\n')
+        return lines[verse_index] if verse_index < len(lines) else ""
+        
+    elif file_id.startswith('translation_'):
+        translation_id = int(file_id.replace('translation_', ''))
+        translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first()
+        if not translation:
+            return ""
+        
+        translation_manager = TranslationFileManager(translation.storage_path)
+        lines = translation_manager.load_translation_file()
+        return lines[verse_index] if verse_index < len(lines) else ""
     
-    back_translation_jobs = BackTranslationJob.query.filter_by(
-        project_id=project_id, status='completed'
-    ).all()
+    return ""
+
+def simple_decode_utf8(file_content):
+    """Simple UTF-8 decode that ignores problematic bytes"""
+    return file_content.decode('utf-8', errors='ignore')
+
+def _calculate_similarity_metrics(ai_translation, ground_truth):
+    """Calculate CHRF score between AI translation and ground truth"""
+    if not ai_translation or not ground_truth:
+        return {'error': 'Missing translation or ground truth'}
     
-    back_translation_jobs_data = [{
-        'id': job.id,
-        'source_filename': job.source_filename,
-        'total_lines': job.total_lines
-    } for job in back_translation_jobs]
+    # Clean texts
+    ai_clean = ai_translation.strip()
+    truth_clean = ground_truth.strip()
     
-    return render_template('test_translation.html', 
-                         project=project,
-                         back_translation_jobs=back_translation_jobs_data)
+    if not truth_clean:
+        return {'chrf_score': 0.0}
+    
+    # Calculate CHRF score
+    chrf_score = _compute_chrf_score(ai_clean, truth_clean)
+    
+    return {
+        'chrf_score': round(chrf_score * 100, 1)  # Convert to percentage
+    }
 
-@translation.route('/project/<int:project_id>/test/run', methods=['POST'])
-@login_required
-def run_translation_test(project_id):
-    """Run a translation test using the same logic as the main translate endpoint."""
-    try:
-        data = request.get_json()
-        job_id = data.get('job_id')
-        num_lines = data.get('num_lines', 1)  # Default to 1 for backward compatibility
-        example_counts = data.get('example_counts', [0, 5, 15])  # Default to original counts
+def _compute_chrf_score(candidate, reference, max_n=6):
+    """Compute CHRF score using character n-grams"""
+    from collections import Counter
+    
+    if not candidate or not reference:
+        return 0.0
+    
+    # Remove spaces for character-level analysis
+    candidate_chars = candidate.replace(' ', '')
+    reference_chars = reference.replace(' ', '')
+    
+    if not reference_chars:
+        return 0.0
+    
+    # Calculate precision and recall for character n-grams
+    total_precision = 0.0
+    total_recall = 0.0
+    
+    for n in range(1, max_n + 1):
+        # Get character n-grams
+        candidate_ngrams = _get_char_ngrams(candidate_chars, n)
+        reference_ngrams = _get_char_ngrams(reference_chars, n)
         
-        # Validate num_lines
-        if not isinstance(num_lines, int) or num_lines < 1 or num_lines > 50:
-            return jsonify({'success': False, 'error': 'Number of lines must be between 1 and 50.'})
+        if not candidate_ngrams and not reference_ngrams:
+            continue
         
-        # Validate example_counts
-        if not isinstance(example_counts, list) or len(example_counts) == 0 or len(example_counts) > 10:
-            return jsonify({'success': False, 'error': 'Example counts must be a list of 1-10 values.'})
-        
-        for count in example_counts:
-            if not isinstance(count, int) or count < 0 or count > 25:
-                return jsonify({'success': False, 'error': 'Each example count must be between 0 and 25.'})
-        
-        # Remove duplicates and sort
-        example_counts = sorted(list(set(example_counts)))
-        
-        # Get the project to extract target language
-        project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-        target_language = project.target_language
-        
-        job = BackTranslationJob.query.filter_by(id=job_id, project_id=project_id).first_or_404()
-
-        if job.status != 'completed':
-            return jsonify({'success': False, 'error': 'Selected file is not ready for testing.'})
-
-        # Load all lines from the job
-        if job.results_storage_path:
-            from storage import get_storage
-            storage = get_storage()
-            results_content = storage.get_file(job.results_storage_path).decode('utf-8')
-            all_lines = json.loads(results_content)
-        elif job.back_translations:
-            all_lines = json.loads(job.back_translations)
+        if not candidate_ngrams:
+            precision = 0.0
         else:
-            return jsonify({'success': False, 'error': 'No translation data found.'})
-
-        if not all_lines:
-            return jsonify({'success': False, 'error': 'The selected file is empty.'})
-
-        # Validate we have enough lines
-        valid_lines = [line for line in all_lines 
-                      if line.get('back_translation') and line.get('original') 
-                      and not line.get('back_translation', '').startswith('[ERROR:')]
-        
-        if len(valid_lines) < num_lines:
-            return jsonify({'success': False, 'error': f'Only {len(valid_lines)} valid lines available, but {num_lines} requested.'})
-        
-        # For multiple lines, we'll collect all individual results and then calculate averages
-        all_line_results = []
-        line_details = []
-        
-        # Sample random lines without replacement
-        selected_lines = random.sample(valid_lines, num_lines)
-        
-        for line_idx, ground_truth_line in enumerate(selected_lines):
-            text_to_translate = ground_truth_line.get('back_translation', '')
-            ground_truth_translation = ground_truth_line.get('original', '')
+            candidate_counts = Counter(candidate_ngrams)
+            reference_counts = Counter(reference_ngrams)
             
-            line_results = []
+            matches = sum(min(candidate_counts[ngram], reference_counts[ngram]) 
+                         for ngram in candidate_counts)
+            precision = matches / len(candidate_ngrams)
+        
+        if not reference_ngrams:
+            recall = 0.0
+        else:
+            candidate_counts = Counter(candidate_ngrams)
+            reference_counts = Counter(reference_ngrams)
             
-            for count in example_counts:
-                if count == 0:
-                    examples = []
-                else:
-                    # Get examples using the existing function, excluding the ground truth
-                    examples, _ = _get_back_translation_examples(project_id, job_id, text_to_translate)
-                    # Remove any example that matches our ground truth
-                    examples = [ex for ex in examples if ground_truth_translation not in ex]
-                    # Take only the requested number
-                    examples = examples[:count]
+            matches = sum(min(candidate_counts[ngram], reference_counts[ngram]) 
+                         for ngram in reference_counts)
+            recall = matches / len(reference_ngrams)
+        
+        total_precision += precision
+        total_recall += recall
+    
+    # Average precision and recall
+    avg_precision = total_precision / max_n
+    avg_recall = total_recall / max_n
+    
+    # F1 score
+    if avg_precision + avg_recall == 0:
+        return 0.0
+    
+    chrf_score = 2 * avg_precision * avg_recall / (avg_precision + avg_recall)
+    return chrf_score
 
-                # Use the same translation logic as the main translate endpoint
-                ai_translation = _generate_translation_with_examples(
-                    text_to_translate,
-                    target_language,
-                    examples,
-                    []
-                )
-                
-                # Calculate accuracy score
-                accuracy = fuzz.ratio(ai_translation.lower(), ground_truth_translation.lower())
+def _get_char_ngrams(text, n):
+    """Extract character n-grams from text"""
+    if len(text) < n:
+        return []
+    return [text[i:i+n] for i in range(len(text) - n + 1)]
 
-                line_results.append({
-                    'example_count': count,
-                    'translation': ai_translation,
-                    'accuracy': accuracy
-                })
-            
-            all_line_results.append(line_results)
-            line_details.append({
-                'line_number': line_idx + 1,
-                'input_text': text_to_translate,
-                'ground_truth': ground_truth_translation,
-                'results': line_results
-            })
-        
-        # Calculate average results across all lines
-        average_results = []
-        for count_idx, count in enumerate(example_counts):
-            accuracies = [line_results[count_idx]['accuracy'] for line_results in all_line_results]
-            average_accuracy = sum(accuracies) / len(accuracies)
-            
-            average_results.append({
-                'example_count': count,
-                'average_accuracy': round(average_accuracy, 1),
-                'min_accuracy': min(accuracies),
-                'max_accuracy': max(accuracies),
-                'individual_accuracies': accuracies
-            })
-        
-        response_data = {
-            'success': True,
-            'num_lines_tested': num_lines,
-            'average_results': average_results,
-            'line_details': line_details if num_lines <= 5 else [],  # Only include details for small tests
-        }
-        
-        # For single line tests, maintain backward compatibility
-        if num_lines == 1:
-            response_data.update({
-                'results': line_details[0]['results'],
-                'ground_truth': line_details[0]['ground_truth'],
-                'input_text': line_details[0]['input_text']
-            })
-        
-        return jsonify(response_data)
 
-    except Exception as e:
-        print(f"Error during translation test: {e}")
-        return jsonify({'success': False, 'error': str(e)})
+
+
 
 @translation.route('/translate', methods=['POST'])
 def translate():
@@ -281,7 +293,18 @@ def translate():
         data = request.get_json()
         text_to_translate = data.get('text', '').strip()
         target_language = data.get('target_language', '').strip()
-        example_sources = data.get('example_sources', [])
+        project_id = data.get('project_id')
+        source_file_id = data.get('source_file_id')
+        target_file_id = data.get('target_file_id')
+        
+        # New parameters for model configuration
+        temperature = data.get('temperature', 0.7)  # Default to 0.7 for more creative translations
+        use_examples = data.get('use_examples', True)  # Default to True
+        
+        # Test mode parameters
+        is_test_mode = data.get('is_test_mode', False)
+        ground_truth = data.get('ground_truth', '').strip()
+        exclude_verse_index = data.get('exclude_verse_index')
         
         if not text_to_translate:
             return jsonify({'success': False, 'error': 'No text provided'})
@@ -289,61 +312,75 @@ def translate():
         if not target_language:
             return jsonify({'success': False, 'error': 'No target language provided'})
         
-        if not example_sources:
-            return jsonify({'success': False, 'error': 'No example sources selected'})
+        if not source_file_id or not target_file_id or not project_id:
+            return jsonify({'success': False, 'error': 'Source and target files required'})
         
-        # Collect examples from all selected sources
-        all_examples = []
-        source_descriptions = []
-        project_instructions = None
+        # Validate temperature
+        try:
+            temperature = float(temperature)
+            if not (0.0 <= temperature <= 2.0):
+                temperature = 0.7  # Default fallback
+        except (ValueError, TypeError):
+            temperature = 0.7  # Default fallback
         
-        for source in example_sources:
-            if source == 'instructions':
-                # Get project from the first back translation job or find another way to get project
-                # For now, we need to get the project ID somehow
-                # Let's add it to the request data
-                continue  # Handle below
-            else:
-                source_type, source_id = source.split(':', 1)
-                source_id = int(source_id)
-                
-                if source_type == 'back_translation':
-                    job = BackTranslationJob.query.get(source_id)
-                    if job:
-                        examples, source_info = _get_back_translation_examples(job.project_id, job.id, text_to_translate)
-                        all_examples.extend(examples)
-                        source_descriptions.append(f"Back Translation: {job.source_filename}")
+        # Get project to access translation model
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({'success': False, 'error': 'Project not found'})
         
-        # Check if instructions are selected and get project
-        if 'instructions' in example_sources:
-            # We need project_id from somewhere - let's get it from request
-            project_id = data.get('project_id')
-            if project_id:
-                project = Project.query.get(project_id)
-                if project and project.instructions:
-                    project_instructions = project.instructions
-                    source_descriptions.append("Translation Instructions")
+        # Get the current translation model for this project
+        translation_model = project.get_current_translation_model()
         
-        # Generate translation using combined examples and instructions
-        translation = _generate_translation_with_examples_and_instructions(
+        # Get examples from the two files if use_examples is True
+        examples = []
+        source_info = "No examples used"
+        
+        # Log the use_examples setting for debugging
+        print(f"Translation request - use_examples: {use_examples}, text: '{text_to_translate[:50]}...'")
+        
+        if use_examples:
+            examples, source_info = _get_translation_examples(
+                project_id, source_file_id, target_file_id, text_to_translate, exclude_verse_index
+            )
+            print(f"Found {len(examples)} examples for in-context learning")
+        else:
+            print("In-context learning disabled - no examples will be used")
+        
+        # Generate translation using project's selected model
+        translation = _generate_translation_with_examples(
             text_to_translate, 
             target_language, 
-            all_examples,
-            project_instructions,
-            source_descriptions
+            examples,
+            [source_info],
+            model=translation_model,
+            temperature=temperature
         )
         
-        # Calculate confidence metrics for the translation
-        confidence_data = _calculate_translation_confidence(translation, all_examples)
+        # Calculate confidence metrics
+        confidence_data = _calculate_translation_confidence(translation, examples)
         
-
-        return jsonify({
+        # Test mode: calculate similarity with ground truth
+        test_results = None
+        if is_test_mode and ground_truth:
+            test_results = _calculate_similarity_metrics(translation, ground_truth)
+        
+        response_data = {
             'success': True,
             'translation': translation,
-            'examples_used': len(all_examples),
-            'sources': source_descriptions,
-            'confidence': confidence_data
-        })
+            'examples_used': len(examples),
+            'sources': [source_info],
+            'confidence': confidence_data,
+            'model_used': translation_model,
+            'temperature': temperature,
+            'used_examples': use_examples
+        }
+        
+        if test_results:
+            response_data['test_mode'] = True
+            response_data['ground_truth'] = ground_truth
+            response_data['similarity'] = test_results
+        
+        return jsonify(response_data)
         
     except Exception as e:
         print(f"Translation error: {e}")
@@ -525,68 +562,37 @@ def _calculate_translation_confidence(translation, examples):
         }
     }
 
-def _generate_translation_with_examples_and_instructions(text, target_language, examples, instructions, source_descriptions):
-    """Generates a translation using the AI, including examples and/or instructions."""
-    context_parts = []
+def _generate_translation_with_examples(text, target_language, examples, source_descriptions, model=None, temperature=0.7):
+    """Generates a translation using the AI with examples, matching fine-tuning structure exactly."""
     
-    # Add instructions if provided
-    if instructions:
-        context_parts.append("TRANSLATION INSTRUCTIONS:")
-        context_parts.append(instructions)
-        context_parts.append("")
+    # Get project info to create the exact same system prompt as fine-tuning
+    project_id = request.json.get('project_id') if request and request.json else None
+    project = Project.query.get(project_id) if project_id else None
     
-    # Add back translation examples if available
-    back_translation_examples = [ex for ex in examples if isinstance(ex, str) and '\n' in ex and 'English:' in ex]
-    if back_translation_examples:
-        context_parts.append("TRANSLATION EXAMPLES:")
-        context_parts.extend(back_translation_examples)
-        context_parts.append("")
-    
-    context = '\n'.join(context_parts)
-    
-    system_prompt = "You are a professional translator with expertise in biblical and religious texts. Provide accurate, natural translations that maintain the meaning and tone of the original text."
-    
-    if instructions and not back_translation_examples:
-        # Instructions-only translation
-        user_prompt = f"""Translate the following text to {target_language}.
-
-{context}
-
-INSTRUCTIONS:
-- Follow the translation instructions above carefully
-- Maintain the same tone and style as specified
-- Be accurate and natural in the target language
-- Provide only the translation, no explanations
-
-TEXT TO TRANSLATE:
-{text}
-
-TRANSLATION:"""
+    if project:
+        # Use exact same system prompt structure as fine-tuning
+        system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
     else:
-        # Examples-based or mixed translation
-        user_prompt = f"""Translate the following text to {target_language}.
+        # Fallback system prompt if project not available
+        system_prompt = f"You are an expert Bible translator specializing in {target_language} translation. Translate biblical text accurately while maintaining the meaning and tone of the original text."
+    
+    # Use exact same user prompt structure as fine-tuning
+    if examples:
+        # When examples are provided, include them in the user prompt for context
+        context_parts = ["TRANSLATION EXAMPLES:"]
+        context_parts.extend(examples)
+        context_parts.append("")
+        context_parts.append("Following the style and patterns shown in the examples above:")
+        context_parts.append(f"Translate this text: {text}")
+        
+        user_prompt = '\n'.join(context_parts)
+    else:
+        # When no examples, use the exact same structure as fine-tuning
+        user_prompt = f"Translate this text: {text}"
 
-{context}
-
-INSTRUCTIONS:
-- Use the translation examples above to understand style, terminology, and context
-- Follow any provided translation instructions
-- Maintain the same tone and style as the examples
-- Be accurate and natural in the target language
-- Provide only the translation, no explanations
-
-TEXT TO TRANSLATE:
-{text}
-
-TRANSLATION:"""
-
-    chatbot = Chatbot()
-    response = chatbot.chat_sync(user_prompt, system_prompt)
+    chatbot = Chatbot(temperature=temperature)
+    response = chatbot.chat_sync(user_prompt, system_prompt, model=model)
     return response.strip()
-
-def _generate_translation_with_examples(text, target_language, examples, source_descriptions):
-    """Generates a translation using the AI, including examples."""
-    return _generate_translation_with_examples_and_instructions(text, target_language, examples, None, source_descriptions)
 
 
 # ===== NEW TRANSLATION EDITOR ENDPOINTS =====
@@ -594,7 +600,7 @@ def _generate_translation_with_examples(text, target_language, examples, source_
 @translation.route('/project/<int:project_id>/texts')
 @login_required
 def list_all_texts(project_id):
-    """List all available texts (eBible files + all translations) - unified endpoint"""
+    """List all available texts (eBible files + text files + back translations + all translations) - unified endpoint"""
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     
     texts = []
@@ -611,6 +617,21 @@ def list_all_texts(project_id):
             'name': file.original_filename,
             'type': 'eBible File',
             'progress': 100,  # eBible files are always complete
+            'created_at': file.created_at.isoformat()
+        })
+    
+    # Add regular text files
+    text_files = ProjectFile.query.filter_by(
+        project_id=project_id,
+        file_type='text'
+    ).all()
+    
+    for file in text_files:
+        texts.append({
+            'id': f"file_{file.id}",
+            'name': file.original_filename,
+            'type': 'Text File',
+            'progress': 100,  # Text files are complete when uploaded
             'created_at': file.created_at.isoformat()
         })
     
@@ -631,38 +652,20 @@ def list_all_texts(project_id):
     
     # Add all translations
     translations = Translation.query.filter_by(project_id=project_id).all()
+    for translation in translations:
+        translation_manager = TranslationFileManager(translation.storage_path)
+        translated_count, progress_percentage = translation_manager.calculate_progress()
+        
+        texts.append({
+            'id': f"translation_{translation.id}",
+            'name': translation.name,
+            'type': 'Translation',
+            'progress': round(progress_percentage, 1),
+            'created_at': translation.created_at.isoformat()
+        })
     
-    for trans in translations:
-        # Calculate progress
-        try:
-            file_manager = TranslationFileManager(trans.storage_path)
-            translated_count, progress_percentage = file_manager.calculate_progress()
-            
-            # Update database with current progress
-            trans.translated_verses = translated_count
-            trans.progress_percentage = progress_percentage
-            
-            texts.append({
-                'id': f"translation_{trans.id}",
-                'name': trans.name,
-                'type': 'Translation',
-                'progress': round(progress_percentage, 1),
-                'translated_verses': trans.translated_verses,
-                'created_at': trans.created_at.isoformat()
-            })
-        except Exception as e:
-            print(f"Error calculating progress for translation {trans.id}: {e}")
-            texts.append({
-                'id': f"translation_{trans.id}",
-                'name': trans.name,
-                'type': 'Translation',
-                'progress': 0.0,
-                'translated_verses': 0,
-                'created_at': trans.created_at.isoformat()
-            })
-    
-    # Commit progress updates
-    db.session.commit()
+    # Sort by creation date (newest first)
+    texts.sort(key=lambda x: x['created_at'], reverse=True)
     
     return jsonify({'texts': texts})
 
@@ -723,6 +726,9 @@ def create_translation(project_id):
 
 
 
+
+
+
 @translation.route('/project/<int:project_id>/translation/<target_id>/chapter/<book>/<int:chapter>')
 @login_required
 def get_chapter_verses(project_id, target_id, book, chapter):
@@ -752,12 +758,9 @@ def get_chapter_verses(project_id, target_id, book, chapter):
             ).first_or_404()
             
             storage = get_storage()
-            target_content = storage.get_file(target_file.storage_path).decode('utf-8')
-            target_lines = target_content.split('\n')
-            
-            # Ensure target file has enough lines
-            while len(target_lines) < 31170:
-                target_lines.append('')
+            target_file_content = storage.get_file(target_file.storage_path)
+            content = simple_decode_utf8(target_file_content)
+            target_lines = content.split('\n')
             
             verse_indices = [v['index'] for v in chapter_verses]
             target_texts = [target_lines[i] if i < len(target_lines) else '' for i in verse_indices]
@@ -794,8 +797,9 @@ def get_chapter_verses(project_id, target_id, book, chapter):
             ).first_or_404()
             
             storage = get_storage()
-            source_content = storage.get_file(source_file.storage_path).decode('utf-8')
-            source_lines = source_content.split('\n')
+            source_file_content = storage.get_file(source_file.storage_path)
+            content = simple_decode_utf8(source_file_content)
+            source_lines = content.split('\n')
             
         elif source_id.startswith('translation_'):
             # Translation source
@@ -810,10 +814,6 @@ def get_chapter_verses(project_id, target_id, book, chapter):
         
         else:
             return jsonify({'error': 'Invalid source_id format'}), 400
-        
-        # Ensure source has enough lines
-        while len(source_lines) < 31170:
-            source_lines.append('')
         
         # Build response
         verses_data = []
@@ -854,6 +854,10 @@ def save_verse(project_id, target_id, verse_index):
     
     verse_text = data['text']
     
+    # CRITICAL: Strip newlines to maintain line alignment for context queries
+    # Replace any newlines with spaces and normalize whitespace
+    verse_text = ' '.join(verse_text.split())
+    
     try:
         # Handle different target types - all are now editable
         if target_id.startswith('file_'):
@@ -864,21 +868,35 @@ def save_verse(project_id, target_id, verse_index):
                 project_id=project_id
             ).first_or_404()
             
-            # Load file, update verse, and save back
-            storage = get_storage()
-            target_content = storage.get_file(target_file.storage_path).decode('utf-8')
-            target_lines = target_content.split('\n')
+            # Get or create a lock for this file
+            file_path = target_file.storage_path
+            if file_path not in file_locks:
+                file_locks[file_path] = threading.Lock()
             
-            # Ensure file has enough lines
-            while len(target_lines) < 31170:
-                target_lines.append('')
-            
-            # Update the specific verse
-            target_lines[verse_index] = verse_text
-            
-            # Save back to storage
-            updated_content = '\n'.join(target_lines)
-            storage.store_file_content(updated_content, target_file.storage_path)
+            # Acquire the lock for this file
+            with file_locks[file_path]:
+                # Load file, update verse, and save back
+                storage = get_storage()
+                target_file_content = storage.get_file(target_file.storage_path)
+                content = simple_decode_utf8(target_file_content)
+                target_lines = content.split('\n')
+                
+                # Simple corruption check - Bible files should have many thousands of lines
+                if len(target_lines) < 30000:
+                    print(f"ERROR: File appears corrupted with only {len(target_lines)} lines")
+                    return jsonify({'error': f'Target file appears corrupted (only {len(target_lines)} lines). Please re-upload the file.'}), 500
+                
+                # Validate verse index
+                if verse_index < 0 or verse_index >= len(target_lines):
+                    return jsonify({'error': f'Invalid verse index: {verse_index}'}), 400
+                
+                # Update the specific verse (ensure no newlines in the text)
+                clean_verse_text = verse_text.replace('\n', ' ').replace('\r', ' ').strip()
+                target_lines[verse_index] = clean_verse_text
+                
+                # Save back to storage
+                updated_content = '\n'.join(target_lines)
+                storage.store_file_content(updated_content, target_file.storage_path)
             
         elif target_id.startswith('translation_'):
             # Target is a translation
@@ -913,6 +931,10 @@ def save_verse(project_id, target_id, verse_index):
     except Exception as e:
         print(f"Error saving verse: {e}")
         return jsonify({'error': 'Failed to save verse'}), 500
+
+
+
+
 
 
  

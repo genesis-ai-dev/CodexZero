@@ -190,12 +190,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }, 300);
         });
-
-        // Show confidence legend
-        const legendEl = document.getElementById('confidence-legend');
-        if (legendEl) {
-            legendEl.classList.remove('hidden');
-        }
     }
     
     function getConfidenceColors(confidence) {
@@ -303,9 +297,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Hide confidence indicators
         const confidenceIndicator = document.getElementById('confidence-indicator');
-        const confidenceLegend = document.getElementById('confidence-legend');
         if (confidenceIndicator) confidenceIndicator.classList.add('hidden');
-        if (confidenceLegend) confidenceLegend.classList.add('hidden');
         
         // Uncheck all example sources
         document.querySelectorAll('input[name="example-sources"]').forEach(checkbox => {

@@ -1,0 +1,133 @@
+<!-- Confidence Tooltip Component -->
+<div id="confidence-tooltip" class="fixed z-50 hidden bg-white text-gray-800 text-sm shadow-2xl max-w-md border-4 border-gray-800 rounded-sm">
+    <div class="p-3 border-b-4 border-gray-800 bg-gray-50">
+        <div class="font-bold text-gray-800" id="tooltip-confidence"></div>
+        <div class="text-gray-600 text-xs mt-1" id="tooltip-summary"></div>
+    </div>
+    <div id="tooltip-examples" class="max-h-60 overflow-y-auto bg-white"></div>
+    <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-gray-800"></div>
+</div>
+
+<style>
+.confidence-segment {
+    position: relative;
+    cursor: help;
+    transition: all 0.2s ease;
+}
+
+.confidence-segment:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.1);
+}
+</style>
+
+<script>
+// Simple tooltip functionality
+class ConfidenceTooltip {
+    constructor() {
+        this.tooltip = document.getElementById('confidence-tooltip');
+        this.isVisible = false;
+    }
+    
+    show(element, confidence, sources = [], segmentText = '') {
+        if (!this.tooltip) return;
+        
+        // Update header - just show the segment text
+        document.getElementById('tooltip-confidence').textContent = `"${segmentText}"`;
+        
+        const summaryEl = document.getElementById('tooltip-summary');
+        const examplesEl = document.getElementById('tooltip-examples');
+        
+        if (sources && sources.length > 0) {
+            summaryEl.textContent = `Found in ${sources.length} example${sources.length > 1 ? 's' : ''}:`;
+            
+            // Clear and populate examples
+            examplesEl.innerHTML = '';
+                         sources.slice(0, 3).forEach((source, index) => { // Show max 3 examples
+                 const exampleDiv = document.createElement('div');
+                 exampleDiv.className = 'p-3 border-b-2 border-gray-300 last:border-b-0';
+                
+                                 // Source verse with highlighting
+                 const sourceDiv = document.createElement('div');
+                 sourceDiv.className = 'mb-2';
+                 sourceDiv.innerHTML = `
+                     <div class="text-blue-600 text-xs font-bold mb-1 uppercase tracking-wide">Source:</div>
+                     <div class="text-gray-800 leading-relaxed">${source.english || 'No source text'}</div>
+                 `;
+                 
+                 // Target verse with highlighting
+                 const targetDiv = document.createElement('div');
+                 targetDiv.innerHTML = `
+                     <div class="text-green-600 text-xs font-bold mb-1 uppercase tracking-wide">Translation Example:</div>
+                     <div class="text-gray-800 leading-relaxed">${this.highlightMatches(source.original || '', segmentText)}</div>
+                 `;
+                
+                exampleDiv.appendChild(sourceDiv);
+                exampleDiv.appendChild(targetDiv);
+                examplesEl.appendChild(exampleDiv);
+            });
+            
+                         if (sources.length > 3) {
+                 const moreDiv = document.createElement('div');
+                 moreDiv.className = 'p-2 text-center text-gray-500 text-xs italic';
+                 moreDiv.textContent = `... and ${sources.length - 3} more examples`;
+                 examplesEl.appendChild(moreDiv);
+             }
+         } else {
+             summaryEl.textContent = 'No examples found';
+             examplesEl.innerHTML = '<div class="p-3 text-gray-500 text-center text-xs italic">Generated without specific examples</div>';
+         }
+        
+                 // Position tooltip above the element
+         const rect = element.getBoundingClientRect();
+         const tooltipWidth = 384; // max-w-md = 384px
+         
+         // Center horizontally on the element
+         let leftPos = rect.left + (rect.width / 2) - (tooltipWidth / 2);
+         
+         // Ensure tooltip stays within viewport
+         if (leftPos < 10) {
+             leftPos = 10;
+         } else if (leftPos + tooltipWidth > window.innerWidth - 10) {
+             leftPos = window.innerWidth - tooltipWidth - 10;
+         }
+         
+         this.tooltip.style.left = leftPos + 'px';
+         this.tooltip.style.top = (rect.top - 10) + 'px';
+         this.tooltip.style.transform = 'translateY(-100%)';
+         this.tooltip.style.width = tooltipWidth + 'px';
+        
+        // Show tooltip
+        this.tooltip.classList.remove('hidden');
+        this.isVisible = true;
+    }
+    
+        highlightMatches(text, highlightTerm = '') {
+        if (!text || !highlightTerm || !highlightTerm.trim()) {
+            return text || '';
+        }
+        
+        let highlightedText = text;
+        const term = highlightTerm.trim();
+        
+        if (term && text.toLowerCase().includes(term.toLowerCase())) {
+            // Escape special regex characters
+            const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`(${escapedTerm})`, 'gi');
+            highlightedText = highlightedText.replace(regex, `<span class="bg-blue-100 text-gray-800 px-1 border border-blue-400 rounded-sm font-medium">$1</span>`);
+        }
+        
+        return highlightedText;
+    }
+    
+    hide() {
+        if (this.tooltip) {
+            this.tooltip.classList.add('hidden');
+            this.isVisible = false;
+        }
+    }
+}
+
+// Global tooltip instance
+window.confidenceTooltip = new ConfidenceTooltip();
+</script> 

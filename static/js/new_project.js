@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const inputs = document.querySelectorAll('.inline-input');
     const nextButton = document.getElementById('next-step');
     const nextButton2 = document.getElementById('next-step-2');
+    const skipButton2 = document.getElementById('skip-step-2');
     const prevButton2 = document.getElementById('prev-step-2');
     const prevButton3 = document.getElementById('prev-step-3');
     const step1 = document.getElementById('step-1');
@@ -11,12 +12,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const targetLanguageInput = document.querySelector('input[name="target_language"]');
     const trainingOptions = document.querySelectorAll('.training-option.available');
     const optionDetails = document.getElementById('option-details');
-    const addRuleBtn = document.getElementById('add-rule-btn');
-    const rulesContainer = document.getElementById('language-rules-container');
-    const ruleTemplate = document.getElementById('rule-template');
     
     let currentStep = 1;
-    let ruleCounter = 0;
     
     // Create a hidden span to measure text width
     const measureElement = document.createElement('span');
@@ -105,122 +102,28 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 200);
     }
     
-    // Language Rules Management
-    function createLanguageRule(title = '', description = '', ruleId = null) {
-        const template = ruleTemplate.cloneNode(true);
-        template.removeAttribute('id');
-        template.classList.remove('hidden');
-        
-        const titleInput = template.querySelector('.rule-title');
-        const descriptionTextarea = template.querySelector('.rule-description');
-        const charCount = template.querySelector('.char-count');
-        const removeBtn = template.querySelector('.remove-rule');
-        
-        // Set values
-        titleInput.value = title;
-        descriptionTextarea.value = description;
-        charCount.textContent = description.length;
-        
-        // Set rule ID if editing existing rule
-        if (ruleId) {
-            template.setAttribute('data-rule-id', ruleId);
-        }
-        
-        // Add unique identifier for new rules
-        template.setAttribute('data-rule-index', ruleCounter++);
-        
-        // Character counting
-        descriptionTextarea.addEventListener('input', function() {
-            charCount.textContent = this.value.length;
-        });
-        
-        // Remove rule
-        removeBtn.addEventListener('click', function() {
-            template.remove();
-        });
-        
-        // Auto-resize textarea
-        descriptionTextarea.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = Math.max(this.scrollHeight, 50) + 'px';
-        });
-        
-        return template;
-    }
+    // Instructions character counting
+    const instructionsTextarea = document.getElementById('translation-instructions');
+    const instructionsCharCount = document.getElementById('char-count');
     
-    // Add rule button
-    if (addRuleBtn) {
-        addRuleBtn.addEventListener('click', function() {
-            const newRule = createLanguageRule();
-            rulesContainer.appendChild(newRule);
+    if (instructionsTextarea && instructionsCharCount) {
+        instructionsTextarea.addEventListener('input', function() {
+            const length = this.value.length;
+            instructionsCharCount.textContent = `${length} / 4,000`;
             
-            // Focus on the title input
-            const titleInput = newRule.querySelector('.rule-title');
-            titleInput.focus();
-        });
-    }
-    
-    // Initialize existing rules (for edit mode)
-    document.querySelectorAll('.rule-item').forEach(ruleItem => {
-        const charCount = ruleItem.querySelector('.char-count');
-        const descriptionTextarea = ruleItem.querySelector('.rule-description');
-        const removeBtn = ruleItem.querySelector('.remove-rule');
-        
-        // Character counting
-        descriptionTextarea.addEventListener('input', function() {
-            charCount.textContent = this.value.length;
-        });
-        
-        // Remove rule
-        removeBtn.addEventListener('click', function() {
-            ruleItem.remove();
-        });
-        
-        // Auto-resize textarea
-        descriptionTextarea.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = Math.max(this.scrollHeight, 50) + 'px';
-        });
-    });
-    
-    // Collect language rules before form submission
-    function collectLanguageRules() {
-        const rules = [];
-        document.querySelectorAll('#language-rules-container .rule-item').forEach((ruleItem, index) => {
-            const title = ruleItem.querySelector('.rule-title').value.trim();
-            const description = ruleItem.querySelector('.rule-description').value.trim();
-            const ruleId = ruleItem.getAttribute('data-rule-id');
-            
-            if (title || description) {
-                rules.push({
-                    id: ruleId,
-                    title: title,
-                    description: description,
-                    order_index: index
-                });
+            // Change color when approaching limit
+            if (length > 3600) { // 90% of 4000
+                instructionsCharCount.classList.add('text-red-500');
+                instructionsCharCount.classList.remove('text-neutral-600');
+            } else if (length > 3000) { // 75% of 4000
+                instructionsCharCount.classList.add('text-orange-500');
+                instructionsCharCount.classList.remove('text-neutral-600', 'text-red-500');
+            } else {
+                instructionsCharCount.classList.add('text-neutral-600');
+                instructionsCharCount.classList.remove('text-red-500', 'text-orange-500');
             }
         });
-        return rules;
     }
-    
-    // Add hidden input with rules data before form submission
-    document.addEventListener('submit', function(e) {
-        const form = e.target;
-        if (form.querySelector('#language-rules-container')) {
-            // Remove any existing language rules input
-            const existingInput = form.querySelector('input[name="language_rules"]');
-            if (existingInput) {
-                existingInput.remove();
-            }
-            
-            // Add new input with current rules
-            const rulesInput = document.createElement('input');
-            rulesInput.type = 'hidden';
-            rulesInput.name = 'language_rules';
-            rulesInput.value = JSON.stringify(collectLanguageRules());
-            form.appendChild(rulesInput);
-        }
-    });
     
     // Step navigation
     nextButton.addEventListener('click', () => {
@@ -230,6 +133,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     nextButton2.addEventListener('click', () => {
+        if (currentStep === 2) {
+            showStep(3);
+        }
+    });
+    
+    skipButton2.addEventListener('click', () => {
         if (currentStep === 2) {
             showStep(3);
         }

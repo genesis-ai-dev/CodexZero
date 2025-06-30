@@ -1,52 +1,129 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="py-24 px-6">
-    <div class="max-w-4xl mx-auto text-center">
-        <h1 class="text-7xl font-bold tracking-tight mb-6">Codex Zero</h1>
-        <p class="text-2xl text-neutral-600 mb-12 max-w-3xl mx-auto leading-relaxed">
+<section class="py-24 px-6 relative min-h-screen flex items-center">
+    <div class="max-w-4xl mx-auto text-center w-full">
+        <div class="scattered-title mb-6 relative h-32" id="scatteredTitle">
+            <!-- Letters will be dynamically inserted here -->
+        </div>
+        <p class="text-2xl text-neutral-600 mb-12 max-w-3xl mx-auto leading-relaxed font-medium opacity-0 transition-opacity duration-1000 delay-1000" id="subtitle">
             Draft the Bible into any language in less than a Day.
         </p>
         
-        {% if current_user.is_authenticated %}
-            <a href="{{ url_for('dashboard') }}" class="bg-neutral-900 text-white px-8 py-4 rounded-sm hover:bg-neutral-800 transition-all duration-200 text-lg">
-                <i class="fas fa-folder mr-2"></i>
-                Go to Projects
-            </a>
-        {% else %}
-            <a href="{{ url_for('auth.login') }}" class="bg-neutral-900 text-white px-8 py-4 rounded-sm hover:bg-neutral-800 transition-all duration-200 text-lg">
-                <i class="fab fa-google mr-2"></i>
-                Get Started
-            </a>
-        {% endif %}
+        <div class="opacity-0 transition-opacity duration-1000 delay-1500" id="ctaButton">
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('dashboard') }}" class="btn-marker text-lg inline-block">
+                    <i class="fas fa-folder mr-2"></i>
+                    Go to Projects
+                </a>
+            {% else %}
+                <a href="{{ url_for('auth.login') }}" class="btn-marker text-lg inline-block">
+                    <i class="fab fa-google mr-2"></i>
+                    Get Started
+                </a>
+            {% endif %}
+        </div>
     </div>
 </section>
 
-<section class="py-24 px-6 bg-white">
+<section class="py-24 px-6 paper-cream">
     <div class="max-w-6xl mx-auto">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
             <div class="text-center">
-                <div class="w-16 h-16 bg-neutral-100 rounded-lg mb-6 flex items-center justify-center mx-auto">
-                    <i class="fas fa-chart-line text-2xl text-neutral-600"></i>
+                <div class="w-16 h-16 paper-light marker-border rounded-lg mb-6 flex items-center justify-center mx-auto">
+                    <i class="fas fa-chart-line text-2xl" style="color: #2d2d2d;"></i>
                 </div>
-                <h3 class="text-xl font-semibold mb-4">Superior First Drafts</h3>
-                <p class="text-neutral-600">While zero drafts require extensive human refinement and post-editing, they often outperform human first drafts significantly</p>
+                <h3 class="text-xl font-bold mb-4" style="color: #2d2d2d;">Superior First Drafts</h3>
+                <p class="text-neutral-700 font-medium leading-relaxed">While zero drafts require extensive human refinement and post-editing, they often outperform human first drafts significantly</p>
+            </div>
+                          <div class="text-center">
+                <div class="w-16 h-16 paper-light marker-border rounded-lg mb-6 flex items-center justify-center mx-auto">
+                    <i class="fas fa-comments text-2xl" style="color: #2d2d2d;"></i>
+                </div>
+                <h3 class="text-xl font-bold mb-4" style="color: #2d2d2d;">Freedom to Critique</h3>
+                <p class="text-neutral-700 font-medium leading-relaxed">Even when draft quality is low, zero drafts give your translation team something they can freely criticize and improve upon</p>
             </div>
             <div class="text-center">
-                <div class="w-16 h-16 bg-neutral-100 rounded-lg mb-6 flex items-center justify-center mx-auto">
-                    <i class="fas fa-comments text-2xl text-neutral-600"></i>
+                <div class="w-16 h-16 paper-light marker-border rounded-lg mb-6 flex items-center justify-center mx-auto">
+                    <i class="fas fa-rocket text-2xl" style="color: #2d2d2d;"></i>
                 </div>
-                <h3 class="text-xl font-semibold mb-4">Freedom to Critique</h3>
-                <p class="text-neutral-600">Even when draft quality is low, zero drafts give your translation team something they can freely criticize and improve upon</p>
-            </div>
-            <div class="text-center">
-                <div class="w-16 h-16 bg-neutral-100 rounded-lg mb-6 flex items-center justify-center mx-auto">
-                    <i class="fas fa-rocket text-2xl text-neutral-600"></i>
-                </div>
-                <h3 class="text-xl font-semibold mb-4">Reignite Stagnated Projects</h3>
-                <p class="text-neutral-600">CodexZero can leverage your past work to fill in the blanks and breathe new life into stalled translation projects</p>
+                <h3 class="text-xl font-bold mb-4" style="color: #2d2d2d;">Reignite Stagnated Projects</h3>
+                <p class="text-neutral-700 font-medium leading-relaxed">CodexZero can leverage your past work to fill in the blanks and breathe new life into stalled translation projects</p>
             </div>
         </div>
     </div>
 </section>
+
+<style>
+.scattered-letter {
+    display: inline-block;
+    font-size: 7rem;
+    font-weight: bold;
+    color: #2d2d2d;
+    opacity: 0;
+    transition: transform 1.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 1.2s;
+}
+
+.scattered-letter.animate {
+    opacity: 1;
+}
+
+.scattered-letter.final-position {
+    transform: translate(0, 0) !important;
+}
+
+@media (max-width: 768px) {
+    .scattered-letter {
+        font-size: 4rem;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const title = 'Codex Zero';
+    const container = document.getElementById('scatteredTitle');
+    
+    // Create scattered letters
+    title.split('').forEach((char, index) => {
+        if (char === ' ') {
+            container.appendChild(document.createTextNode(' '));
+            return;
+        }
+        
+        const span = document.createElement('span');
+        span.textContent = char;
+        span.className = 'scattered-letter';
+        
+        // Random scattered positions for initial animation
+        const randomX = (Math.random() - 0.5) * window.innerWidth * 0.8;
+        const randomY = (Math.random() - 0.5) * window.innerHeight * 0.6;
+        const randomRotate = (Math.random() - 0.5) * 360;
+        
+        span.style.transform = `translate(${randomX}px, ${randomY}px) rotate(${randomRotate}deg)`;
+        
+        container.appendChild(span);
+    });
+    
+    // Animate letters to final position
+    setTimeout(() => {
+        const letters = container.querySelectorAll('.scattered-letter');
+        letters.forEach((letter, index) => {
+            setTimeout(() => {
+                letter.style.opacity = '1';
+                letter.style.transform = 'translate(0, 0) rotate(0deg)';
+            }, index * 100);
+        });
+    }, 500);
+    
+    // Show subtitle and CTA after title animation
+    setTimeout(() => {
+        document.getElementById('subtitle').style.opacity = '1';
+    }, 2000);
+    
+    setTimeout(() => {
+        document.getElementById('ctaButton').style.opacity = '1';
+    }, 2500);
+});
+</script>
 {% endblock %} 

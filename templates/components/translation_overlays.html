@@ -1,0 +1,30 @@
+{% macro translation_overlays() %}
+<!-- Translation Editor Overlays -->
+
+<!-- Loading State -->
+<div id="loading-section" class="hidden absolute inset-0 bg-white bg-opacity-90 z-40 flex items-center justify-center">
+    <div class="bg-blue-50 border border-black border-[0.5px] rounded-lg p-6">
+        <div class="flex items-center space-x-3">
+            <div class="animate-spin rounded-full h-5 w-5 border-b border-blue-600 border-b-[0.5px]"></div>
+            <span class="text-blue-700 font-medium" id="loading-text">Loading...</span>
+        </div>
+    </div>
+</div>
+
+<!-- Error State -->
+<div id="error-section" class="hidden absolute inset-0 bg-white bg-opacity-90 z-40 flex items-center justify-center">
+    <div class="bg-red-50 border border-black border-[0.5px] rounded-lg p-6 max-w-md">
+        <div class="flex items-center">
+            <i class="fas fa-exclamation-circle text-red-500 mr-2"></i>
+            <span class="text-red-700" id="error-message"></span>
+        </div>
+    </div>
+</div>
+
+<!-- Confidence Tooltip -->
+<div id="custom-tooltip" class="hidden absolute z-50 bg-white border border-black border-[0.5px] rounded-lg shadow-lg p-3 max-w-sm">
+    <div id="tooltip-content"></div>
+</div>
+
+
+{% endmacro %} 

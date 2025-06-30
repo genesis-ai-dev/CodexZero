@@ -1,7 +1,7 @@
 # CodexZero - AI-Powered Bible Translation Platform
 
 ## Overview
-CodexZero is a Flask web application that provides AI-assisted Bible translation tools. It helps translators work with Biblical texts by providing AI-powered translation suggestions and back-translation quality checks.
+CodexZero is a Flask web application that provides AI-assisted Bible translation tools. It helps translators work with Biblical texts by providing AI-powered translation suggestions, back-translation quality checks, and OpenAI fine-tuning capabilities.
 
 ## Core Functionality
 
@@ -10,7 +10,7 @@ CodexZero is a Flask web application that provides AI-assisted Bible translation
 - Upload training materials (eBible format files, example texts)
 - Define custom language rules for translation guidelines
 - Set custom translation instructions (up to 4000 characters) stored directly in the database
-- AI generates contextual translation suggestions using Anthropic Claude
+- AI generates contextual translation suggestions using multiple AI providers
 
 ### Interactive Translation
 - Real-time translation with confidence scoring
@@ -20,6 +20,17 @@ CodexZero is a Flask web application that provides AI-assisted Bible translation
 - Unified translation interface with conditional button states based on available methods
 - Visual confidence indicators with hover tooltips showing source examples
 - Support for varying numbers of translation examples (0-15)
+- Configurable temperature controls and in-context learning toggles
+
+### Fine-Tuning System
+- **Regular Fine-Tuning**: Trains on all line-by-line translation pairs from paired files
+- **Instruction Fine-Tuning**: Uses context-aware examples with instruction prompts (max 100 examples)
+- Support for OpenAI GPT-4o and GPT-4o-mini models
+- Progress tracking with background job processing
+- Cost estimation and training data preview
+- Custom model naming and visibility management
+- Local JSONL file generation with fallback when OpenAI upload fails
+- Model selection integration - fine-tuned models appear in translation dropdown
 
 ### Back-Translation Analysis
 - Batch processing system using Anthropic's API for quality assessment
@@ -30,7 +41,6 @@ CodexZero is a Flask web application that provides AI-assisted Bible translation
 - Both manual uploads and auto-generated back translations appear in project file lists
 
 ### Translation Quality Testing
-- Automated testing harness to evaluate AI translation performance (**"Benchmark Translation Methods"**)
 - Multi-line testing capability (1-50 lines) with statistical averaging
 - Random ground truth selection from back-translation data
 - Customizable example counts (0-25 examples each, up to 10 different counts)
@@ -42,24 +52,29 @@ CodexZero is a Flask web application that provides AI-assisted Bible translation
 ## Technical Architecture
 
 ### Backend Stack
-- **Framework**: Flask 3.0.0 with SQLAlchemy ORM
+- **Framework**: Flask 2.3.3 with SQLAlchemy ORM
 - **Database**: MySQL with PyMySQL connector
-- **AI Integration**: Anthropic Claude API (claude-sonnet-4-20250514)
+- **AI Integration**: 
+  - Anthropic Claude API (claude-sonnet-4-20250514) for translation and back-translation
+  - OpenAI GPT-4o/GPT-4o-mini for translation and fine-tuning
 - **Authentication**: Google OAuth 2.0
 - **Storage**: Abstracted system supporting local and DigitalOcean Spaces
 - **String Matching**: thefuzz library for translation accuracy scoring
 
 ### Key Models
 ```python
-User -> Projects -> [ProjectFiles, LanguageRules, BackTranslationJobs]
+User -> Projects -> [ProjectFiles, LanguageRules, FineTuningJobs, Translations]
 ProjectFiles -> paired_with_id (self-referential for back translations)
 Project.instructions -> TEXT field for instruction-based translation (max 4000 chars)
+Project.translation_model -> VARCHAR(255) for selected translation model
+FineTuningJob -> tracks OpenAI fine-tuning with local JSONL backup
 ```
 
 ### AI Modules
-- `ai/bot.py` - General purpose chatbot with translation specialization
+- `ai/bot.py` - OpenAI chatbot with async/sync translation capabilities
 - `ai/back_translator.py` - Batch back-translation using Anthropic API
 - `ai/contextquery.py` - Context-aware example selection and ranking
+- `ai/fine_tuning.py` - OpenAI fine-tuning service with progress tracking
 
 ### USFM Processing
 - `utils/usfm_parser.py` - USFM file parser and eBible format converter
@@ -68,12 +83,13 @@ Project.instructions -> TEXT field for instruction-based translation (max 4000 c
 
 ### Storage System
 - Pluggable storage architecture (`storage/`)
-- Support for local filesystem and cloud storage (DigitalOcean Spaces)
+- Support for local filesystem and DigitalOcean Spaces
 - File management with secure paths and metadata tracking
 
 ## Project Structure
 ```
 ├── ai/                     # AI functionality modules
+├── Corpus/                 # Pre-existing eBible translations for import
 ├── data/                   # Reference data (vref.txt - 31,170 Bible verses)
 ├── static/css/js/         # Frontend assets
 ├── storage/               # File storage abstraction + temp USFM files
@@ -84,7 +100,9 @@ Project.instructions -> TEXT field for instruction-based translation (max 4000 c
 ├── models.py              # Database models
 ├── auth.py                # Google OAuth implementation
 ├── translation.py         # Translation blueprint with testing
-└── config.py              # Configuration management
+├── config.py              # Configuration management
+├── migrate_fine_tuning.py # Database migration script
+└── FINE_TUNING_GUIDE.md   # Fine-tuning documentation
 ```
 
 ## Key Features
@@ -92,11 +110,13 @@ Project.instructions -> TEXT field for instruction-based translation (max 4000 c
 ### File Handling
 - Unified file importer component across project creation, editing, and dashboard
 - Secure file uploads with type validation and automatic file type detection
-- Support for multiple file types: eBible format, target text, back translations, and USFM
+- Support for multiple file types: eBible format, target text, back translations, USFM, and training data
+- **Corpus Import System**: Pre-existing eBible translations available for import from `/Corpus` directory
 - Project-specific file organization with visual file type indicators
 - File upload via drag-and-drop, file selection, or text paste
 - Automatic file metadata extraction and storage management
-- Protected file deletion requiring download before deletion is permitted
+- File pairing system for parallel texts
+- Protected file deletion with cascade handling for relationships
 - Dedicated download endpoints with proper attachment headers for file downloads
 
 ### USFM Import System
@@ -109,10 +129,12 @@ Project.instructions -> TEXT field for instruction-based translation (max 4000 c
 - Final eBible creation treated exactly like regular eBible imports with download support
 
 ### AI Integration
-- Async/sync Anthropic Claude integration
+- Multi-provider AI support (OpenAI + Anthropic)
+- Async/sync operation modes
 - Batch processing for large translation jobs
 - Context-aware translation with audience/style targeting
 - Confidence scoring with substring matching algorithms
+- Fine-tuned model integration with automatic model discovery
 
 ### Translation Quality Assessment
 - Real-time confidence visualization with color-coded segments
@@ -149,12 +171,39 @@ Project.instructions -> TEXT field for instruction-based translation (max 4000 c
 - Environment-based configuration via `.env`
 - Database URL configuration for flexible deployment
 - Google OAuth client credentials
-- Anthropic API key integration
+- Anthropic API key integration (`ANTHROPIC_KEY`)
+- OpenAI API key integration (`OPENAI_API_KEY`)
+- Storage configuration (local vs DigitalOcean Spaces)
+
+## Required Dependencies
+```
+Flask==2.3.3
+Flask-SQLAlchemy==3.0.5
+Werkzeug==2.3.7
+openai==1.35.5
+anthropic>=0.25.0
+python-dotenv==1.0.0
+Flask-Login==0.6.3
+bcrypt==4.0.1
+Jinja2==3.1.2
+gunicorn==21.2.0
+requests==2.31.0
+google-auth-oauthlib
+google-auth
+pymysql
+thefuzz
+```
 
 ## Deployment
 - Designed for cloud deployment (PythonAnywhere, DigitalOcean)
-- MySQL database requirement
+- **Digital Ocean**: See `DIGITAL_OCEAN_DEPLOY.md` for complete step-by-step guide
+- MySQL database requirement with migration script support
 - HTTPS recommended for production
-- Environment variable management for secrets 
+- Environment variable management for secrets
+- Debug mode must be disabled for production
+- Requires both OpenAI and Anthropic API keys for full functionality
 
-When in the actual project you see anything that contradicts the readme, please update the readme! When you add a new feature, update the readme. I think keep it concise.
+## Database Migrations
+Run `python migrate_fine_tuning.py` to update database schema for fine-tuning features.
+
+When in the actual project you see anything that contradicts the readme, please update the readme! When you add a new feature, update the readme. Keep it concise.

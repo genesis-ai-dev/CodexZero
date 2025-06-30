@@ -2,19 +2,22 @@ import os
 import asyncio
 import uuid
 import io
+import json
+import threading
+import traceback
 from werkzeug.utils import secure_filename
 from flask import Flask, render_template, flash, get_flashed_messages, request, redirect, url_for, jsonify, send_file, session
 from flask_login import LoginManager, current_user, login_required
 from datetime import datetime
-import json
 
 from config import Config
-from models import db, User, Project, ProjectFile, LanguageRule, BackTranslationJob
+from models import db, User, Project, ProjectFile, LanguageRule, Translation, FilePair, FineTuningJob
 from auth import auth
 from translation import translation
 from ai.bot import Chatbot
-from ai.back_translator import BackTranslator
+from ai.fine_tuning import FineTuningService
 from storage import get_storage
+
 
 def create_app():
     app = Flask(__name__)
@@ -57,10 +60,12 @@ def save_project_file(project_id: int, file_data, filename: str, file_type: str,
         # Text data - convert to BytesIO
         file_obj = io.BytesIO(file_data.encode('utf-8'))
         file_size = len(file_data.encode('utf-8'))
+        line_count = len(file_data.splitlines())
     else:
-        # File upload - read size and reset
+        # File upload - read content for size and line count
         content = file_data.read()
         file_size = len(content)
+        line_count = len(content.decode('utf-8').splitlines())
         file_data.seek(0)
         file_obj = file_data
     
@@ -72,14 +77,14 @@ def save_project_file(project_id: int, file_data, filename: str, file_type: str,
         storage_path=storage_path,
         file_type=file_type,
         content_type=content_type,
-        file_size=file_size
+        file_size=file_size,
+        line_count=line_count
     )
     db.session.add(project_file)
     return project_file
 
 def save_language_rules(project_id: int, rules_json: str):
     """Helper to save language rules for a project"""
-    import json
     
     if not rules_json:
         return
@@ -123,6 +128,51 @@ def save_language_rules(project_id: int, rules_json: str):
     for rule_id, rule in existing_rules.items():
         if rule_id not in processed_rule_ids:
             db.session.delete(rule)
+
+def import_ulb_automatically(project_id: int):
+    """Automatically import the ULB (Unlocked Literal Bible) into a new project"""
+    corpus_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Corpus')
+    ulb_filename = 'eng-engULB.txt'
+    ulb_file_path = os.path.join(corpus_dir, ulb_filename)
+    
+    # Check if ULB file exists
+    if not os.path.exists(ulb_file_path):
+        print(f"ULB file not found at {ulb_file_path}")
+        return
+    
+    # Check if project already has a ULB file to avoid duplicates
+    existing_ulb = ProjectFile.query.filter(
+        ProjectFile.project_id == project_id,
+        ProjectFile.original_filename.contains('ULB')
+    ).first()
+    
+    if existing_ulb:
+        print(f"Project {project_id} already has a ULB file")
+        return
+    
+    try:
+        # Read the ULB file content
+        with open(ulb_file_path, 'r', encoding='utf-8') as f:
+            file_content = f.read()
+        
+        # Generate a descriptive filename
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        project_filename = f"English_ULB_auto_imported_{timestamp}.txt"
+        
+        # Save as project file
+        save_project_file(
+            project_id,
+            file_content,
+            project_filename,
+            'ebible',  # ULB is in eBible format
+            'text/plain'
+        )
+        
+        print(f"Successfully auto-imported ULB for project {project_id}")
+        
+    except Exception as e:
+        print(f"Error auto-importing ULB for project {project_id}: {e}")
+        raise
 
 @app.route('/')
 def index():
@@ -222,6 +272,12 @@ def create_project():
             'text/plain'
         )
     
+    # Automatically import ULB (Unlocked Literal Bible) if available
+    try:
+        import_ulb_automatically(project.id)
+    except Exception as e:
+        print(f"Warning: Could not auto-import ULB for project {project.id}: {e}")
+    
     db.session.commit()
     flash('Project created successfully!', 'success')
     return redirect(url_for('dashboard'))
@@ -249,7 +305,8 @@ def view_project(project_id):
             
             try:
                 storage = get_storage()
-                file_content = storage.get_file(file.storage_path).decode('utf-8')
+                file_content_bytes = storage.get_file(file.storage_path)
+                file_content = safe_decode_content(file_content_bytes)
                 all_lines = file_content.split('\n')
                 file_data['line_count'] = len(all_lines)
                 
@@ -263,17 +320,10 @@ def view_project(project_id):
             
             text_files.append(file_data)
     
-    # Get completed back translation jobs count
-    completed_jobs_count = BackTranslationJob.query.filter_by(
-        project_id=project_id, 
-        status='completed'
-    ).count()
-    
     return render_template('project.html', 
                          project=project, 
                          total_available_lines=total_available_lines, 
-                         text_files=text_files,
-                         completed_jobs_count=completed_jobs_count)
+                         text_files=text_files)
 
 @app.route('/project/<int:project_id>/edit')
 @login_required
@@ -383,179 +433,48 @@ def update_instructions(project_id):
 @app.route('/project/<int:project_id>/files/<int:file_id>', methods=['DELETE'])
 @login_required
 def delete_project_file(project_id, file_id):
-    """Delete a project file and associated back translations"""
+    """Delete a project file and associated relationships"""
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     project_file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
     
-    # Delete from storage
-    storage = get_storage()
-    storage.delete_file(project_file.storage_path)
-    
-    # Find and delete associated back translation jobs  
-    back_translation_jobs = BackTranslationJob.query.filter(
+    # Delete any FilePair relationships involving this file
+    file_pairs = FilePair.query.filter(
         db.or_(
-            BackTranslationJob.source_filename == project_file.original_filename,
-            BackTranslationJob.project_file_id == file_id
+            FilePair.file1_id == file_id,
+            FilePair.file2_id == file_id
         ),
-        BackTranslationJob.project_id == project_id
+        FilePair.project_id == project_id
     ).all()
     
-    for job in back_translation_jobs:
-        # Delete back translation results from storage
-        if job.results_storage_path:
-            try:
-                storage.delete_file(job.results_storage_path)
-            except Exception as e:
-                print(f"Failed to delete back translation results: {e}")
-        
-        # Delete source content from storage
-        if job.source_content_path:
-            try:
-                storage.delete_file(job.source_content_path)
-            except Exception as e:
-                print(f"Failed to delete source content: {e}")
-        
-        # Delete job from database
+    for pair in file_pairs:
+        db.session.delete(pair)
+    
+    # Delete any fine-tuning jobs involving this file
+    fine_tuning_jobs = FineTuningJob.query.filter(
+        db.or_(
+            FineTuningJob.source_file_id == file_id,
+            FineTuningJob.target_file_id == file_id
+        ),
+        FineTuningJob.project_id == project_id
+    ).all()
+    
+    for job in fine_tuning_jobs:
         db.session.delete(job)
+    
+    # Delete from storage (if file exists)
+    storage = get_storage()
+    try:
+        storage.delete_file(project_file.storage_path)
+    except Exception as e:
+        # Log the error but continue with database deletion
+        print(f"Warning: Could not delete file from storage: {e}")
+        # This is not a fatal error - the file might already be deleted
     
     # Delete file from database
     db.session.delete(project_file)
     db.session.commit()
     
     return '', 204  # No content response
-
-@app.route('/project/<int:project_id>/upload-back-translation', methods=['POST'])
-@login_required
-def upload_back_translation(project_id):
-    """Upload a manual back translation file"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-    
-    if 'back_translation_file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-    
-    file = request.files['back_translation_file']
-    if not file.filename:
-        return jsonify({'error': 'No file selected'}), 400
-    
-    if not file.filename.lower().endswith('.txt'):
-        return jsonify({'error': 'Only .txt files are allowed'}), 400
-    
-    try:
-        # Read and validate file content
-        file_content = file.read().decode('utf-8')
-        all_lines = file_content.split('\n')
-        non_empty_lines = [line.strip() for line in all_lines if line.strip()]
-        
-        if not non_empty_lines:
-            return jsonify({'error': 'File is empty or contains no valid content'}), 400
-        
-        # Create a back translation job record
-        job = BackTranslationJob(
-            project_id=project_id,
-            batch_id='manual_upload',
-            total_lines=len(all_lines),
-            processed_lines=len(all_lines),
-            source_filename=f"manual_upload_{file.filename}",
-            status='completed'
-        )
-        
-        db.session.add(job)
-        db.session.flush()
-        
-        # Format results for storage
-        formatted_results = []
-        for i, line in enumerate(all_lines):
-            formatted_results.append({
-                'line_number': i,
-                'original': f"[Manual upload line {i+1}]",
-                'back_translation': line
-            })
-        
-        # Store results
-        storage = get_storage()
-        results_storage_path = f"projects/{project_id}/back_translation/{job.id}_results.json"
-        results_file = io.BytesIO(json.dumps(formatted_results, ensure_ascii=False, indent=2).encode('utf-8'))
-        storage.store_file(results_file, results_storage_path)
-        
-        # Update job
-        job.results_storage_path = results_storage_path
-        job.back_translations = json.dumps({'total_results': len(formatted_results), 'storage_path': results_storage_path})
-        job.completed_at = datetime.utcnow()
-        
-        # Create ProjectFile entry for the back translation
-        back_translation_filename = f"back_translation_{job.id}_{secure_filename(file.filename)}"
-        project_file = save_project_file(
-            project_id,
-            file_content,
-            back_translation_filename,
-            'back_translation',
-            'text/plain'
-        )
-        
-        # Link the project file to the job
-        job.project_file_id = project_file.id
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Back translation uploaded successfully with {len(all_lines)} lines',
-            'job_id': job.id,
-            'file_id': project_file.id
-        })
-        
-    except UnicodeDecodeError:
-        return jsonify({'error': 'File must be valid UTF-8 text'}), 400
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
-
-@app.route('/project/<int:project_id>/back-translation/<int:job_id>', methods=['DELETE'])
-@login_required
-def delete_back_translation_job(project_id, job_id):
-    """Delete a back translation job and its results"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-    job = BackTranslationJob.query.filter_by(id=job_id, project_id=project_id).first_or_404()
-    
-    try:
-        storage = get_storage()
-        
-        # Delete results from storage if they exist
-        if job.results_storage_path:
-            try:
-                storage.delete_file(job.results_storage_path)
-            except Exception as e:
-                print(f"Failed to delete results file: {e}")
-        
-        # Delete source content from storage if it exists
-        if job.source_content_path:
-            try:
-                storage.delete_file(job.source_content_path)
-            except Exception as e:
-                print(f"Failed to delete source content file: {e}")
-        
-        # Delete associated ProjectFile if it exists
-        if job.project_file_id:
-            project_file = ProjectFile.query.get(job.project_file_id)
-            if project_file:
-                # Delete the project file from storage
-                try:
-                    storage.delete_file(project_file.storage_path)
-                except Exception as e:
-                    print(f"Failed to delete project file from storage: {e}")
-                
-                # Delete the project file from database
-                db.session.delete(project_file)
-        
-        # Delete job from database
-        db.session.delete(job)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': 'Back translation job deleted successfully'})
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': f'Failed to delete job: {str(e)}'}), 500
 
 @app.route('/project/<int:project_id>/upload-file', methods=['POST'])
 @login_required
@@ -576,7 +495,6 @@ def upload_file_unified(project_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
-
 
 def handle_usfm_upload(project_id, project):
     """Handle USFM file upload and conversion to eBible format"""
@@ -686,7 +604,6 @@ def handle_usfm_upload(project_id, project):
         'verses_added': len(all_verses)
     })
 
-
 def handle_regular_upload(project_id, project):
     """Handle regular file upload (non-USFM)"""
     file_type = request.form.get('file_type', '')
@@ -778,14 +695,12 @@ def handle_regular_upload(project_id, project):
         'file_id': project_file.id
     })
 
-
 @app.route('/project/<int:project_id>/usfm-import')
 @login_required
 def usfm_import(project_id):
     """USFM import page"""
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     return render_template('usfm_import.html', project=project)
-
 
 @app.route('/project/<int:project_id>/usfm-upload', methods=['POST'])
 @login_required
@@ -795,7 +710,6 @@ def usfm_upload(project_id):
     
     try:
         from utils.usfm_parser import USFMParser, EBibleBuilder
-        import json
         
         if 'usfm_files' not in request.files:
             return jsonify({'error': 'No USFM files provided'}), 400
@@ -896,7 +810,6 @@ def usfm_upload(project_id):
     except Exception as e:
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
-
 @app.route('/project/<int:project_id>/usfm-status')
 @login_required
 def usfm_status(project_id):
@@ -905,7 +818,6 @@ def usfm_status(project_id):
     
     try:
         from utils.usfm_parser import EBibleBuilder
-        import json
         
         # Check temporary files
         temp_dir = os.path.join('storage', 'temp_usfm')
@@ -946,7 +858,6 @@ def usfm_status(project_id):
     except Exception as e:
         return jsonify({'error': f'Status check failed: {str(e)}'}), 500
 
-
 @app.route('/project/<int:project_id>/usfm-complete', methods=['POST'])
 @login_required
 def usfm_complete(project_id):
@@ -955,7 +866,6 @@ def usfm_complete(project_id):
     
     try:
         from utils.usfm_parser import EBibleBuilder
-        import json
         
         # Check temporary files
         temp_dir = os.path.join('storage', 'temp_usfm')
@@ -1014,7 +924,6 @@ def usfm_complete(project_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Completion failed: {str(e)}'}), 500
-
 
 @app.route('/project/<int:project_id>/upload-target-text', methods=['POST'])
 @login_required
@@ -1095,6 +1004,93 @@ def upload_target_text(project_id):
         db.session.rollback()
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
+@app.route('/api/corpus/files')
+@login_required
+def list_corpus_files():
+    """List available corpus files for import"""
+    corpus_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Corpus')
+    
+    if not os.path.exists(corpus_dir):
+        return jsonify({'files': []})
+    
+    corpus_files = []
+    for filename in os.listdir(corpus_dir):
+        if filename.lower().endswith('.txt'):
+            file_path = os.path.join(corpus_dir, filename)
+            try:
+                file_size = os.path.getsize(file_path)
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    line_count = sum(1 for line in f)
+                
+                # Extract language/translation info from filename
+                name_parts = filename.replace('.txt', '').split('_')
+                display_name = ' '.join([part.title() for part in name_parts])
+                
+                corpus_files.append({
+                    'filename': filename,
+                    'display_name': display_name,
+                    'file_size': file_size,
+                    'line_count': line_count
+                })
+            except Exception as e:
+                print(f"Error reading corpus file {filename}: {e}")
+                continue
+    
+    return jsonify({'files': corpus_files})
+
+@app.route('/project/<int:project_id>/import-corpus', methods=['POST'])
+@login_required
+def import_corpus_file(project_id):
+    """Import a corpus file into the project"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    data = request.get_json()
+    corpus_filename = data.get('filename')
+    
+    if not corpus_filename:
+        return jsonify({'error': 'No filename provided'}), 400
+    
+    corpus_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Corpus')
+    corpus_file_path = os.path.join(corpus_dir, corpus_filename)
+    
+    if not os.path.exists(corpus_file_path):
+        return jsonify({'error': 'Corpus file not found'}), 404
+    
+    if not corpus_filename.lower().endswith('.txt'):
+        return jsonify({'error': 'Only .txt files are supported'}), 400
+    
+    try:
+        # Read the corpus file content
+        with open(corpus_file_path, 'r', encoding='utf-8') as f:
+            file_content = f.read()
+        
+        # Generate a unique filename for the project
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        base_name = corpus_filename.replace('.txt', '')
+        project_filename = f"{base_name}_imported_{timestamp}.txt"
+        
+        # Save as project file
+        project_file = save_project_file(
+            project_id,
+            file_content,
+            project_filename,
+            'ebible',  # Corpus files are eBible format
+            'text/plain'
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Corpus file "{corpus_filename}" imported successfully',
+            'file_id': project_file.id,
+            'project_filename': project_filename
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Import failed: {str(e)}'}), 500
+
 @app.route('/api/translate', methods=['POST'])
 @login_required
 def translate_passage():
@@ -1107,6 +1103,7 @@ def translate_passage():
         target_language = data.get('target_language', '')
         audience = data.get('audience', '')
         style = data.get('style', '')
+        model = data.get('model')  # Optional model override
         
         # Bible passages mapping
         passages = {
@@ -1134,7 +1131,8 @@ def translate_passage():
                         target_language=target_language,
                         audience=audience,
                         style=style,
-                        context=f"Bible verse ({passage_key})"
+                        context=f"Bible verse ({passage_key})",
+                        model=model
                     )
                 )
             finally:
@@ -1143,18 +1141,15 @@ def translate_passage():
         translation = run_translation()
         
         return jsonify({
-            'original': original_text,
+            'success': True,
             'translation': translation,
-            'target_language': target_language
+            'passage': passage_key,
+            'original': original_text
         })
         
-    except ValueError as e:
-        # Handle missing API key or configuration errors
-        print(f"Configuration error: {str(e)}")
-        return jsonify({'error': 'Translation service not configured properly. Please check API keys.'}), 500
     except Exception as e:
-        print(f"Translation error: {str(e)}")
-        return jsonify({'error': f'Translation failed: {str(e)}'}), 500
+        print(f"Translation error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/uploads/<path:filename>')
 def serve_upload(filename):
@@ -1167,6 +1162,18 @@ def serve_upload(filename):
         return send_file(io.BytesIO(file_data), as_attachment=False, download_name=filename)
     else:  # Cloud storage
         return redirect(storage.get_file_url(filename))
+
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    """Serve static files"""
+    return send_file(os.path.join('static', filename))
+
+@app.route('/favicon.ico')
+def favicon():
+    """Serve favicon with proper headers"""
+    response = send_file('static/favicon.ico', mimetype='image/vnd.microsoft.icon')
+    response.headers['Cache-Control'] = 'public, max-age=86400'  # Cache for 1 day
+    return response
 
 @app.route('/project/<int:project_id>/files')
 @login_required
@@ -1181,345 +1188,6 @@ def project_files(project_id):
         'url': url_for('serve_upload', filename=f.storage_path),
         'created_at': f.created_at.isoformat()
     } for f in project.files])
-
-@app.route('/project/<int:project_id>/start-back-translation', methods=['POST'])
-@login_required
-def start_back_translation(project_id):
-    """Start a back translation job for project files"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first()
-    
-    # Check if there's already a job in progress
-    existing_job = BackTranslationJob.query.filter_by(
-        project_id=project_id, 
-        status='in_progress'
-    ).first()
-    
-    if existing_job:
-        return jsonify({'error': 'Back translation already in progress'}), 400
-    
-    # Get training files with text content
-    text_files = [f for f in project.files if f.file_type in ['ebible', 'text']]
-    
-    if not text_files:
-        return jsonify({'error': 'No training files found to back translate'}), 400
-    
-    try:
-        # Get parameters from request
-        data = request.get_json() or {}
-        line_count_param = data.get('line_count', 'all')
-        selected_file_id = data.get('file_id')
-        
-        back_translator = BackTranslator()
-        
-        # Select the file to back translate
-        if selected_file_id:
-            try:
-                selected_file_id = int(selected_file_id)
-                source_file = next((f for f in text_files if f.id == selected_file_id), None)
-                if not source_file:
-                    return jsonify({'error': 'Selected file not found'}), 400
-            except (ValueError, TypeError):
-                return jsonify({'error': 'Invalid file ID'}), 400
-        else:
-            # Default to first text file for backward compatibility
-            source_file = text_files[0]
-        
-        # Load file content
-        storage = get_storage()
-        file_content = storage.get_file(source_file.storage_path).decode('utf-8')
-        
-        # Split into lines and apply line count limit
-        all_lines = file_content.split('\n')
-        
-        if line_count_param == 'all':
-            lines_to_process = all_lines
-        else:
-            try:
-                line_count = int(line_count_param)
-                lines_to_process = all_lines[:line_count]
-            except (ValueError, TypeError):
-                return jsonify({'error': 'Invalid line count parameter'}), 400
-        
-        # Reconstruct content with only the lines to process
-        limited_content = '\n'.join(lines_to_process)
-        
-        # Create job record first to get the job ID
-        job = BackTranslationJob(
-            project_id=project_id,
-            batch_id='',  # Will be updated after batch submission
-            total_lines=len(lines_to_process),
-            source_filename=source_file.original_filename
-        )
-        
-        db.session.add(job)
-        db.session.flush()  # Get the job ID
-        
-        # Store source content in DigitalOcean Spaces
-        source_content_path = f"projects/{project_id}/back_translation/{job.id}_source_content.txt"
-        source_content_file = io.BytesIO(limited_content.encode('utf-8'))
-        storage.store_file(source_content_file, source_content_path)
-        
-        # Update job with storage path
-        job.source_content_path = source_content_path
-        
-        # Prepare batch requests
-        batch_requests = back_translator.prepare_lines_for_translation(limited_content)
-        
-        # Submit batch to Anthropic
-        batch_id = back_translator.submit_batch(batch_requests)
-        
-        # Update job with batch ID
-        job.batch_id = batch_id
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'job_id': job.id,
-            'batch_id': batch_id,
-            'total_lines': len(lines_to_process),
-            'total_available_lines': len(all_lines),
-            'line_count_param': line_count_param
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/project/<int:project_id>/back-translation-status')
-@login_required
-def back_translation_status(project_id):
-    """Get status of back translation jobs for a project"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first()
-    
-    jobs = BackTranslationJob.query.filter_by(project_id=project_id).order_by(
-        BackTranslationJob.created_at.desc()
-    ).all()
-    
-    job_status = []
-    back_translator = BackTranslator()
-    
-    for job in jobs:
-        status_data = {
-            'id': job.id,
-            'batch_id': job.batch_id,
-            'status': job.status,
-            'total_lines': job.total_lines,
-            'processed_lines': job.processed_lines,
-            'source_filename': job.source_filename,
-            'created_at': job.created_at.isoformat(),
-            'completed_at': job.completed_at.isoformat() if job.completed_at else None
-        }
-        
-        # Check for updates if still in progress
-        if job.status == 'in_progress':
-            try:
-                batch_status = back_translator.check_batch_status(job.batch_id)
-                
-                if batch_status['status'] == 'ended':
-                    # Process completed batch
-                    results = back_translator.retrieve_batch_results(job.batch_id)
-                    
-                    # Load source content from storage
-                    storage = get_storage()
-                    if job.source_content_path:
-                        source_content = storage.get_file(job.source_content_path).decode('utf-8')
-                        lines = source_content.split('\n')
-                    else:
-                        # Fallback for old jobs without storage path
-                        lines = []
-                    
-                    formatted_results = back_translator.format_results_for_storage(lines, results)
-                    
-                    # Store results in storage instead of database
-                    results_storage_path = f"projects/{project_id}/back_translation/{job.id}_results.json"
-                    results_file = io.BytesIO(json.dumps(formatted_results, ensure_ascii=False, indent=2).encode('utf-8'))
-                    storage.store_file(results_file, results_storage_path)
-                    
-                    # Update job with minimal metadata
-                    job.status = 'completed'
-                    job.processed_lines = len(results)
-                    job.results_storage_path = results_storage_path
-                    job.back_translations = json.dumps({'total_results': len(formatted_results), 'storage_path': results_storage_path})
-                    job.completed_at = datetime.utcnow()
-                    
-                    # Create ProjectFile entry for the auto-generated back translation
-                    # Extract just the back translation text for storage as a text file
-                    back_translation_lines = []
-                    for result in formatted_results:
-                        back_translation = result.get('back_translation', '')
-                        if back_translation.startswith('[ERROR:'):
-                            back_translation_lines.append(f"# {back_translation}")
-                        elif back_translation.strip() == '':
-                            # Preserve blank lines as blank lines
-                            back_translation_lines.append('')
-                        else:
-                            # Clean the back translation text
-                            clean_back_translation = back_translation.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
-                            clean_back_translation = ' '.join(clean_back_translation.split())
-                            back_translation_lines.append(clean_back_translation)
-                    
-                    back_translation_content = '\n'.join(back_translation_lines)
-                    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-                    back_translation_filename = f"back_translation_{job.source_filename}_{timestamp}.txt"
-                    
-                    project_file = save_project_file(
-                        project_id,
-                        back_translation_content,
-                        back_translation_filename,
-                        'back_translation',
-                        'text/plain'
-                    )
-                    
-                    # Link the project file to the job
-                    job.project_file_id = project_file.id
-                    
-                    db.session.commit()
-                    
-                    status_data['status'] = 'completed'
-                    status_data['processed_lines'] = len(results)
-                    status_data['completed_at'] = job.completed_at.isoformat()
-                
-                elif batch_status['status'] in ['failed', 'expired']:
-                    job.status = batch_status['status']
-                    job.error_message = f"Batch {batch_status['status']}"
-                    db.session.commit()
-                    
-                    status_data['status'] = job.status
-                    status_data['error'] = job.error_message
-                
-            except Exception as e:
-                status_data['error'] = str(e)
-        
-        job_status.append(status_data)
-    
-    return jsonify({'jobs': job_status})
-
-@app.route('/project/<int:project_id>/files/<int:file_id>/back-translations')
-@login_required
-def get_file_back_translations(project_id, file_id):
-    """Get back translation jobs for a specific file"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-    project_file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
-    
-    # Find completed back translation jobs for this file
-    back_translation_jobs = BackTranslationJob.query.filter_by(
-        project_id=project_id,
-        source_filename=project_file.original_filename,
-        status='completed'
-    ).all()
-    
-    jobs_data = []
-    for job in back_translation_jobs:
-        jobs_data.append({
-            'id': job.id,
-            'total_lines': job.total_lines,
-            'completed_at': job.completed_at.isoformat() if job.completed_at else None,
-            'download_url': url_for('download_back_translation', project_id=project_id, job_id=job.id)
-        })
-    
-    return jsonify({
-        'file_id': file_id,
-        'filename': project_file.original_filename,
-        'back_translation_jobs': jobs_data
-    })
-
-@app.route('/project/<int:project_id>/back-translation/<int:job_id>')
-@login_required  
-def view_back_translation(project_id, job_id):
-    """View back translation results"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first()
-    job = BackTranslationJob.query.filter_by(id=job_id, project_id=project_id).first()
-    
-    if job.status != 'completed':
-        return jsonify({'error': 'Back translation not completed'}), 400
-    
-    try:
-        storage = get_storage()
-        
-        # Load results from storage
-        if job.results_storage_path:
-            results_content = storage.get_file(job.results_storage_path).decode('utf-8')
-            results = json.loads(results_content)
-        else:
-            # Fallback for old jobs with results in database
-            if job.back_translations:
-                results = json.loads(job.back_translations)
-            else:
-                return jsonify({'error': 'No results available'}), 400
-        
-        return jsonify({
-            'job_id': job.id,
-            'source_filename': job.source_filename,
-            'total_lines': job.total_lines,
-            'completed_at': job.completed_at.isoformat(),
-            'results': results
-        })
-    except Exception as e:
-        return jsonify({'error': f'Failed to load results: {str(e)}'}), 500
-
-@app.route('/project/<int:project_id>/back-translation/<int:job_id>/download')
-@login_required  
-def download_back_translation(project_id, job_id):
-    """Download back translation results as a text file"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-    job = BackTranslationJob.query.filter_by(id=job_id, project_id=project_id).first_or_404()
-    
-    if job.status != 'completed':
-        flash('Back translation not completed', 'error')
-        return redirect(url_for('view_project', project_id=project_id))
-    
-    try:
-        storage = get_storage()
-        
-        # Load results from storage
-        if job.results_storage_path:
-            results_content = storage.get_file(job.results_storage_path).decode('utf-8')
-            results = json.loads(results_content)
-        else:
-            # Fallback for old jobs with results in database
-            if job.back_translations:
-                results = json.loads(job.back_translations)
-            else:
-                flash('No results available', 'error')
-                return redirect(url_for('view_project', project_id=project_id))
-        
-        # Extract just the back translations, one per line
-        back_translation_lines = []
-        for result in results:
-            back_translation = result.get('back_translation', '')
-            # Handle error cases where back translation might contain error messages
-            if back_translation.startswith('[ERROR:'):
-                back_translation_lines.append(f"# {back_translation}")
-            elif back_translation.strip() == '':
-                # Preserve blank lines as blank lines
-                back_translation_lines.append('')
-            else:
-                # Aggressively remove ALL newlines and normalize to single line
-                # Handle \n, \r, \r\n, and any whitespace combinations
-                clean_back_translation = back_translation.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
-                # Collapse multiple spaces and strip
-                clean_back_translation = ' '.join(clean_back_translation.split())
-                back_translation_lines.append(clean_back_translation)
-        
-        # Create text content
-        text_content = '\n'.join(back_translation_lines)
-        
-        # Create filename based on source filename and timestamp
-        timestamp = job.completed_at.strftime('%Y%m%d_%H%M%S') if job.completed_at else 'unknown'
-        base_filename = job.source_filename.rsplit('.', 1)[0] if '.' in job.source_filename else job.source_filename
-        download_filename = f"{base_filename}_back_translations_{timestamp}.txt"
-        
-        # Return as downloadable file
-        return send_file(
-            io.BytesIO(text_content.encode('utf-8')),
-            as_attachment=True,
-            download_name=download_filename,
-            mimetype='text/plain'
-        )
-        
-    except Exception as e:
-        flash(f'Failed to download results: {str(e)}', 'error')
-        return redirect(url_for('view_project', project_id=project_id))
 
 @app.route('/project/<int:project_id>/files/<int:file_id>/download')
 @login_required  
@@ -1546,6 +1214,87 @@ def download_project_file(project_id, file_id):
     except Exception as e:
         return jsonify({'error': f'File download failed: {str(e)}'}), 500
 
+@app.route('/project/<int:project_id>/files/<int:file1_id>/pair/<int:file2_id>', methods=['POST'])
+@login_required
+def pair_files(project_id, file1_id, file2_id):
+    """Pair two files as parallel texts"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    # Verify both files exist and belong to this project
+    file1 = ProjectFile.query.filter_by(id=file1_id, project_id=project.id).first_or_404()
+    file2 = ProjectFile.query.filter_by(id=file2_id, project_id=project.id).first_or_404()
+    
+    if file1_id == file2_id:
+        return jsonify({'error': 'Cannot pair a file with itself'}), 400
+    
+        # Check if either file is already paired
+    if file1.is_paired():
+        return jsonify({'error': f'{file1.original_filename} is already paired with another file'}), 400
+
+    if file2.is_paired():
+        return jsonify({'error': f'{file2.original_filename} is already paired with another file'}), 400
+    
+    # Check if both files are text files
+    if file1.content_type != 'text/plain' or file2.content_type != 'text/plain':
+        return jsonify({'error': 'Only .txt files can be paired together'}), 400
+    
+    # Check if both files have the same line count for proper alignment
+    if file1.line_count != file2.line_count:
+        return jsonify({'error': f'Files must have the same line count to be paired. {file1.original_filename} has {file1.line_count} lines, {file2.original_filename} has {file2.line_count} lines'}), 400
+    
+    try:
+        # Create the file pair (store with smaller ID first for consistency)
+        if file1_id < file2_id:
+            file_pair = FilePair(project_id=project.id, file1_id=file1_id, file2_id=file2_id)
+        else:
+            file_pair = FilePair(project_id=project.id, file1_id=file2_id, file2_id=file1_id)
+        
+        db.session.add(file_pair)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully paired {file1.original_filename} with {file2.original_filename}',
+            'pair_id': file_pair.id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to pair files: {str(e)}'}), 500
+
+@app.route('/project/<int:project_id>/files/<int:file_id>/unpair', methods=['POST'])
+@login_required
+def unpair_file(project_id, file_id):
+    """Unpair a file from its parallel text"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
+    
+    # Find and delete the file pair
+    pair_as_file1 = FilePair.query.filter_by(project_id=project.id, file1_id=file_id).first()
+    pair_as_file2 = FilePair.query.filter_by(project_id=project.id, file2_id=file_id).first()
+    
+    pair_to_delete = pair_as_file1 or pair_as_file2
+    
+    if not pair_to_delete:
+        return jsonify({'error': f'{file.original_filename} is not paired with any file'}), 400
+    
+    try:
+        # Get the other file's name for the success message
+        other_file_id = pair_to_delete.file2_id if pair_to_delete.file1_id == file_id else pair_to_delete.file1_id
+        other_file = ProjectFile.query.get(other_file_id)
+        
+        db.session.delete(pair_to_delete)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully unpaired {file.original_filename} from {other_file.original_filename}'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to unpair files: {str(e)}'}), 500
+
 @app.route('/faq')
 def faq():
     """FAQ page"""
@@ -1554,36 +1303,1000 @@ def faq():
 @app.route('/api/project/<int:project_id>')
 @login_required
 def get_project_info(project_id):
-    """Get project information for API access"""
+    """Get project information for API calls"""
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     
     return jsonify({
         'id': project.id,
         'target_language': project.target_language,
         'audience': project.audience,
-        'style': project.style,
-        'instructions': project.instructions
+        'style': project.style
     })
 
-@app.route('/project/<int:project_id>/back-translation-jobs')
+# Fine-tuning API routes
+@app.route('/project/<int:project_id>/fine-tuning/jobs', methods=['GET'])
 @login_required
-def get_back_translation_jobs(project_id):
-    """Get completed back translation jobs for a project"""
+def get_fine_tuning_jobs(project_id):
+    """Get all fine-tuning jobs for a project"""
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     
-    jobs = BackTranslationJob.query.filter_by(
-        project_id=project_id, 
-        status='completed'
-    ).order_by(BackTranslationJob.created_at.desc()).all()
+    try:
+        ft_service = FineTuningService()
+        jobs = ft_service.get_project_jobs(project_id)
+        return jsonify({'jobs': jobs})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/project/<int:project_id>/fine-tuning/preview', methods=['POST'])
+@login_required
+def preview_training_example(project_id):
+    """Preview a training example from the file pair"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     
-    jobs_data = [{
-        'id': job.id,
-        'source_filename': job.source_filename,
-        'total_lines': job.total_lines,
-        'completed_at': job.completed_at.isoformat() if job.completed_at else None
-    } for job in jobs]
+    data = request.get_json()
+    source_file_id = data.get('source_file_id')
+    target_file_id = data.get('target_file_id')
     
-    return jsonify({'jobs': jobs_data})
+    if not source_file_id or not target_file_id:
+        return jsonify({'error': 'Both source_file_id and target_file_id are required'}), 400
+    
+    # Verify files belong to this project
+    source_file = ProjectFile.query.filter_by(id=source_file_id, project_id=project_id).first()
+    target_file = ProjectFile.query.filter_by(id=target_file_id, project_id=project_id).first()
+    
+    if not source_file or not target_file:
+        return jsonify({'error': 'Source or target file not found in this project'}), 404
+    
+    try:
+        ft_service = FineTuningService()
+        preview = ft_service.get_training_example_preview(source_file_id, target_file_id, project_id)
+        return jsonify(preview)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/project/<int:project_id>/fine-tuning/jobs', methods=['POST'])
+@login_required
+def create_fine_tuning_job(project_id):
+    """Create a new fine-tuning job"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    data = request.get_json()
+    source_file_id = data.get('source_file_id')
+    target_file_id = data.get('target_file_id')
+    base_model = data.get('base_model', 'gpt-4o-mini')
+    
+    if not source_file_id or not target_file_id:
+        return jsonify({'error': 'Both source_file_id and target_file_id are required'}), 400
+    
+    # Verify files belong to this project
+    source_file = ProjectFile.query.filter_by(id=source_file_id, project_id=project_id).first()
+    target_file = ProjectFile.query.filter_by(id=target_file_id, project_id=project_id).first()
+    
+    if not source_file or not target_file:
+        return jsonify({'error': 'Source or target file not found in this project'}), 404
+    
+    try:
+        ft_service = FineTuningService()
+        job_id = ft_service.start_fine_tuning_job(project_id, source_file_id, target_file_id, base_model)
+        
+        # Check if the job was created successfully
+        job = db.session.get(FineTuningJob, job_id)
+        
+        if job.status == 'failed' and 'OpenAI API error' in (job.error_message or ''):
+            # Job created but OpenAI upload failed
+            return jsonify({
+                'success': True,
+                'job_id': job_id,
+                'warning': True,
+                'message': 'Training data generated and saved locally, but OpenAI upload failed. You can download the training data file from the project files section.',
+                'error_details': job.error_message
+            })
+        elif job.status == 'failed':
+            # Job creation failed entirely
+            return jsonify({
+                'success': False,
+                'error': job.error_message or 'Unknown error occurred'
+            }), 500
+        else:
+            # Job created successfully
+            return jsonify({
+                'success': True,
+                'job_id': job_id,
+                'message': 'Fine-tuning job started successfully'
+            })
+            
+    except Exception as e:
+        # Log the full error with traceback for debugging
+        error_details = traceback.format_exc()
+        print(f"Fine-tuning job creation failed:")
+        print(f"Error: {str(e)}")
+        print(f"Traceback:\n{error_details}")
+        
+        # Return the actual error message to help with debugging
+        return jsonify({'error': f'Fine-tuning job failed: {str(e)}'}), 500
+
+@app.route('/project/<int:project_id>/fine-tuning/jobs/<int:job_id>/status', methods=['GET'])
+@login_required
+def get_fine_tuning_job_status(project_id, job_id):
+    """Get the status of a specific fine-tuning job"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    # Verify job belongs to this project
+    job = FineTuningJob.query.filter_by(id=job_id, project_id=project_id).first()
+    if not job:
+        return jsonify({'error': 'Fine-tuning job not found'}), 404
+    
+    try:
+        ft_service = FineTuningService()
+        status = ft_service.check_job_status(job_id)
+        return jsonify(status)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/project/<int:project_id>/fine-tuning/models', methods=['GET'])
+@login_required
+def get_fine_tuning_models(project_id):
+    """Get available models for fine-tuning"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    try:
+        ft_service = FineTuningService()
+        models = ft_service.get_fine_tuning_models_for_project(project_id)
+        return jsonify({'models': models})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/project/<int:project_id>/fine-tuning/estimate', methods=['POST'])
+@login_required
+def estimate_fine_tuning_cost(project_id):
+    """Estimate the cost of fine-tuning with given files"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    data = request.get_json()
+    source_file_id = data.get('source_file_id')
+    target_file_id = data.get('target_file_id')
+    base_model = data.get('base_model', 'gpt-4o-mini')
+    
+    if not source_file_id or not target_file_id:
+        return jsonify({'error': 'Both source_file_id and target_file_id are required'}), 400
+    
+    try:
+        ft_service = FineTuningService()
+        
+        # Generate training data to count examples
+        jsonl_content, num_examples = ft_service.create_training_data(
+            source_file_id, target_file_id, project_id
+        )
+        
+        estimated_cost = ft_service.estimate_cost(num_examples, base_model, project_id)
+        
+        return jsonify({
+            'num_examples': num_examples,
+            'estimated_cost_usd': estimated_cost,
+            'base_model': base_model,
+            'note': 'This is an estimate. Actual costs may vary based on final token count and training duration.'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Project translation model management
+@app.route('/project/<int:project_id>/translation-models', methods=['GET'])
+@login_required
+def get_translation_models(project_id):
+    """Get available translation models for a project"""
+    try:
+        project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+        
+        models = project.get_available_translation_models()
+        current_model = project.get_current_translation_model()
+        default_model = project.get_default_translation_model()
+        
+        return jsonify({
+            'success': True,
+            'models': models,
+            'current_model': current_model,
+            'default_model': default_model
+        })
+        
+    except Exception as e:
+        print(f"Error getting translation models: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/project/<int:project_id>/translation-model', methods=['POST'])
+@login_required
+def set_translation_model(project_id):
+    """Set the translation model for a project"""
+    try:
+        project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+        
+        data = request.get_json()
+        model_id = data.get('model_id')
+        
+        if not model_id:
+            return jsonify({'success': False, 'error': 'Model ID is required'}), 400
+        
+        # Validate model exists in available models
+        available_models = project.get_available_translation_models()
+        if model_id not in available_models:
+            return jsonify({'success': False, 'error': 'Invalid model ID'}), 400
+        
+        # Update project
+        project.translation_model = model_id
+        project.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Translation model updated to {available_models[model_id]["name"]}'
+        })
+        
+    except Exception as e:
+        print(f"Error setting translation model: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+def safe_decode_content(file_content):
+    """Simple UTF-8 decode that ignores problematic bytes"""
+    return file_content.decode('utf-8', errors='ignore')
+
+# Instruction Fine-tuning API routes
+@app.route('/project/<int:project_id>/fine-tuning/instruction/preview', methods=['POST'])
+@login_required
+def preview_instruction_training_example(project_id):
+    """Simple instruction fine-tuning preview without complex progress tracking"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    data = request.get_json()
+    source_file_id = data.get('source_file_id')
+    target_file_id = data.get('target_file_id')
+    max_examples = data.get('max_examples', 50)
+    
+    if not source_file_id or not target_file_id:
+        return jsonify({'error': 'Both source_file_id and target_file_id are required'}), 400
+    
+    # Validate max_examples
+    try:
+        max_examples = int(max_examples)
+        if max_examples < 1 or max_examples > 100:
+            max_examples = 50
+    except (ValueError, TypeError):
+        max_examples = 50
+    
+    # Verify files belong to this project
+    source_file = ProjectFile.query.filter_by(id=source_file_id, project_id=project_id).first()
+    target_file = ProjectFile.query.filter_by(id=target_file_id, project_id=project_id).first()
+    
+    if not source_file or not target_file:
+        return jsonify({'error': 'Source or target file not found in this project'}), 404
+    
+    # Generate unique progress ID
+    progress_id = str(uuid.uuid4())
+    
+    try:
+        ft_service = FineTuningService()
+        
+        # Initialize progress
+        ft_service.progress_cache[progress_id] = {
+            "current": 0, 
+            "total": max_examples, 
+            "message": "Starting...",
+            "status": "processing"
+        }
+        print(f"Stored progress for {progress_id}: {ft_service.progress_cache[progress_id]}")
+        print(f"All progress keys: {list(ft_service.progress_cache.keys())}")
+        
+        def generate_training_data():
+            try:
+                with app.app_context():
+                    def progress_callback(current, total, message):
+                        ft_service.progress_cache[progress_id] = {
+                            "current": current, 
+                            "total": total, 
+                            "message": message,
+                            "status": "processing"
+                        }
+                        print(f"Progress update {progress_id}: {current}/{total} - {message}")
+                    
+                    # Use the context-aware method to generate training data with progress
+                    jsonl_content, num_examples = ft_service.create_instruction_training_data_with_context(
+                        source_file_id, target_file_id, project_id, max_examples, progress_callback
+                    )
+                    
+                    if num_examples == 0:
+                        ft_service.progress_cache[progress_id] = {
+                            "status": "error",
+                            "message": "No valid training examples found"
+                        }
+                        return
+                    
+                    # Parse the first example for preview
+                    jsonl_lines = jsonl_content.strip().split('\n')
+                    first_example = json.loads(jsonl_lines[0])
+                    
+                    # Extract info from the first example
+                    system_prompt = first_example['messages'][0]['content']
+                    user_prompt = first_example['messages'][1]['content']
+                    assistant_response = first_example['messages'][2]['content']
+                    
+                    # Count context examples in the user prompt
+                    context_count = user_prompt.count('\n') - 2 if 'TRANSLATION EXAMPLES:' in user_prompt else 0
+                    context_count = max(0, context_count)
+                    
+                    # Extract the source text (last line of user prompt)
+                    source_text = user_prompt.split('\n')[-1].replace('Translate this text: ', '')
+                    
+                    result = {
+                        'total_lines': 'N/A',
+                        'valid_pairs': num_examples,
+                        'selected_examples': num_examples,
+                        'max_examples': max_examples,
+                        'source_filename': source_file.original_filename,
+                        'target_filename': target_file.original_filename,
+                        'preview_example': {
+                            'line_number': 1,
+                            'system_prompt': system_prompt,
+                            'user_prompt': user_prompt,
+                            'assistant_response': assistant_response,
+                            'source_text': source_text,
+                            'target_text': assistant_response,
+                            'has_context': context_count > 0,
+                            'context_examples_count': context_count
+                        },
+                        'jsonl_example': json.dumps(first_example, ensure_ascii=False, indent=2),
+                        'status_msg': f'Generated {num_examples} training examples with context successfully',
+                        'jsonl_content': jsonl_content  # Store the full JSONL content
+                    }
+                    
+                    # Store result in progress cache
+                    ft_service.progress_cache[progress_id] = {
+                        "status": "completed",
+                        "result": result
+                    }
+                    print(f"Completed {progress_id}: stored result")
+                    
+            except Exception as e:
+                ft_service.progress_cache[progress_id] = {
+                    "status": "error",
+                    "message": f"Training data generation failed: {str(e)}"
+                }
+                print(f"Error {progress_id}: {str(e)}")
+        
+        # Start background thread
+        thread = threading.Thread(target=generate_training_data)
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({'progress_id': progress_id})
+        
+    except Exception as e:
+        # Clear progress on error
+        progress_key = f"preview_{project_id}_{source_file_id}_{target_file_id}"
+        ft_service = FineTuningService()
+        if progress_key in ft_service.progress_cache:
+            del ft_service.progress_cache[progress_key]
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/project/<int:project_id>/fine-tuning/instruction/preview/progress/<progress_id>', methods=['GET'])
+@login_required
+def get_instruction_preview_progress(project_id, progress_id):
+    """Get progress for instruction fine-tuning preview"""
+    print(f"Progress request: project_id={project_id}, progress_id={progress_id}")
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    ft_service = FineTuningService()
+    print(f"Progress cache keys: {list(ft_service.progress_cache.keys())}")
+    
+    if progress_id in ft_service.progress_cache:
+        progress_data = ft_service.progress_cache[progress_id]
+        print(f"Found progress: {progress_data}")
+        return jsonify(progress_data)
+    else:
+        print(f"Progress not found for {progress_id}")
+        return jsonify({'current': 0, 'total': 0, 'message': 'No progress found', 'status': 'not_found'})
+
+@app.route('/project/<int:project_id>/fine-tuning/instruction/preview-with-progress', methods=['POST'])
+@login_required
+def preview_instruction_training_example_with_progress(project_id):
+    """Generate full instruction training data with progress tracking"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    data = request.get_json()
+    source_file_id = data.get('source_file_id')
+    target_file_id = data.get('target_file_id')
+    max_examples = data.get('max_examples', 50)
+    
+    if not source_file_id or not target_file_id:
+        return jsonify({'error': 'Both source_file_id and target_file_id are required'}), 400
+    
+    # Validate max_examples
+    try:
+        max_examples = int(max_examples)
+        if max_examples < 1 or max_examples > 100:
+            max_examples = 50
+    except (ValueError, TypeError):
+        max_examples = 50
+    
+    # Verify files belong to this project
+    source_file = ProjectFile.query.filter_by(id=source_file_id, project_id=project_id).first()
+    target_file = ProjectFile.query.filter_by(id=target_file_id, project_id=project_id).first()
+    
+    if not source_file or not target_file:
+        return jsonify({'error': 'Source or target file not found in this project'}), 404
+    
+    # Generate unique progress ID
+    progress_id = str(uuid.uuid4())
+    
+    # Initialize progress cache
+    ft_service = FineTuningService()
+    ft_service.progress_cache[progress_id] = {
+        "current": 0, 
+        "total": max_examples, 
+        "status": "starting", 
+        "message": "Initializing..."
+    }
+    
+    def generate_training_data():
+        try:
+            with app.app_context():
+                def progress_callback(current, total, message):
+                    ft_service.progress_cache[progress_id].update({
+                        "current": current,
+                        "total": total,
+                        "status": "processing",
+                        "message": message
+                    })
+                
+                # Generate the full training data with progress tracking
+                jsonl_content, num_examples = ft_service.create_instruction_training_data(
+                    source_file_id, target_file_id, project_id, max_examples, progress_callback
+                )
+                
+                if num_examples == 0:
+                    ft_service.progress_cache[progress_id].update({
+                        "status": "error",
+                        "message": "No valid training examples found"
+                    })
+                    return
+                
+                # Parse the first example for preview
+                jsonl_lines = jsonl_content.strip().split('\n')
+                first_example = json.loads(jsonl_lines[0])
+                
+                # Extract info from the first example
+                system_prompt = first_example['messages'][0]['content']
+                user_prompt = first_example['messages'][1]['content']
+                assistant_response = first_example['messages'][2]['content']
+                
+                # Count context examples in the user prompt
+                context_count = user_prompt.count('\n') - 2 if 'TRANSLATION EXAMPLES:' in user_prompt else 0
+                context_count = max(0, context_count)
+                
+                # Extract the source text (last line of user prompt)
+                source_text = user_prompt.split('\n')[-1].replace('Translate this text: ', '')
+                
+                result = {
+                    'success': True,
+                    'total_lines': 'N/A',
+                    'valid_pairs': 'N/A',
+                    'selected_examples': num_examples,
+                    'max_examples': max_examples,
+                    'source_filename': source_file.original_filename,
+                    'target_filename': target_file.original_filename,
+                    'preview_example': {
+                        'line_number': 1,
+                        'system_prompt': system_prompt,
+                        'user_prompt': user_prompt,
+                        'assistant_response': assistant_response,
+                        'source_text': source_text,
+                        'target_text': assistant_response,
+                        'has_context': context_count > 0,
+                        'context_examples_count': context_count
+                    },
+                    'jsonl_example': json.dumps(first_example, ensure_ascii=False, indent=2),
+                    'status_msg': f'Generated {num_examples} training examples successfully',
+                    'full_jsonl': jsonl_content
+                }
+                
+                # Store result in progress cache
+                ft_service.progress_cache[progress_id].update({
+                    "status": "completed",
+                    "result": result
+                })
+                
+        except Exception as e:
+            # Ensure progress cache exists before updating
+            if progress_id not in ft_service.progress_cache:
+                ft_service.progress_cache[progress_id] = {}
+                
+            ft_service.progress_cache[progress_id].update({
+                "status": "error",
+                "message": f"Training data generation failed: {str(e)}"
+            })
+    
+    thread = threading.Thread(target=generate_training_data)
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({'progress_id': progress_id})
+
+@app.route('/project/<int:project_id>/fine-tuning/instruction/progress/<progress_id>', methods=['GET'])
+@login_required
+def get_instruction_fine_tuning_progress(project_id, progress_id):
+    """Get progress for instruction fine-tuning operations"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    ft_service = FineTuningService()
+    progress = ft_service.get_progress(progress_id)
+    
+    return jsonify(progress)
+
+@app.route('/project/<int:project_id>/fine-tuning/instruction/progress/<progress_id>', methods=['DELETE'])
+@login_required
+def clear_instruction_fine_tuning_progress(project_id, progress_id):
+    """Clear progress data for instruction fine-tuning operations"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    ft_service = FineTuningService()
+    ft_service.clear_progress(progress_id)
+    
+    return jsonify({'success': True})
+
+@app.route('/project/<int:project_id>/fine-tuning/instruction/jobs-with-progress', methods=['POST'])
+@login_required
+def create_instruction_fine_tuning_job_with_progress(project_id):
+    """Create instruction fine-tuning job with progress tracking"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    data = request.get_json()
+    source_file_id = data.get('source_file_id')
+    target_file_id = data.get('target_file_id')
+    base_model = data.get('base_model', 'gpt-4o-mini')
+    max_examples = data.get('max_examples', 100)
+    preview_progress_id = data.get('preview_progress_id')  # Get the preview progress ID
+    
+    if not source_file_id or not target_file_id:
+        return jsonify({'error': 'Both source_file_id and target_file_id are required'}), 400
+    
+    # Validate max_examples
+    try:
+        max_examples = int(max_examples)
+        if max_examples < 1 or max_examples > 100:
+            max_examples = 100
+    except (ValueError, TypeError):
+        max_examples = 100
+    
+    # Verify files belong to this project
+    source_file = ProjectFile.query.filter_by(id=source_file_id, project_id=project_id).first()
+    target_file = ProjectFile.query.filter_by(id=target_file_id, project_id=project_id).first()
+    
+    if not source_file or not target_file:
+        return jsonify({'error': 'Source or target file not found in this project'}), 404
+    
+    # Generate unique progress ID
+    progress_id = str(uuid.uuid4())
+    
+    # Initialize progress cache
+    ft_service = FineTuningService()
+    ft_service.progress_cache[progress_id] = {
+        "current": 0, 
+        "total": max_examples, 
+        "status": "starting", 
+        "message": "Initializing..."
+    }
+    
+    def create_job():
+        try:
+            with app.app_context():
+                # Check if we have stored JSONL content from preview
+                preview_data = None
+                if preview_progress_id:
+                    preview_cache = ft_service.progress_cache.get(preview_progress_id, {})
+                    if preview_cache.get('status') == 'completed':
+                        preview_data = preview_cache.get('result', {})
+                
+                # Create fine-tuning job record with instruction type
+                job = FineTuningJob(
+                    project_id=project_id,
+                    source_file_id=source_file_id,
+                    target_file_id=target_file_id,
+                    base_model=base_model,
+                    status='preparing',
+                    is_instruction_tuning=True,
+                    query_text=None,
+                    max_examples=max_examples
+                )
+                db.session.add(job)
+                db.session.commit()
+                
+                try:
+                    if preview_data and 'jsonl_content' in preview_data:
+                        # Reuse the stored JSONL content
+                        jsonl_content = preview_data['jsonl_content']
+                        num_examples = preview_data['selected_examples']
+                        ft_service.progress_cache[progress_id].update({
+                            "current": num_examples,
+                            "total": num_examples,
+                            "status": "processing",
+                            "message": "Reusing generated training data..."
+                        })
+                    else:
+                        # Generate new training data if no preview data available
+                        def progress_callback(current, total, message):
+                            ft_service.progress_cache[progress_id].update({
+                                "current": current,
+                                "total": total,
+                                "status": "processing",
+                                "message": message
+                            })
+                        
+                        jsonl_content, num_examples = ft_service.create_instruction_training_data_with_context(
+                            source_file_id, target_file_id, project_id, max_examples, progress_callback
+                        )
+                    
+                    if num_examples == 0:
+                        job.status = 'failed'
+                        job.error_message = 'No valid instruction examples found'
+                        db.session.commit()
+                        ft_service.progress_cache[progress_id].update({
+                            "status": "error",
+                            "message": "No valid instruction examples found"
+                        })
+                        return
+                    
+                    # Save JSONL file locally
+                    file_id = str(uuid.uuid4())
+                    jsonl_filename = f"instruction_tuning_{job.id}_{file_id}.jsonl"
+                    local_path = f"projects/{project_id}/fine_tuning/{jsonl_filename}"
+                    
+                    # Store JSONL file locally
+                    jsonl_file = io.BytesIO(jsonl_content.encode('utf-8'))
+                    ft_service.storage.store_file(jsonl_file, local_path)
+                    job.training_file_path = local_path
+                    
+                    # Create a ProjectFile record for the JSONL file
+                    jsonl_project_file = ProjectFile(
+                        project_id=project_id,
+                        original_filename=f"instruction_training_job_{job.id}.jsonl",
+                        storage_path=local_path,
+                        file_type='training_data',
+                        content_type='application/jsonl',
+                        file_size=len(jsonl_content.encode('utf-8')),
+                        line_count=num_examples
+                    )
+                    db.session.add(jsonl_project_file)
+                    db.session.commit()
+                    
+                    # Try to upload to OpenAI
+                    try:
+                        # Reset file pointer for OpenAI upload
+                        jsonl_file.seek(0)
+                        
+                        # Upload to OpenAI
+                        upload_response = ft_service.client.files.create(
+                            file=jsonl_file,
+                            purpose="fine-tune"
+                        )
+                        
+                        job.openai_file_id = upload_response.id
+                        
+                        # Create fine-tuning job on OpenAI
+                        ft_response = ft_service.client.fine_tuning.jobs.create(
+                            training_file=upload_response.id,
+                            model=base_model
+                        )
+                        
+                        job.openai_job_id = ft_response.id
+                        job.status = 'validating'
+                        job.estimated_cost = ft_service.estimate_cost(num_examples, base_model, project_id)
+                        job.training_examples = num_examples
+                        
+                        db.session.commit()
+                        
+                        result = {
+                            'success': True,
+                            'job_id': job.id,
+                            'message': 'Instruction fine-tuning job started successfully'
+                        }
+                        
+                    except Exception as openai_error:
+                        # OpenAI upload/job creation failed, but we still have the local file
+                        job.status = 'failed'
+                        job.error_message = f'OpenAI API error: {str(openai_error)}'
+                        db.session.commit()
+                        
+                        result = {
+                            'success': True,
+                            'job_id': job.id,
+                            'warning': True,
+                            'message': 'Instruction training data generated and saved locally, but OpenAI upload failed. You can download the training data file from the project files section.',
+                            'error_details': str(openai_error)
+                        }
+                    
+                except Exception as e:
+                    job.status = 'failed'
+                    job.error_message = str(e)
+                    db.session.commit()
+                    result = {
+                        'success': False,
+                        'error': str(e)
+                    }
+                
+                # Store result in progress cache
+                ft_service.progress_cache[progress_id].update({
+                    "status": "completed",
+                    "result": result
+                })
+                
+        except Exception as e:
+            ft_service.progress_cache[progress_id].update({
+                "status": "error",
+                "message": f"Job creation failed: {str(e)}"
+            })
+    
+    # Start background thread
+    thread = threading.Thread(target=create_job)
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({'progress_id': progress_id})
+
+@app.route('/project/<int:project_id>/fine-tuning/instruction/jobs', methods=['POST'])
+@login_required
+def create_instruction_fine_tuning_job(project_id):
+    """Create a new instruction fine-tuning job (original endpoint)"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    data = request.get_json()
+    source_file_id = data.get('source_file_id')
+    target_file_id = data.get('target_file_id')
+    base_model = data.get('base_model', 'gpt-4o-mini')
+    max_examples = data.get('max_examples', 100)
+    
+    if not source_file_id or not target_file_id:
+        return jsonify({'error': 'Both source_file_id and target_file_id are required'}), 400
+    
+    # Validate max_examples
+    try:
+        max_examples = int(max_examples)
+        if max_examples < 1 or max_examples > 100:
+            max_examples = 100
+    except (ValueError, TypeError):
+        max_examples = 100
+    
+    # Verify files belong to this project
+    source_file = ProjectFile.query.filter_by(id=source_file_id, project_id=project_id).first()
+    target_file = ProjectFile.query.filter_by(id=target_file_id, project_id=project_id).first()
+    
+    if not source_file or not target_file:
+        return jsonify({'error': 'Source or target file not found in this project'}), 404
+    
+    try:
+        ft_service = FineTuningService()
+        
+        # Validate model - check both base models and fine-tuned models
+        available_models = ft_service.get_fine_tuning_models_for_project(project_id)
+        if base_model not in available_models:
+            return jsonify({'error': f'Model {base_model} is not available for fine-tuning'}), 400
+        
+        # Create fine-tuning job record with instruction type
+        job = FineTuningJob(
+            project_id=project_id,
+            source_file_id=source_file_id,
+            target_file_id=target_file_id,
+            base_model=base_model,
+            status='preparing',
+            is_instruction_tuning=True,
+            query_text=None,
+            max_examples=max_examples
+        )
+        db.session.add(job)
+        db.session.commit()
+        
+        # Generate instruction training data using context-aware method
+        def progress_callback(current, total, message):
+            print(f"Job {job.id} progress: {current}/{total} - {message}")
+        
+        jsonl_content, num_examples = ft_service.create_instruction_training_data_with_context(
+            source_file_id, target_file_id, project_id, max_examples, progress_callback
+        )
+        
+        if num_examples == 0:
+            job.status = 'failed'
+            job.error_message = 'No valid instruction examples found'
+            db.session.commit()
+            return jsonify({'success': False, 'error': 'No valid instruction examples found'}), 400
+        
+        # Save JSONL file locally FIRST
+        file_id = str(uuid.uuid4())
+        jsonl_filename = f"instruction_tuning_{job.id}_{file_id}.jsonl"
+        local_path = f"projects/{project_id}/fine_tuning/{jsonl_filename}"
+        
+        # Store JSONL file locally
+        jsonl_file = io.BytesIO(jsonl_content.encode('utf-8'))
+        ft_service.storage.store_file(jsonl_file, local_path)
+        job.training_file_path = local_path
+        
+        # Create a ProjectFile record for the JSONL file
+        jsonl_project_file = ProjectFile(
+            project_id=project_id,
+            original_filename=f"instruction_training_job_{job.id}.jsonl",
+            storage_path=local_path,
+            file_type='training_data',
+            content_type='application/jsonl',
+            file_size=len(jsonl_content.encode('utf-8')),
+            line_count=num_examples
+        )
+        db.session.add(jsonl_project_file)
+        db.session.commit()
+        
+        # Try to upload to OpenAI
+        try:
+            # Reset file pointer for OpenAI upload
+            jsonl_file.seek(0)
+            
+            # Upload to OpenAI
+            upload_response = ft_service.client.files.create(
+                file=jsonl_file,
+                purpose="fine-tune"
+            )
+            
+            job.openai_file_id = upload_response.id
+            
+            # Create fine-tuning job on OpenAI
+            ft_response = ft_service.client.fine_tuning.jobs.create(
+                training_file=upload_response.id,
+                model=base_model
+            )
+            
+            job.openai_job_id = ft_response.id
+            job.status = 'validating'
+            job.estimated_cost = ft_service.estimate_cost(num_examples, base_model, project_id)
+            job.training_examples = num_examples
+            
+            db.session.commit()
+            job_id = job.id
+            
+        except Exception as openai_error:
+            # OpenAI upload/job creation failed, but we still have the local file
+            job.status = 'failed'
+            job.error_message = f'OpenAI API error: {str(openai_error)}'
+            db.session.commit()
+            job_id = job.id
+        
+        # Check if the job was created successfully
+        job = db.session.get(FineTuningJob, job_id)
+        
+        if job.status == 'failed' and 'OpenAI API error' in (job.error_message or ''):
+            # Job created but OpenAI upload failed
+            return jsonify({
+                'success': True,
+                'job_id': job_id,
+                'warning': True,
+                'message': 'Instruction training data generated and saved locally, but OpenAI upload failed. You can download the training data file from the project files section.',
+                'error_details': job.error_message
+            })
+        elif job.status == 'failed':
+            # Job creation failed entirely
+            return jsonify({
+                'success': False,
+                'error': job.error_message or 'Unknown error occurred'
+            }), 500
+        else:
+            # Job created successfully
+            return jsonify({
+                'success': True,
+                'job_id': job_id,
+                'message': 'Instruction fine-tuning job started successfully'
+            })
+            
+    except Exception as e:
+        # Log the full error with traceback for debugging
+        error_details = traceback.format_exc()
+        print(f"Instruction fine-tuning job creation failed:")
+        print(f"Error: {str(e)}")
+        print(f"Traceback:\n{error_details}")
+        
+        # Return the actual error message to help with debugging
+        return jsonify({'error': f'Instruction fine-tuning job failed: {str(e)}'}), 500
+
+@app.route('/project/<int:project_id>/fine-tuning/instruction/estimate', methods=['POST'])
+@login_required
+def estimate_instruction_fine_tuning_cost(project_id):
+    """Simple estimate for instruction fine-tuning cost without processing examples"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    data = request.get_json()
+    source_file_id = data.get('source_file_id')
+    target_file_id = data.get('target_file_id')
+    base_model = data.get('base_model', 'gpt-4o-mini')
+    max_examples = data.get('max_examples', 100)
+    
+    if not source_file_id or not target_file_id:
+        return jsonify({'error': 'Both source_file_id and target_file_id are required'}), 400
+    
+    # Validate max_examples
+    try:
+        max_examples = int(max_examples)
+        if max_examples < 1 or max_examples > 100:
+            max_examples = 100
+    except (ValueError, TypeError):
+        max_examples = 100
+    
+    try:
+        ft_service = FineTuningService()
+        
+        # Get simple estimate without processing examples
+        estimate_data = ft_service.get_instruction_tuning_simple_estimate(
+            source_file_id, target_file_id, project_id, max_examples
+        )
+        
+        estimated_cost = ft_service.estimate_cost(estimate_data['actual_examples'], base_model, project_id)
+        
+        return jsonify({
+            'num_examples': estimate_data['actual_examples'],
+            'valid_pairs': estimate_data['valid_pairs'],
+            'max_examples': max_examples,
+            'estimated_cost_usd': estimated_cost,
+            'base_model': base_model,
+            'note': 'This is a simple estimate. Click "Get Training Data" to process examples and see preview.'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/project/<int:project_id>/fine-tuning/jobs/<int:job_id>/rename', methods=['POST'])
+@login_required
+def rename_fine_tuning_model(project_id, job_id):
+    """Rename a fine-tuned model"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    # Verify job belongs to this project
+    job = FineTuningJob.query.filter_by(id=job_id, project_id=project_id).first_or_404()
+    
+    data = request.get_json()
+    new_name = data.get('name', '').strip()
+    
+    if not new_name:
+        return jsonify({'error': 'Name cannot be empty'}), 400
+        
+    if len(new_name) > 255:
+        return jsonify({'error': 'Name is too long (maximum 255 characters)'}), 400
+    
+    try:
+        job.display_name = new_name
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'name': job.get_display_name()
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/project/<int:project_id>/fine-tuning/jobs/<int:job_id>/toggle-visibility', methods=['POST'])
+@login_required
+def toggle_model_visibility(project_id, job_id):
+    """Toggle the visibility of a fine-tuned model"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    # Verify job belongs to this project
+    job = FineTuningJob.query.filter_by(id=job_id, project_id=project_id).first_or_404()
+    
+    if job.status != 'completed':
+        return jsonify({'error': 'Can only toggle visibility of completed models'}), 400
+    
+    try:
+        job.hidden = not job.hidden
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'hidden': job.hidden,
+            'message': 'Model hidden from selection' if job.hidden else 'Model visible in selection'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     # For development only - disable in production

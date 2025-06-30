@@ -4,6 +4,7 @@ from typing import List, Dict, Optional, Tuple
 from vref_utils import Vref
 from storage import get_storage
 
+
 class VerseReferenceManager:
     """Handles verse reference operations using vref-utils"""
     
@@ -95,7 +96,8 @@ class TranslationFileManager:
             return self.lines
         
         try:
-            content = self.storage.get_file(self.storage_path).decode('utf-8')
+            file_content = self.storage.get_file(self.storage_path)
+            content = safe_decode_content(file_content)
             self.lines = content.split('\n')
             
             # Ensure we have exactly 31170 lines
@@ -231,3 +233,7 @@ class SourceTextManager:
             pass
         
         return None 
+
+def safe_decode_content(file_content):
+    """Simple UTF-8 decode that ignores problematic bytes"""
+    return file_content.decode('utf-8', errors='ignore') 

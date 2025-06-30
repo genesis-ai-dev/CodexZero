@@ -183,4 +183,34 @@ class ContextQuery:
     def search_by_line(self, line_number: int, top_k: int = 5) -> List[Tuple[int, str, str, float]]:
         query_idx = line_number - 1
         query_text = self.source_verses[query_idx].strip()
-        return self._branching_search(query_text, top_k, exclude_idx=query_idx) 
+        return self._branching_search(query_text, top_k, exclude_idx=query_idx)
+
+class MemoryContextQuery(ContextQuery):
+    """A version of ContextQuery that works with lists in memory instead of files"""
+    
+    def __init__(self, source_lines: List[str], target_lines: List[str], coverage_weight: float = 0.5):
+        # Skip file initialization
+        self.coverage_weight = coverage_weight
+        self.source_verses = source_lines
+        self.target_verses = target_lines
+        self.valid_indices = []
+        
+        # Validate data
+        if len(self.source_verses) != len(self.target_verses):
+            raise ValueError(f"Source and target lists have different lengths: {len(self.source_verses)} vs {len(self.target_verses)}")
+        
+        # Find valid verse pairs
+        self.valid_indices = [
+            i for i in range(len(self.source_verses))
+            if self.source_verses[i].strip() and self.target_verses[i].strip()
+        ]
+        
+        print(f"Loaded {len(self.source_verses)} verses total")
+        print(f"Found {len(self.valid_indices)} valid verse pairs")
+        
+        # Preprocess for BM25
+        self._preprocess_bm25()
+    
+    def _load_files(self):
+        """Override - no file loading needed"""
+        pass 

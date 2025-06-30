@@ -1,431 +1,298 @@
 {% extends "base.html" %}
+{% from 'components/translation_header.html' import translation_header %}
+{% from 'components/translation_sidebar.html' import translation_sidebar %}
+{% from 'components/translation_editor.html' import translation_editor %}
+{% from 'components/translation_modals.html' import translation_modals %}
+{% from 'components/translation_overlays.html' import translation_overlays %}
+{% include 'components/confidence_tooltip.html' %}
 
 {% block title %}Translation Editor - {{ project.target_language }} - CodexZero{% endblock %}
 
 {% block content %}
-<section class="h-screen flex flex-col">
-    <!-- Top Bar -->
-    <div class="bg-white border-b-2 border-black px-6 py-4 flex items-center justify-between">
-        <div class="flex items-center space-x-4">
-            <a href="{{ url_for('view_project', project_id=project.id) }}" class="text-sm text-neutral-600 hover:text-neutral-900 transition-colors">
-                <i class="fas fa-arrow-left mr-1"></i>
-                Back to Project
-            </a>
-            <div class="border-l-2 border-neutral-300 pl-4">
-                <h1 class="text-xl font-bold">Translation Editor</h1>
-                <p class="text-sm text-neutral-600">{{ project.target_language }}</p>
-        </div>
-        </div>
-        <div class="flex items-center space-x-3">
-            <span id="chapter-title" class="text-lg font-bold text-neutral-700">Genesis 1</span>
-            <div class="border-l-2 border-neutral-300 pl-3 flex items-center space-x-2">
-                <label class="flex items-center cursor-pointer">
-                    <input type="checkbox" id="read-mode-toggle" class="sr-only">
-                    <div class="relative">
-                        <div class="block bg-neutral-300 w-14 h-8 rounded-full border-2 border-black"></div>
-                        <div class="dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition border-2 border-black"></div>
-                    </div>
-                    <span class="ml-2 text-sm font-medium">Read Mode</span>
-                                    </label>
-                                        </div>
-
-                            </div>
-                        </div>
-                        
-    <!-- Main Content -->
-    <div class="flex flex-1 overflow-hidden">
-        <!-- Left Sidebar -->
-        <div class="w-80 bg-white border-r-2 border-black flex flex-col">
-            <!-- Translation Selection -->
-            <div class="border-b-2 border-black p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="font-bold">Translation Draft</h3>
-                    <button id="new-translation-btn" class="px-3 py-1 bg-green-500 text-white text-sm border-2 border-black rounded hover:bg-green-600 transition-colors">
-                        <i class="fas fa-plus mr-1"></i>
-                        New
-                            </button>
-                        </div>
-                <select id="translation-select" class="w-full p-3 border-2 border-black rounded focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                    <option value="">Select translation...</option>
-                    <!-- Options will be populated -->
-                </select>
-                <div id="translation-info" class="hidden mt-3 p-3 bg-neutral-50 border border-neutral-300 rounded text-sm">
-                    Progress: <span id="translation-progress">0%</span> complete
-                </div>
-            </div>
-
-            <!-- Source Text Selection -->
-            <div class="border-b-2 border-black p-6">
-                <h3 class="font-bold mb-4">Source Text</h3>
-                <select id="source-file-select" class="w-full p-3 border-2 border-black rounded focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                    <option value="">Select source file...</option>
-                    <!-- Options will be populated from project files -->
-                </select>
-                <div id="source-file-info" class="hidden mt-3 p-3 bg-neutral-50 border border-neutral-300 rounded text-sm">
-                    <span id="source-verses-count">0</span> verses loaded
-                </div>
-            </div>
-
-            <!-- Navigation -->
-            <div class="border-b-2 border-black p-6">
-                <h3 class="font-bold mb-4">Navigation</h3>
-                <div class="space-y-3">
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-sm font-medium text-neutral-700 mb-1">Book</label>
-                            <select id="goto-book" class="w-full p-2 border border-neutral-300 rounded text-sm">
-                                <option value="GEN">Genesis</option>
-                                <option value="EXO">Exodus</option>
-                                <!-- More books will be populated -->
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-neutral-700 mb-1">Chapter</label>
-                            <input type="number" id="goto-chapter" class="w-full p-2 border border-neutral-300 rounded text-sm" min="1" value="1">
-                        </div>
-                    </div>
-                    <button id="goto-btn" class="w-full px-4 py-2 bg-blue-500 text-white border-2 border-black rounded hover:bg-blue-600 transition-colors">
-                        Go To Chapter
-                    </button>
-                </div>
-            </div>
-
-            <!-- Chapter Progress -->
-            <div class="p-6 flex-1">
-                <h3 class="font-bold mb-4">Chapter Progress</h3>
-                <div class="space-y-3">
-                    <div class="flex justify-between text-sm">
-                        <span>Translated</span>
-                        <span id="chapter-translated">0 / 0</span>
-                    </div>
-                    <div class="w-full bg-neutral-300 rounded-full h-2">
-                        <div id="chapter-progress-bar" class="bg-green-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-                    </div>
-                    <div class="text-xs text-neutral-600 text-center" id="overall-progress">
-                        Overall: 0% complete
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-        <!-- Main Editor Area -->
-        <div class="flex-1 flex flex-col overflow-hidden">
-            <!-- Chapter Editor -->
-            <div id="chapter-editor" class="flex-1 grid grid-cols-2 overflow-hidden">
-                <!-- Source Text Column -->
-                <div class="border-r-2 border-black overflow-y-auto">
-                    <div class="sticky top-0 bg-neutral-100 border-b border-neutral-300 px-6 py-3">
-                        <h3 class="font-bold">Source Text</h3>
-                            </div>
-                    <div id="source-verses-container" class="p-6 space-y-6">
-                        <div class="text-neutral-400 text-center py-20">
-                            Select a source file and translation to begin
-                        </div>
-                            </div>
-                        </div>
-                        
-                <!-- Target Translation Column -->
-                <div class="overflow-y-auto">
-                    <div class="sticky top-0 bg-neutral-100 border-b border-neutral-300 px-6 py-3">
-                        <h3 class="font-bold">{{ project.target_language }} Translation</h3>
-                    </div>
-                    <div id="target-verses-container" class="p-6 space-y-6">
-                        <div class="text-neutral-400 text-center py-20">
-                            Create or select a translation to begin editing
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- New Translation Modal -->
-    <div id="new-translation-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-        <div class="bg-white border-2 border-black rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 class="text-xl font-bold mb-4">Create New Translation</h3>
-            <form id="new-translation-form" class="space-y-4">
-                <div>
-                    <label for="translation-name" class="block text-sm font-medium text-neutral-700 mb-2">
-                        Translation Name
-                    </label>
-                    <input 
-                        type="text" 
-                        id="translation-name" 
-                        class="w-full p-3 border-2 border-black rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                        placeholder="e.g., Draft 1, Source ESV, Back Translation, etc."
-                        required
-                    >
-                </div>
-                
-                <div class="flex justify-end space-x-3 pt-4">
-                    <button type="button" id="cancel-new-translation" class="px-4 py-2 border-2 border-black rounded hover:bg-neutral-100 transition-colors">
-                        Cancel
-                    </button>
-                    <button type="submit" class="px-4 py-2 bg-green-500 text-white border-2 border-black rounded hover:bg-green-600 transition-colors">
-                        Create
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Loading State -->
-    <div id="loading-section" class="hidden absolute inset-0 bg-white bg-opacity-90 z-40 flex items-center justify-center">
-        <div class="bg-blue-50 border-2 border-black rounded-lg p-6">
-            <div class="flex items-center space-x-3">
-                <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                <span class="text-blue-700 font-medium" id="loading-text">Loading...</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Error State -->
-    <div id="error-section" class="hidden absolute inset-0 bg-white bg-opacity-90 z-40 flex items-center justify-center">
-        <div class="bg-red-50 border-2 border-black rounded-lg p-6 max-w-md">
-                    <div class="flex items-center">
-                        <i class="fas fa-exclamation-circle text-red-500 mr-2"></i>
-                        <span class="text-red-700" id="error-message"></span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Confidence Tooltip -->
-    <div id="custom-tooltip" class="hidden absolute z-50 bg-white border-2 border-black rounded-lg shadow-lg p-3 max-w-sm">
-        <div id="tooltip-content"></div>
-    </div>
-
-    <!-- Confidence Legend -->
-    <div id="confidence-legend" class="hidden fixed bottom-4 right-4 bg-white border-2 border-black rounded-lg p-3 text-xs">
-        <div class="font-bold mb-1">Translation Confidence</div>
-        <div class="flex items-center space-x-2">
-            <span class="inline-block w-3 h-3 bg-red-200 border border-red-400 rounded"></span>
-            <span>Low confidence (not found in examples)</span>
-        </div>
-        <div class="flex items-center space-x-2 mt-1">
-            <span class="inline-block w-3 h-3 bg-yellow-200 border border-yellow-400 rounded"></span>
-            <span>Medium confidence</span>
-        </div>
-        <div class="flex items-center space-x-2 mt-1">
-            <span class="inline-block w-3 h-3 bg-green-200 border border-green-400 rounded"></span>
-            <span>High confidence (strong match in examples)</span>
-        </div>
-    </div>
-</section>
-
 <style>
-/* Read mode toggle styles */
-#read-mode-toggle:checked + div {
-    background-color: #22c55e;
+/* Hide footer on translation page - needed for global elements */
+footer, .footer, #footer { display: none !important; }
+body { overflow: hidden; }
+main, .main-content, #main-content { height: 100vh !important; max-height: 100vh !important; }
+
+/* Multi-verse collection styles */
+.verse-collected {
+    transform: scale(0.98);
+    opacity: 0.5;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    border-style: dashed !important;
 }
 
-#read-mode-toggle:checked + div .dot {
-    transform: translateX(100%);
+/* Collection and drag functionality */
+body.is-collecting-verses textarea {
+    pointer-events: auto;
+    user-select: none;
+    cursor: crosshair;
 }
 
-/* Confidence Tooltip Styles */
-#tooltip-header {
+.sparkle-drag-handle:hover {
+    filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.6));
+}
+
+#verse-collection-indicator {
+    animation: float-indicator 2s ease-in-out infinite;
+}
+
+@keyframes float-indicator {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-3px); }
+}
+
+.drop-target-hint {
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5), inset 0 0 20px rgba(16, 185, 129, 0.1);
+    background-color: #f0fdf4 !important;
+    transition: box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+#drag-indicator {
+    pointer-events: none;
+    z-index: 9999;
+}
+
+.drag-stack {
+    position: relative;
+    transform: scale(0.9);
+    transform-origin: top left;
+    filter: drop-shadow(0 6px 12px rgba(0,0,0,0.3));
+}
+
+.drag-stack-item {
+    position: absolute;
+    background: white;
+    border: 1px solid #3b82f6;
+    border-radius: 3px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: none;
+    opacity: 0.9;
+    pointer-events: none;
+}
+
+.drag-counter {
+    position: absolute;
+    top: -12px;
+    right: -12px;
+    background-color: #3b82f6;
+    color: white;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-weight: bold;
-    margin-bottom: 8px;
-    color: #374151;
+    font-size: 14px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    z-index: 10000;
 }
 
-.tooltip-source {
-    margin-bottom: 8px;
-    padding: 8px;
-    background-color: #f9fafb;
-    border-radius: 4px;
-    border: 1px solid #e5e7eb;
+/* Custom range slider styles */
+#temperature-slider {
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
 }
 
-.tooltip-source:last-child {
-    margin-bottom: 0;
-}
-
-.tooltip-source-eng {
-    font-style: italic;
-    color: #6b7280;
-    font-size: 0.875rem;
-    margin-bottom: 4px;
-}
-
-.tooltip-source-target {
-    color: #1f2937;
-    font-weight: 500;
-}
-
-.tooltip-highlight {
-    background-color: #fef3c7;
-    padding: 1px 2px;
+#temperature-slider::-webkit-slider-track {
+    background: #e5e7eb;
+    height: 6px;
     border-radius: 2px;
+    border: none;
+}
+
+#temperature-slider::-webkit-slider-thumb {
+    appearance: none;
+    background: #2d2d2d;
+    height: 18px;
+    width: 18px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+#temperature-slider::-webkit-slider-thumb:hover {
+    background: #1a1a1a;
+    transform: scale(1.1);
+}
+
+#temperature-slider::-moz-range-track {
+    background: #e5e7eb;
+    height: 6px;
+    border-radius: 2px;
+    border: none;
+}
+
+#temperature-slider::-moz-range-thumb {
+    background: #2d2d2d;
+    height: 18px;
+    width: 18px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+}
+
+/* Toggle switch styles enhancement */
+.peer:checked + div {
+    background-color: #2d2d2d !important;
 }
 </style>
 
+<!-- Main section with clean background -->
+<section class="h-screen flex flex-col bg-white text-gray-800 overflow-hidden">
+    {{ translation_header(project) }}
+                        
+    <!-- Main Content -->
+    <div class="flex flex-1 overflow-hidden" style="height: calc(100vh - 80px);">
+        {{ translation_sidebar(project) }}
+
+        <!-- Unified Text Workspace -->
+        <div class="flex-1 flex overflow-hidden bg-gray-50 rounded-t-sm">
+            <!-- Secondary Texts Area -->
+            <div id="secondary-texts-area" class="w-1/2 p-6 border-r border-gray-200 border-r-[0.5px] overflow-hidden flex flex-col bg-white rounded-tl-sm">
+                <div class="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-100 border-b-[0.5px]">Reference Texts</div>
+                <div id="secondary-texts-container" class="flex-1 overflow-hidden flex flex-col gap-3">
+                    <div class="text-gray-500 text-center py-20">
+                        Load reference texts from the sidebar
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Primary Text Area -->
+            <div id="primary-text-area" class="w-1/2 p-6 overflow-hidden flex flex-col bg-white rounded-tr-sm">
+                <div class="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-100 border-b-[0.5px]">Primary Translation</div>
+                <div id="primary-text-container" class="flex-1 overflow-y-auto drop-zone-primary transition-all duration-300">
+                    <div class="text-gray-500 text-center py-20">
+                        Select or create a translation to begin
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{ translation_modals() }}
+    {{ translation_overlays() }}
+</section>
+
+
+
 <script>
-// Translation Editor JavaScript
+// Main Translation Editor Class - Now Much Smaller!
 class TranslationEditor {
     constructor() {
-        this.projectId = {{ project.id }};
+        this.projectId = parseInt('{{ project.id }}');
         this.currentTranslation = null;
-        this.sourceText = null;
-        this.targetText = null;
-        this.currentBook = this.getFromLocalStorage('currentBook') || 'GEN';
-        this.currentChapter = parseInt(this.getFromLocalStorage('currentChapter')) || 1;
-        this.verseReferences = null;
-        this.isReadMode = false;
-        this.verseConfidenceData = {}; // Store confidence data per verse
+        this.textWindows = new Map();
+        this.textMetadata = new Map();
+        this.primaryTextId = null;
+        this.bookChapters = {{ book_chapters|tojson|safe }};
         
-        this.initializeEventListeners();
-        this.loadTranslations();
-        this.loadProjectFiles();
+        // Initialize helper classes
+        this.storage = new TranslationStorage(this.projectId);
+        this.confidence = new TranslationConfidence();
+        this.navigation = new TranslationNavigation(this);
+        this.saveSystem = new TranslationSave(this);
+        this.ui = new TranslationUI(this);
+        this.testResults = new TranslationTestResults(this);
+        this.dragDrop = new TranslationDragDrop(this);
+        
+        // Restore navigation state
+        const navState = this.storage.getNavigationState();
+        this.currentBook = navState.book;
+        this.currentChapter = navState.chapter;
+        
+        this.isReadMode = false;
+        this.unsavedChanges = new Map();
+        this.hasUnsavedChanges = false;
+        
+        // Make this available globally for TextWindow callbacks
+        window.translationEditor = this;
+        
+        this.initialize();
+    }
+    
+    initialize() {
+        this.ui.initializeEventListeners();
+        this.ui.addCloseButtonListeners();
+        this.ui.setupPrimaryDropZone();
+        this.loadAllTexts();
+        this.navigation.populateBookOptions();
+        this.navigation.populateTestamentSections();
         this.restoreNavigationState();
+        this.saveSystem.updateSaveButtonState();
+        this.navigation.updateRecentChaptersUI();
     }
     
-    // LocalStorage helpers for remembering selections
-    saveToLocalStorage(key, value) {
-        localStorage.setItem(`translation_editor_${this.projectId}_${key}`, value);
+    // Layout management
+    saveLayoutState() {
+        this.storage.saveLayoutState(this.textWindows, this.primaryTextId);
     }
     
-    getFromLocalStorage(key) {
-        return localStorage.getItem(`translation_editor_${this.projectId}_${key}`);
+    async restoreLayoutState() {
+        const layoutState = this.storage.getSavedLayoutState();
+        
+        if (layoutState.textIds.length > 0) {
+            try {
+                for (const textId of layoutState.textIds) {
+                    const isPrimary = textId === layoutState.primaryTextId;
+                    await this.loadText(textId, isPrimary);
+                }
+            } catch (error) {
+                console.error('Error restoring layout:', error);
+            }
+        }
     }
     
     restoreNavigationState() {
-        // Restore book and chapter selections
-        const bookSelect = document.getElementById('goto-book');
-        const chapterInput = document.getElementById('goto-chapter');
-        
-        if (bookSelect) {
-            bookSelect.value = this.currentBook;
-        }
-        if (chapterInput) {
-            chapterInput.value = this.currentChapter;
-        }
-        
-        this.updateChapterTitle();
+        this.navigation.updateChapterTitle();
     }
     
-    initializeEventListeners() {
-        // Read mode toggle
-        document.getElementById('read-mode-toggle').addEventListener('change', (e) => {
-            this.isReadMode = e.target.checked;
-            this.toggleReadMode();
-        });
-        
-        // New translation modal
-        document.getElementById('new-translation-btn').addEventListener('click', () => {
-            document.getElementById('new-translation-modal').classList.remove('hidden');
-        });
-        
-        document.getElementById('cancel-new-translation').addEventListener('click', () => {
-            document.getElementById('new-translation-modal').classList.add('hidden');
-            document.getElementById('new-translation-form').reset();
-        });
-        
-        document.getElementById('new-translation-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.createNewTranslation();
-        });
-        
-        // Translation selection
-        document.getElementById('translation-select').addEventListener('change', (e) => {
-            const value = e.target.value;
-            this.saveToLocalStorage('selectedTranslation', value);
-            this.loadTranslation(value);
-        });
-        
-        // Source file selection
-        document.getElementById('source-file-select').addEventListener('change', (e) => {
-            const value = e.target.value;
-            this.saveToLocalStorage('selectedSource', value);
-            this.loadSourceFile(value);
-        });
-        
-        // Navigation
-        document.getElementById('goto-btn').addEventListener('click', () => {
-            this.navigateToChapter();
-        });
-        
-        document.getElementById('goto-book').addEventListener('change', (e) => {
-            this.currentBook = e.target.value;
-            this.saveToLocalStorage('currentBook', this.currentBook);
-            this.updateChapterTitle();
-        });
-        
-        document.getElementById('goto-chapter').addEventListener('change', (e) => {
-            this.currentChapter = parseInt(e.target.value);
-            this.saveToLocalStorage('currentChapter', this.currentChapter.toString());
-            this.updateChapterTitle();
-        });
-        
-
-    }
-    
-    async loadTranslations() {
+    // Text loading and management
+    async loadAllTexts() {
         try {
             const response = await fetch(`/project/${this.projectId}/texts`);
             const data = await response.json();
             
-            const select = document.getElementById('translation-select');
-            select.innerHTML = '<option value="">Select translation...</option>';
-            
-            if (data.texts && data.texts.length > 0) {
-                // Show ALL texts in both dropdowns
-                data.texts.forEach(item => {
-                    const option = document.createElement('option');
-                    if (item.type === 'eBible File') {
-                        option.value = item.id;
-                        option.textContent = item.name;
-                    } else {
-                        option.value = item.id.replace('translation_', ''); // Remove prefix for translation ID
-                        option.textContent = `${item.name} (${item.progress}% complete)`;
-                    }
-                    select.appendChild(option);
+            // Store text metadata for later use
+            this.textMetadata = new Map();
+            if (data.texts) {
+                data.texts.forEach(text => {
+                    this.textMetadata.set(text.id, {
+                        name: text.name,
+                        type: text.type,
+                        progress: text.progress
+                    });
                 });
-                
-                // Restore saved selection
-                const savedTranslation = this.getFromLocalStorage('selectedTranslation');
-                if (savedTranslation) {
-                    select.value = savedTranslation;
-                    this.loadTranslation(savedTranslation);
-                }
             }
+            
+            this.populateUnifiedDropdown(data);
+            
+            // Restore layout state instead of individual text loading
+            await this.restoreLayoutState();
         } catch (error) {
-            console.error('Error loading translations:', error);
+            console.error('Error loading texts:', error);
         }
     }
     
-    async loadProjectFiles() {
-        try {
-            const response = await fetch(`/project/${this.projectId}/texts`);
-            const data = await response.json();
-            
-            const select = document.getElementById('source-file-select');
-            select.innerHTML = '<option value="">Select source text...</option>';
-            
-            if (data.texts && data.texts.length > 0) {
-                // Show ALL texts in both dropdowns (exactly the same as translation dropdown)
-                data.texts.forEach(item => {
-                    const option = document.createElement('option');
-                    if (item.type === 'eBible File') {
-                        option.value = item.id;
-                        option.textContent = item.name;
-                    } else {
-                        option.value = item.id; // Keep full ID for source selection
-                        option.textContent = `${item.name} (${item.progress}% complete)`;
-                    }
-                    select.appendChild(option);
-                });
-                
-                // Restore saved selection
-                const savedSource = this.getFromLocalStorage('selectedSource');
-                if (savedSource) {
-                    select.value = savedSource;
-                    this.loadSourceFile(savedSource);
-                }
-            }
-        } catch (error) {
-            console.error('Error loading source texts:', error);
-        }
+    populateUnifiedDropdown(data) {
+        const select = document.getElementById('text-select');
+        select.innerHTML = '<option value="">Select any text to load...</option>';
+        
+        if (!data.texts?.length) return;
+        
+        // Add all texts without filtering
+        data.texts.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.type === 'eBible File' ? item.id : item.id;
+            option.textContent = item.type === 'eBible File' ? 
+                item.name : 
+                `${item.name} (${item.progress}% complete)`;
+            select.appendChild(option);
+        });
     }
     
     async createNewTranslation() {
@@ -447,9 +314,8 @@ class TranslationEditor {
                 document.getElementById('new-translation-modal').classList.add('hidden');
                 document.getElementById('new-translation-form').reset();
                 
-                // Refresh both lists
-                this.loadTranslations();
-                this.loadProjectFiles();
+                // Refresh the unified text list
+                this.loadAllTexts();
             } else {
                 alert('Error: ' + (data.error || 'Failed to create translation'));
             }
@@ -459,403 +325,300 @@ class TranslationEditor {
         }
     }
     
-    async loadTranslation(translationId) {
-        if (!translationId) return;
-        
-        console.log('Loading translation:', translationId);
-        this.currentTranslation = translationId;
-        
-        document.getElementById('translation-info').classList.remove('hidden');
-        document.getElementById('translation-progress').textContent = '15%'; // Placeholder
-        
-        this.refreshChapterView();
-    }
-    
-    async loadSourceFile(fileId) {
-        if (!fileId) return;
-        
-        console.log('Loading source file:', fileId);
-        
-        document.getElementById('source-file-info').classList.remove('hidden');
-        document.getElementById('source-verses-count').textContent = '31170'; // Placeholder
-        
-        this.refreshChapterView();
-    }
-    
-    navigateToChapter() {
-        const book = document.getElementById('goto-book').value;
-        const chapter = parseInt(document.getElementById('goto-chapter').value);
-        
-        if (!book || !chapter) return;
-        
-        this.currentBook = book;
-        this.currentChapter = chapter;
-        this.updateChapterTitle();
-        this.refreshChapterView();
-    }
-    
-    updateChapterTitle() {
-        const bookNames = {
-            'GEN': 'Genesis',
-            'EXO': 'Exodus'
-            // Add more as needed
-        };
-        
-        const bookName = bookNames[this.currentBook] || this.currentBook;
-        document.getElementById('chapter-title').textContent = `${bookName} ${this.currentChapter}`;
-    }
-    
-    async refreshChapterView() {
-        const sourceId = document.getElementById('source-file-select').value;
-        if (!this.currentTranslation || !sourceId) {
-            return;
-        }
+    async loadText(textId, isPrimary = false) {
+        if (!textId) return;
         
         try {
-            const response = await fetch(
-                `/project/${this.projectId}/translation/${this.currentTranslation}/chapter/${this.currentBook}/${this.currentChapter}?source_id=${sourceId}`
-            );
+            const isTranslation = textId.includes('translation_');
+            if (isTranslation) this.currentTranslation = textId;
             
+            this.showLoadingFeedback(isTranslation);
+            
+            const response = await fetch(
+                `/project/${this.projectId}/translation/${textId}/chapter/${this.currentBook}/${this.currentChapter}?source_id=${textId}`
+            );
             const data = await response.json();
             
-            if (data.verses) {
-                this.currentChapterData = data;
-                this.renderChapterVerses();
-                this.updateChapterProgress();
+            if (!data.verses) {
+                console.error('Error loading text:', data.error);
+                return;
+            }
+            
+            const windowTitle = this.getWindowTitle(textId);
+            const targetLanguage = await this.getTargetLanguage();
+            const windowType = isPrimary ? 'primary' : 'reference';
+            
+            const textWindow = new TextWindow(textId, data, windowType, windowTitle, targetLanguage);
+            this.textWindows.set(textId, textWindow);
+            
+            if (isPrimary) {
+                this.primaryTextId = textId;
+                this.renderPrimaryText();
             } else {
-                console.error('Error loading chapter:', data.error);
+                this.renderReferenceTexts();
+            }
+            
+            this.saveLayoutState();
+            this.showSuccessFeedback(windowTitle);
+            
+        } catch (error) {
+            console.error('Error loading text:', error);
+            this.showErrorFeedback();
+        }
+    }
+    
+    showLoadingFeedback(isTranslation) {
+        const textInfo = document.getElementById('text-info');
+        const textDetails = document.getElementById('text-details');
+        if (textInfo && textDetails) {
+            textInfo.classList.remove('hidden');
+            textDetails.textContent = isTranslation ? 'Loading translation...' : 'Loading text...';
+        }
+    }
+    
+    showSuccessFeedback(windowTitle) {
+        const textInfo = document.getElementById('text-info');
+        const textDetails = document.getElementById('text-details');
+        if (textInfo && textDetails) {
+            textDetails.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i> ${windowTitle} loaded`;
+            setTimeout(() => textInfo.classList.add('hidden'), 2000);
+        }
+    }
+    
+    showErrorFeedback() {
+        const textInfo = document.getElementById('text-info');
+        const textDetails = document.getElementById('text-details');
+        if (textInfo && textDetails) {
+            textInfo.classList.remove('hidden');
+            textDetails.innerHTML = '<i class="fas fa-exclamation-circle text-red-500 mr-1"></i> Failed to load text';
+            setTimeout(() => textInfo.classList.add('hidden'), 3000);
+        }
+    }
+    
+    getWindowTitle(textId) {
+        if (!this.textMetadata.has(textId)) return 'Unknown Text';
+        
+        const metadata = this.textMetadata.get(textId);
+        let title = metadata.name;
+        
+        if (metadata.type === 'Translation' && metadata.progress !== undefined) {
+            title += ` (${metadata.progress}% complete)`;
+        }
+        
+        return title;
+    }
+    
+    async getTargetLanguage() {
+        const project = await this.getProjectInfo();
+        return project?.target_language;
+    }
+    
+    // Text window management
+    removeTextWindow(textId) {
+        if (this.textWindows.has(textId)) {
+            this.textWindows.delete(textId);
+            
+            if (textId === this.primaryTextId) {
+                this.primaryTextId = null;
+                this.renderPrimaryText();
+            } else {
+                this.renderReferenceTexts();
+            }
+            
+            this.saveLayoutState();
+        }
+    }
+    
+    renderPrimaryText() {
+        const container = document.getElementById('primary-text-container');
+        container.innerHTML = '';
+        
+        if (this.primaryTextId && this.textWindows.has(this.primaryTextId)) {
+            const textWindow = this.textWindows.get(this.primaryTextId);
+            textWindow.render(container);
+            this.setupAutoResizeForWindow(textWindow);
+        }
+    }
+    
+    renderReferenceTexts() {
+        const container = document.getElementById('secondary-texts-container');
+        container.innerHTML = '';
+        
+        // Render all non-primary text windows
+        let hasReferenceTexts = false;
+        this.textWindows.forEach((textWindow, id) => {
+            if (id !== this.primaryTextId) {
+                textWindow.render(container);
+                this.setupAutoResizeForWindow(textWindow);
+                hasReferenceTexts = true;
+            }
+        });
+        
+        if (!hasReferenceTexts) {
+            container.innerHTML = '<div class="text-neutral-400 text-center py-20">Load texts from the sidebar</div>';
+        }
+    }
+    
+    setupAutoResizeForWindow(textWindow) {
+        if (!textWindow.element) return;
+        
+        const textareas = textWindow.element.querySelectorAll('textarea');
+        textareas.forEach(textarea => {
+            // Set up auto-resize
+            setTimeout(() => this.ui.autoResizeTextarea(textarea), 0);
+            setTimeout(() => this.ui.autoResizeTextarea(textarea), 100);
+            
+            this.addTextareaListeners(textarea);
+        });
+    }
+    
+    addTextareaListeners(textarea) {
+        const verseIndex = parseInt(textarea.dataset.verseIndex);
+        
+        textarea.addEventListener('focus', () => {
+            this.highlightSourceVerse(textarea.dataset.verse);
+        });
+        
+        textarea.addEventListener('input', () => {
+            this.ui.autoResizeTextarea(textarea);
+            this.saveSystem.bufferVerseChange(verseIndex, textarea.value);
+        });
+        
+        textarea.addEventListener('blur', () => {
+            this.saveSystem.bufferVerseChange(verseIndex, textarea.value);
+        });
+        
+        textarea.addEventListener('change', () => {
+            this.ui.autoResizeTextarea(textarea);
+        });
+        
+        // Add multi-select functionality
+        this.dragDrop.setupTextareaForMultiSelect(textarea);
+    }
+    
+    async refreshTextMetadata() {
+        try {
+            const response = await fetch(`/project/${this.projectId}/texts`);
+            const data = await response.json();
+            
+            // Update text metadata
+            if (data.texts) {
+                data.texts.forEach(text => {
+                    this.textMetadata.set(text.id, {
+                        name: text.name,
+                        type: text.type,
+                        progress: text.progress
+                    });
+                });
             }
         } catch (error) {
-            console.error('Error loading chapter:', error);
+            console.error('Error refreshing text metadata:', error);
         }
     }
     
-    toggleReadMode() {
-        this.renderChapterVerses();
-    }
-    
-    renderChapterVerses() {
-        const sourceContainer = document.getElementById('source-verses-container');
-        const targetContainer = document.getElementById('target-verses-container');
+    async refreshAllTexts() {
+        // Save any pending changes before switching chapters
+        if (this.hasUnsavedChanges) {
+            await this.saveSystem.saveAllChanges();
+        }
         
-        // Clear containers
-        sourceContainer.innerHTML = '';
-        targetContainer.innerHTML = '';
+        // Reload all current text windows with new chapter data
+        const textIds = Array.from(this.textWindows.keys());
+        this.textWindows.clear();
         
-        // Generate sample verses (placeholder)
-        if (this.isReadMode) {
-            this.renderReadMode(sourceContainer, targetContainer);
-        } else {
-            this.renderEditMode(sourceContainer, targetContainer);
+        // Refresh metadata to get latest progress info
+        await this.refreshTextMetadata();
+        
+        for (const textId of textIds) {
+            const isPrimary = textId === this.primaryTextId;
+            await this.loadText(textId, isPrimary);
         }
     }
     
-    renderReadMode(sourceContainer, targetContainer) {
-        sourceContainer.innerHTML = '';
-        targetContainer.innerHTML = '';
-        
-        if (!this.currentChapterData || !this.currentChapterData.verses) {
-            return;
+    async moveTextToPrimary(textId) {
+        if (textId === this.primaryTextId) {
+            return; // Already primary
         }
         
-        // Source text in read mode
-        let sourceText = '';
-        this.currentChapterData.verses.forEach(verseData => {
-            sourceText += `<span class="text-xs align-super font-bold text-neutral-500 mr-0.5">${verseData.verse}</span>${verseData.source_text || ''} `;
-        });
+        // Set this text as primary
+        const oldPrimaryId = this.primaryTextId;
+        this.primaryTextId = textId;
         
-        const sourceDiv = document.createElement('div');
-        sourceDiv.className = 'leading-loose text-lg text-neutral-900';
-        sourceDiv.innerHTML = sourceText;
-        sourceContainer.appendChild(sourceDiv);
-        
-        // Target text in read mode
-        let targetText = '';
-        this.currentChapterData.verses.forEach(verseData => {
-            if (verseData.target_text && verseData.target_text.trim()) {
-                targetText += `<span class="text-xs align-super font-bold text-neutral-500 mr-0.5">${verseData.verse}</span><span class="editable-verse outline-none" data-verse="${verseData.verse}" data-verse-index="${verseData.index}" contenteditable="true">${verseData.target_text}</span> `;
-            } else {
-                targetText += `<span class="text-xs align-super font-bold text-neutral-500 mr-0.5">${verseData.verse}</span><span class="editable-verse outline-none text-neutral-400" data-verse="${verseData.verse}" data-verse-index="${verseData.index}" contenteditable="true">[Verse ${verseData.verse} not yet translated]</span> `;
-            }
-        });
-        
-        const targetDiv = document.createElement('div');
-        targetDiv.className = 'leading-loose text-lg text-neutral-900';
-        targetDiv.innerHTML = targetText;
-        targetContainer.appendChild(targetDiv);
-        
-        // Add event listeners for content editable spans
-        document.querySelectorAll('.editable-verse').forEach(span => {
-            span.addEventListener('focus', () => {
-                this.highlightSourceVerse(span.dataset.verse);
-            });
-            
-            span.addEventListener('input', () => {
-                this.saveVerse(parseInt(span.dataset.verseIndex), span.textContent);
-                this.updateChapterProgress();
-            });
-        });
-    }
-    
-    renderEditMode(sourceContainer, targetContainer) {
-        sourceContainer.innerHTML = '';
-        targetContainer.innerHTML = '';
-        
-        if (!this.currentChapterData || !this.currentChapterData.verses) {
-            return;
+        // Update the window types
+        if (this.textWindows.has(textId)) {
+            this.textWindows.get(textId).type = 'primary';
+        }
+        if (oldPrimaryId && this.textWindows.has(oldPrimaryId)) {
+            this.textWindows.get(oldPrimaryId).type = 'reference';
         }
         
-        this.currentChapterData.verses.forEach(verseData => {
-            // Source verse
-            const sourceVerse = document.createElement('div');
-            sourceVerse.className = 'border border-neutral-300 rounded p-4 mb-4 source-verse';
-            sourceVerse.dataset.verse = verseData.verse;
-            sourceVerse.innerHTML = `
-                <div class="flex items-start justify-between mb-2">
-                    <span class="text-sm font-bold text-neutral-500">${verseData.reference}</span>
-                </div>
-                <div class="text-lg leading-relaxed">
-                    ${verseData.source_text || 'No source text available'}
-                </div>
-            `;
-            sourceContainer.appendChild(sourceVerse);
-            
-            // Target verse with compact design
-            const targetWrapper = document.createElement('div');
-            targetWrapper.className = 'relative mb-4';
-            targetWrapper.innerHTML = `
-                <div class="absolute top-2 left-2 text-xs font-semibold text-neutral-400 bg-white px-1 z-10">
-                    ${verseData.reference}
-                </div>
-                <textarea 
-                    class="w-full min-h-20 p-3 pt-6 border border-neutral-300 rounded-lg text-lg leading-relaxed resize-none focus:ring-2 focus:ring-green-500 focus:border-green-500 verse-input relative z-0"
-                    placeholder="Enter translation for verse ${verseData.verse}..."
-                    data-verse="${verseData.verse}"
-                    data-verse-index="${verseData.index}"
-                >${verseData.target_text || ''}</textarea>
-
-                <button 
-                    class="absolute top-2 right-2 px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors auto-translate-btn z-10"
-                    data-verse="${verseData.verse}"
-                    data-verse-index="${verseData.index}"
-                    data-source-text="${(verseData.source_text || '').replace(/"/g, '&quot;')}"
-                >
-                    Auto Translate
-                </button>
-            `;
-            targetContainer.appendChild(targetWrapper);
-        });
+        // Re-render both areas
+        this.renderPrimaryText();
+        this.renderReferenceTexts();
         
-
-        
-        // Add event listeners for textareas
-        document.querySelectorAll('.verse-input').forEach(input => {
-            input.addEventListener('focus', () => {
-                this.highlightSourceVerse(input.dataset.verse);
-            });
-            
-            input.addEventListener('input', () => {
-                this.saveVerse(parseInt(input.dataset.verseIndex), input.value);
-                this.updateChapterProgress();
-            });
-            
-            // Restore confidence display if it exists for this verse
-            const verseIndex = parseInt(input.dataset.verseIndex);
-            if (this.verseConfidenceData[verseIndex]) {
-                const data = this.verseConfidenceData[verseIndex];
-                this.displayTranslationWithConfidence(input, data.translation, data.confidence, verseIndex);
-            }
-        });
-
-        // Add event listeners for auto-translate buttons
-        document.querySelectorAll('.auto-translate-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.preventDefault();
-                const button = e.target;
-                const verseIndex = parseInt(button.dataset.verseIndex);
-                const sourceText = button.dataset.sourceText;
-                const textarea = button.parentElement.querySelector('.verse-input');
-                
-                if (!sourceText.trim()) {
-                    alert('No source text available for this verse');
-                    return;
-                }
-                
-                await this.autoTranslateVerse(button, textarea, sourceText, verseIndex);
-            });
-        });
+        this.saveLayoutState();
     }
     
     highlightSourceVerse(verseNumber) {
-        // Remove previous highlights
-        document.querySelectorAll('.bg-yellow-100').forEach(el => {
-            if (el.classList.contains('border-yellow-500')) {
-                el.classList.remove('bg-yellow-100', 'border-yellow-500');
-                el.classList.add('border-neutral-300');
-            }
+        document.querySelectorAll('textarea.highlighted').forEach(verse => {
+            verse.classList.remove('highlighted', 'border-gray-800', 'border-[0.5px]', 'bg-stone-50', 'shadow-inner');
         });
         
-        if (this.isReadMode) {
-            // In read mode, highlight the verse number
-            const verseNumbers = document.querySelectorAll('.text-xs.align-super');
-            const targetVerse = Array.from(verseNumbers).find(el => el.textContent === verseNumber);
-            if (targetVerse) {
-                // Highlight the entire verse text following the number
-                const nextSibling = targetVerse.nextSibling;
-                if (nextSibling) {
-                    const wrapper = document.createElement('span');
-                    wrapper.className = 'bg-yellow-100 rounded px-1 transition-all duration-300';
-                    nextSibling.parentNode.insertBefore(wrapper, nextSibling);
-                    wrapper.appendChild(nextSibling);
-                    
-                    // Scroll into view
-                    wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    
-                    // Remove highlight after 3 seconds
-                    setTimeout(() => {
-                        if (wrapper.parentNode) {
-                            wrapper.parentNode.insertBefore(nextSibling, wrapper);
-                            wrapper.remove();
-                        }
-                    }, 3000);
-                }
-            }
-        } else {
-            // In edit mode, highlight the corresponding verse container
-            const sourceVerse = document.querySelector(`.source-verse[data-verse="${verseNumber}"]`);
-            if (sourceVerse) {
-                sourceVerse.classList.remove('border-neutral-300');
-                sourceVerse.classList.add('bg-yellow-100', 'border-yellow-500');
-                sourceVerse.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const allSourceVerses = document.querySelectorAll(`textarea[data-verse="${verseNumber}"]`);
+        
+        allSourceVerses.forEach((verse, index) => {
+            verse.classList.add('highlighted', 'border-gray-800', 'border-[0.5px]', 'bg-stone-50', 'shadow-inner', 'animate-pulse');
+            
+            setTimeout(() => {
+                const scrollContainer = verse.closest('[data-window-content]');
+                if (!scrollContainer) return;
                 
-                // Remove highlight after 3 seconds
+                const verseWrapper = verse.closest('[data-verse]');
+                const elementToScroll = verseWrapper || verse;
+                
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const elementRect = elementToScroll.getBoundingClientRect();
+                
+                const relativeTop = elementRect.top - containerRect.top + scrollContainer.scrollTop;
+                const elementHeight = elementRect.height;
+                const containerHeight = scrollContainer.clientHeight;
+                
+                const targetScrollTop = relativeTop - (containerHeight / 2) + (elementHeight / 2);
+                
+                scrollContainer.scrollTo({
+                    top: Math.max(0, targetScrollTop),
+                    behavior: 'smooth'
+                });
+                
+                // Remove animation after scroll
                 setTimeout(() => {
-                    sourceVerse.classList.remove('bg-yellow-100', 'border-yellow-500');
-                    sourceVerse.classList.add('border-neutral-300');
-                }, 3000);
-            }
-        }
+                    verse.classList.remove('animate-pulse');
+                }, 300);
+            }, index * 50);
+        });
     }
     
-    updateChapterProgress() {
-        let translated, total;
-        
-        if (this.isReadMode) {
-            const editableVerses = document.querySelectorAll('.editable-verse');
-            translated = Array.from(editableVerses).filter(span => span.textContent.trim() && !span.textContent.includes('Sample translation')).length;
-            total = editableVerses.length;
-        } else {
-            const inputs = document.querySelectorAll('.verse-input');
-            translated = Array.from(inputs).filter(input => input.value.trim()).length;
-            total = inputs.length;
-        }
-        
-        document.getElementById('chapter-translated').textContent = `${translated} / ${total}`;
-        
-        if (total > 0) {
-            const percentage = (translated / total) * 100;
-            document.getElementById('chapter-progress-bar').style.width = `${percentage}%`;
-        }
-        
-        // Update overall progress (placeholder)
-        document.getElementById('overall-progress').textContent = 'Overall: 15% complete';
+    // Delegate methods to subsystems
+    bufferVerseChange(verseIndex, text) {
+        this.saveSystem.bufferVerseChange(verseIndex, text);
+    }
+    
+    updateSaveButtonState() {
+        this.saveSystem.updateSaveButtonState();
+    }
+    
+    async saveAllChanges() {
+        return await this.saveSystem.saveAllChanges();
     }
     
     async saveVerse(verseIndex, text) {
-        if (!this.currentTranslation) return;
-        
-        try {
-            const response = await fetch(`/project/${this.projectId}/translation/${this.currentTranslation}/verse/${verseIndex}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    text: text
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success && data.progress) {
-                // Update progress display
-                document.getElementById('overall-progress').textContent = 
-                    `Overall: ${data.progress.progress_percentage}% complete (${data.progress.translated_verses} verses)`;
-            }
-        } catch (error) {
-            console.error('Error saving verse:', error);
-        }
+        return await this.saveSystem.saveVerse(verseIndex, text);
     }
     
-    async autoTranslateVerse(button, textarea, sourceText, verseIndex) {
-        const originalButtonText = button.textContent;
-        button.textContent = 'Translating...';
-        button.disabled = true;
-
-        // Clear any existing confidence display for this verse
-        if (textarea.confidenceDiv) {
-            textarea.confidenceDiv.remove();
-            delete textarea.confidenceDiv;
-        }
-        delete this.verseConfidenceData[verseIndex];
-        textarea.style.display = 'block';
-
-        try {
-            // Get project information for target language
-            const project = await this.getProjectInfo();
-            if (!project) {
-                throw new Error('Could not get project information');
-            }
-
-            // Get example sources (back translation jobs)
-            const exampleSources = await this.getExampleSources();
-
-            const response = await fetch('/translate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    text: sourceText,
-                    target_language: project.target_language,
-                    example_sources: exampleSources,
-                    project_id: this.projectId
-                })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                // Store confidence data for this verse
-                this.verseConfidenceData[verseIndex] = {
-                    translation: data.translation,
-                    confidence: data.confidence
-                };
-                
-                // Display translation with confidence highlighting
-                this.displayTranslationWithConfidence(textarea, data.translation, data.confidence, verseIndex);
-                
-                // Save the translation
-                await this.saveVerse(verseIndex, data.translation);
-                this.updateChapterProgress();
-
-                // Show confidence legend
-                const legendEl = document.getElementById('confidence-legend');
-                if (legendEl) {
-                    legendEl.classList.remove('hidden');
-                }
-            } else {
-                throw new Error(data.error || 'Translation failed');
-            }
-        } catch (error) {
-            console.error('Auto-translation error:', error);
-            alert('Auto-translation failed: ' + error.message);
-        } finally {
-            button.textContent = originalButtonText;
-            button.disabled = false;
-        }
+    async translateFromDrag(dragData, targetTextarea, targetWindow = null) {
+        return await this.dragDrop.translateFromDrag(dragData, targetTextarea, targetWindow);
     }
-
+    
     async getProjectInfo() {
         try {
             const response = await fetch(`/api/project/${this.projectId}`);
@@ -865,228 +628,6 @@ class TranslationEditor {
             return null;
         }
     }
-
-    async getExampleSources() {
-        // For now, just get back translation sources
-        // This could be expanded to let users choose their sources
-        try {
-            const response = await fetch(`/project/${this.projectId}/back-translation-jobs`);
-            if (!response.ok) {
-                console.warn('Failed to get back translation jobs');
-                return [];
-            }
-            const data = await response.json();
-            const sources = data.jobs ? data.jobs.map(job => `back_translation:${job.id}`) : [];
-            
-            // If no back translation sources, we could add project instructions as fallback
-            if (sources.length === 0) {
-                // Add instructions as a source if available
-                sources.push('instructions');
-            }
-            
-            return sources;
-        } catch (error) {
-            console.error('Error getting example sources:', error);
-            // Fallback to instructions if no back translations available
-            return ['instructions'];
-        }
-    }
-
-    displayTranslationWithConfidence(textarea, translation, confidence, verseIndex) {
-        if (!confidence || !confidence.segments || confidence.segments.length === 0) {
-            textarea.value = translation;
-            return;
-        }
-
-        // Create a div to replace the textarea for confidence display
-        const confidenceDiv = document.createElement('div');
-        confidenceDiv.className = 'w-full min-h-20 p-3 pt-6 border border-neutral-300 rounded-lg text-lg leading-relaxed relative z-0 bg-white';
-        confidenceDiv.style.minHeight = textarea.style.minHeight || '80px';
-        
-        // Add accept/reject buttons
-        const buttonContainer = document.createElement('div');
-        buttonContainer.className = 'absolute bottom-2 right-2 flex space-x-1 z-20';
-        
-        const acceptButton = document.createElement('button');
-        acceptButton.className = 'px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors';
-        acceptButton.textContent = '✓ Accept';
-        acceptButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.acceptTranslation(confidenceDiv, textarea, translation, verseIndex);
-        });
-        
-        const rejectButton = document.createElement('button');
-        rejectButton.className = 'px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors';
-        rejectButton.textContent = '✗ Reject';
-        rejectButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.rejectTranslation(confidenceDiv, textarea, translation, verseIndex);
-        });
-        
-        buttonContainer.appendChild(acceptButton);
-        buttonContainer.appendChild(rejectButton);
-        confidenceDiv.appendChild(buttonContainer);
-
-        const tooltip = document.getElementById('custom-tooltip');
-        const tooltipContent = document.getElementById('tooltip-content');
-        let popperInstance = null;
-        let showTimeout, hideTimeout;
-
-        confidence.segments.forEach(segment => {
-            const span = document.createElement('span');
-            span.textContent = segment.text;
-            
-            // Apply smooth color gradient
-            const colors = this.getConfidenceColors(segment.confidence);
-            span.style.color = colors.text;
-            span.style.backgroundColor = colors.background;
-            span.style.padding = '1px 2px';
-            span.style.borderRadius = '3px';
-            
-            if (segment.sources && segment.sources.length > 0) {
-                span.style.cursor = 'pointer';
-
-                span.addEventListener('mouseenter', (event) => {
-                    clearTimeout(hideTimeout);
-                    showTimeout = setTimeout(() => {
-                        // Build tooltip content
-                        tooltipContent.innerHTML = '<div id="tooltip-header">Matching Examples</div>';
-                        segment.sources.forEach(source => {
-                            const target = source.original;
-                            const preMatch = target.substring(0, source.match_start);
-                            const match = target.substring(source.match_start, source.match_end);
-                            const postMatch = target.substring(source.match_end);
-                            const highlightedTargetHTML = `${preMatch}<strong class="tooltip-highlight">${match}</strong>${postMatch}`;
-
-                            const sourceDiv = document.createElement('div');
-                            sourceDiv.className = 'tooltip-source';
-                            sourceDiv.innerHTML = `
-                                <div class="tooltip-source-eng">"${source.english}"</div>
-                                <div class="tooltip-source-target">→ ${highlightedTargetHTML}</div>
-                            `;
-                            tooltipContent.appendChild(sourceDiv);
-                        });
-
-                        // Create and show tooltip with Popper
-                        tooltip.classList.remove('hidden');
-                        if (window.Popper) {
-                            popperInstance = Popper.createPopper(event.target, tooltip, {
-                                placement: 'bottom-start',
-                                modifiers: [{ name: 'offset', options: { offset: [0, 8] } }],
-                            });
-                        }
-                    }, 200); // 200ms delay before showing
-                });
-
-                span.addEventListener('mouseleave', () => {
-                    clearTimeout(showTimeout);
-                    hideTimeout = setTimeout(() => {
-                        tooltip.classList.add('hidden');
-                        if (popperInstance) {
-                            popperInstance.destroy();
-                            popperInstance = null;
-                        }
-                    }, 300); // 300ms delay before hiding
-                });
-            }
-            
-            confidenceDiv.appendChild(span);
-        });
-        
-        // Ensure tooltip hides if mouse leaves to it
-        tooltip.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
-        tooltip.addEventListener('mouseleave', () => {
-            hideTimeout = setTimeout(() => {
-                tooltip.classList.add('hidden');
-                if (popperInstance) {
-                    popperInstance.destroy();
-                    popperInstance = null;
-                }
-            }, 300);
-        });
-
-        // Remove click to edit - now using edit button instead
-
-        // Replace textarea with confidence display
-        textarea.style.display = 'none';
-        textarea.parentElement.insertBefore(confidenceDiv, textarea.nextSibling);
-        textarea.confidenceDiv = confidenceDiv;
-    }
-
-    acceptTranslation(confidenceDiv, textarea, translation, verseIndex) {
-        // User accepts the AI translation - remove highlighting and show as normal text
-        confidenceDiv.remove();
-        textarea.style.display = 'block';
-        textarea.value = translation;
-        
-        // Clean up stored data
-        delete this.verseConfidenceData[verseIndex];
-        delete textarea.confidenceDiv;
-        
-        // Save the accepted translation
-        this.saveVerse(verseIndex, translation);
-        this.updateChapterProgress();
-    }
-    
-    rejectTranslation(confidenceDiv, textarea, translation, verseIndex) {
-        // User rejects the AI translation - go back to normal editing
-        confidenceDiv.remove();
-        textarea.style.display = 'block';
-        textarea.value = ''; // Clear the AI translation
-        textarea.focus(); // Focus for immediate editing
-        
-        // Clean up stored data
-        delete this.verseConfidenceData[verseIndex];
-        delete textarea.confidenceDiv;
-        
-        this.updateChapterProgress();
-    }
-
-    getConfidenceColors(confidence) {
-        // Smooth gradient from red (0%) to green (100%)
-        const percentage = Math.max(0, Math.min(100, confidence));
-        
-        if (percentage === 0) {
-            return {
-                text: '#991b1b',
-                background: '#fef2f2'
-            };
-        }
-        
-        // Calculate RGB values for smooth gradient
-        // Red to Yellow to Green transition
-        let red, green, blue;
-        
-        if (percentage <= 50) {
-            // Red to Yellow (0-50%)
-            const factor = percentage / 50;
-            red = 255;
-            green = Math.round(255 * factor);
-            blue = 0;
-        } else {
-            // Yellow to Green (50-100%)
-            const factor = (percentage - 50) / 50;
-            red = Math.round(255 * (1 - factor));
-            green = 255;
-            blue = 0;
-        }
-        
-        // Adjust for text readability
-        const textRed = Math.round(red * 0.6);
-        const textGreen = Math.round(green * 0.6);
-        const textBlue = Math.round(blue * 0.6);
-        
-        // Adjust background for subtle highlighting
-        const bgRed = Math.round(255 - (255 - red) * 0.15);
-        const bgGreen = Math.round(255 - (255 - green) * 0.15);
-        const bgBlue = Math.round(255 - (255 - blue) * 0.15);
-        
-        return {
-            text: `rgb(${textRed}, ${textGreen}, ${textBlue})`,
-            background: `rgb(${bgRed}, ${bgGreen}, ${bgBlue})`
-        };
-    }
-
 }
 
 // Initialize when page loads
@@ -1098,5 +639,14 @@ document.addEventListener('DOMContentLoaded', () => {
 {% endblock %}
 
 {% block scripts %}
-<script src="https://unpkg.com/@popperjs/core@2"></script>
+<!-- Translation Editor JavaScript Components -->
+<script src="{{ url_for('static', filename='js/bible-constants.js') }}"></script>
+<script src="{{ url_for('static', filename='js/text-window.js') }}"></script>
+<script src="{{ url_for('static', filename='js/translation-storage.js') }}"></script>
+<script src="{{ url_for('static', filename='js/translation-confidence.js') }}"></script>
+<script src="{{ url_for('static', filename='js/translation-navigation.js') }}"></script>
+<script src="{{ url_for('static', filename='js/translation-save.js') }}"></script>
+<script src="{{ url_for('static', filename='js/translation-ui.js') }}"></script>
+<script src="{{ url_for('static', filename='js/translation-test-results.js') }}"></script>
+<script src="{{ url_for('static', filename='js/translation-drag-drop.js') }}"></script>
 {% endblock %} 
