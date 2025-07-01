@@ -1,6 +1,17 @@
 import os
 import uuid
 from typing import List, Dict, Optional, Tuple
+
+# Debug: Let's see what packages are available
+import sys
+print("Python path:", sys.path)
+try:
+    import vref_utils
+    print("vref_utils imported successfully")
+except ImportError as e:
+    print(f"Failed to import vref_utils: {e}")
+    print("Available packages:", [p for p in sys.modules.keys() if 'vref' in p.lower()])
+
 from vref_utils import Vref
 
 # Import storage - this works because when translation.py imports this module,
