@@ -7,16 +7,30 @@ import sys
 
 from vref_utils import Vref
 
-# Import storage using relative import from parent package
+# Import storage using importlib to handle path issues in deployment
 import sys
 import os
+import importlib.util
 
-# Add parent directory to path if not already there
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
-from storage import get_storage
+def get_storage():
+    """Dynamic import of storage.get_storage to handle deployment path issues"""
+    # First try normal import
+    try:
+        from storage import get_storage as _get_storage
+        return _get_storage
+    except ImportError:
+        # Fallback: use importlib to load storage module
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(current_dir)
+        storage_init_path = os.path.join(parent_dir, 'storage', '__init__.py')
+        
+        if os.path.exists(storage_init_path):
+            spec = importlib.util.spec_from_file_location("storage", storage_init_path)
+            storage_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(storage_module)
+            return storage_module.get_storage
+        else:
+            raise ImportError("Could not locate storage module")
 
 
 class VerseReferenceManager:
@@ -100,7 +114,7 @@ class TranslationFileManager:
     
     def __init__(self, storage_path: str):
         self.storage_path = storage_path
-        self.storage = get_storage()
+        self.storage = get_storage()()
         self.lines = None
         self._verse_ref_manager = VerseReferenceManager()
     
@@ -178,7 +192,7 @@ class TranslationFileManager:
         storage_path = f"translations/{project_id}/{file_id}_{sanitized_name}.txt"
         
         # Create empty file
-        storage = get_storage()
+        storage = get_storage()()
         empty_content = '\n'.join([''] * 31170)
         storage.store_file_content(empty_content, storage_path)
         
