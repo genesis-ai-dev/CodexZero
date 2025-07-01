@@ -14,3 +14,4 @@ google-auth-oauthlib
 google-auth
 pymysql
 boto3
+vref-utils
