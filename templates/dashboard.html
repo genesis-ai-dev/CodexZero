@@ -91,49 +91,12 @@
 
         {% else %}
             <!-- Empty State -->
-            <div class="text-center py-24 max-w-2xl mx-auto">
-                <div class="relative mb-8">
-                    <div class="w-24 h-24 paper-light marker-border rounded-2xl mb-6 flex items-center justify-center mx-auto">
-                        <i class="fas fa-book-open text-4xl" style="color: #2d2d2d;"></i>
-                    </div>
-                    <div class="absolute -top-2 -right-2 w-8 h-8 bg-yellow-200 marker-border rounded-full flex items-center justify-center">
-                        <i class="fas fa-plus text-sm" style="color: #2d2d2d;"></i>
-                    </div>
+            <div class="text-center py-16 max-w-xl mx-auto">
+                <div class="mb-8">
+                    <i class="fas fa-book-open text-6xl text-neutral-400 mb-4"></i>
                 </div>
-                
-                <h3 class="text-3xl font-bold mb-4" style="color: #2d2d2d;">Ready to Begin?</h3>
-                <p class="text-lg text-neutral-700 mb-12 font-medium leading-relaxed">
-                    Start your first biblical translation project and experience the power of AI-assisted translation.
-                </p>
-                
-                <div class="space-y-4">
-                    <a href="{{ url_for('new_project') }}" class="btn-marker inline-block text-lg px-8 py-4">
-                        <i class="fas fa-plus mr-3"></i>
-                        Create Your First Project
-                    </a>
-                    <div class="text-sm text-neutral-600 font-medium">
-                        Get started in less than 2 minutes
-                    </div>
-                </div>
-
-                <!-- Feature highlights -->
-                <div class="grid gap-6 mt-16 md:grid-cols-3">
-                    <div class="p-6 paper-light marker-border-thin">
-                        <i class="fas fa-robot text-2xl mb-3" style="color: #2d2d2d;"></i>
-                        <h4 class="font-bold mb-2" style="color: #2d2d2d;">AI-Powered</h4>
-                        <p class="text-sm text-neutral-600">Advanced translation assistance</p>
-                    </div>
-                    <div class="p-6 paper-light marker-border-thin">
-                        <i class="fas fa-globe text-2xl mb-3" style="color: #2d2d2d;"></i>
-                        <h4 class="font-bold mb-2" style="color: #2d2d2d;">Multi-Language</h4>
-                        <p class="text-sm text-neutral-600">Support for various target languages</p>
-                    </div>
-                    <div class="p-6 paper-light marker-border-thin">
-                        <i class="fas fa-users text-2xl mb-3" style="color: #2d2d2d;"></i>
-                        <h4 class="font-bold mb-2" style="color: #2d2d2d;">Contextual</h4>
-                        <p class="text-sm text-neutral-600">Tailored to your audience</p>
-                    </div>
-                </div>
+                <h3 class="text-2xl font-bold mb-4 text-neutral-700">No projects yet</h3>
+                <p class="text-neutral-600 mb-8">Create your first translation project to get started.</p>
             </div>
         {% endif %}
     </div>

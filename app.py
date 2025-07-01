@@ -187,8 +187,9 @@ def index():
 def health():
     """Simple health check endpoint"""
     try:
-        # Test database connection with timeout
-        db.session.execute('SELECT 1')
+        # Test database connection with proper SQLAlchemy syntax
+        from sqlalchemy import text
+        db.session.execute(text('SELECT 1'))
         db_status = "OK"
     except Exception as e:
         db_status = f"ERROR: {str(e)}"
