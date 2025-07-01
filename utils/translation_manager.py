@@ -1,7 +1,14 @@
 import os
+import sys
 import uuid
 from typing import List, Dict, Optional, Tuple
 from vref_utils import Vref
+
+# Ensure project root is in Python path for imports
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from storage import get_storage
 
 
