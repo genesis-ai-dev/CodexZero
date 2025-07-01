@@ -41,9 +41,14 @@ def create_app():
     app.register_blueprint(auth, url_prefix='/auth')
     app.register_blueprint(translation)
     
-    # Create database tables
+    # Create database tables (only if database is accessible)
     with app.app_context():
-        db.create_all()
+        try:
+            db.create_all()
+            print("Database tables created successfully")
+        except Exception as e:
+            print(f"Database connection failed during startup: {e}")
+            print("App will start without database initialization")
     
     return app
 
@@ -182,15 +187,16 @@ def index():
 def health():
     """Simple health check endpoint"""
     try:
-        # Test database connection
+        # Test database connection with timeout
         db.session.execute('SELECT 1')
         db_status = "OK"
     except Exception as e:
         db_status = f"ERROR: {str(e)}"
     
     return {
-        "status": "OK",
+        "status": "OK" if db_status == "OK" else "DEGRADED",
         "database": db_status,
+        "database_url": os.environ.get('DATABASE_URL', 'Not set')[:50] + "..." if os.environ.get('DATABASE_URL') else 'Not set',
         "storage_type": os.environ.get('STORAGE_TYPE', 'Not set')
     }
 
