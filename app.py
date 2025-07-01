@@ -74,7 +74,15 @@ def save_project_file(project_id: int, file_data, filename: str, file_type: str,
         file_data.seek(0)
         file_obj = file_data
     
-    storage.store_file(file_obj, storage_path)
+    # Try to store file with error handling for storage connection issues
+    try:
+        storage.store_file(file_obj, storage_path)
+    except Exception as e:
+        print(f"Storage connection failed: {e}")
+        # Log the full error for debugging
+        import traceback
+        print(f"Full storage error: {traceback.format_exc()}")
+        raise Exception(f"File storage unavailable. Please check storage configuration or contact support. Error: {str(e)}")
     
     project_file = ProjectFile(
         project_id=project_id,
