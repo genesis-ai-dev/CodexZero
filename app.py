@@ -178,6 +178,22 @@ def import_ulb_automatically(project_id: int):
 def index():
     return render_template('index.html')
 
+@app.route('/health')
+def health():
+    """Simple health check endpoint"""
+    try:
+        # Test database connection
+        db.session.execute('SELECT 1')
+        db_status = "OK"
+    except Exception as e:
+        db_status = f"ERROR: {str(e)}"
+    
+    return {
+        "status": "OK",
+        "database": db_status,
+        "storage_type": os.environ.get('STORAGE_TYPE', 'Not set')
+    }
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
