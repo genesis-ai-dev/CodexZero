@@ -2,7 +2,14 @@ import os
 import uuid
 from typing import List, Dict, Optional, Tuple
 from vref_utils import Vref
-from storage import get_storage
+
+# Try absolute import first, fall back to adding parent directory to path
+try:
+    from storage import get_storage
+except ImportError:
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from storage import get_storage
 
 
 class VerseReferenceManager:
