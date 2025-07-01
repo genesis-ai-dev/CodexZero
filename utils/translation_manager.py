@@ -3,13 +3,11 @@ import uuid
 from typing import List, Dict, Optional, Tuple
 from vref_utils import Vref
 
-# Try absolute import first, fall back to adding parent directory to path
-try:
-    from storage import get_storage
-except ImportError:
-    import sys
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from storage import get_storage
+# Import storage - this works because when translation.py imports this module,
+# the current working directory should be the project root
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from storage import get_storage
 
 
 class VerseReferenceManager:
