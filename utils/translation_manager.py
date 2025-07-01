@@ -8,10 +8,24 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 print(f"DEBUG: Adding {project_root} to sys.path")
 print(f"DEBUG: Current working directory: {os.getcwd()}")
 print(f"DEBUG: Storage directory exists: {os.path.exists(os.path.join(project_root, 'storage'))}")
+print(f"DEBUG: Python path: {sys.path}")
 sys.path.insert(0, project_root)
 
-from vref_utils import Vref
-from storage import get_storage
+# Import after path setup
+try:
+    from vref_utils import Vref
+    print("DEBUG: vref_utils imported successfully")
+except ImportError as e:
+    print(f"DEBUG: Failed to import vref_utils: {e}")
+    print(f"DEBUG: Site packages contents: {os.listdir('/workspace/.heroku/python/lib/python3.13/site-packages')[:10]}")
+    raise
+
+try:
+    from storage import get_storage
+    print("DEBUG: storage imported successfully")
+except ImportError as e:
+    print(f"DEBUG: Failed to import storage: {e}")
+    raise
 
 
 class VerseReferenceManager:
