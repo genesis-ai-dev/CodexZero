@@ -14,4 +14,4 @@ google-auth-oauthlib
 google-auth
 pymysql
 boto3
-vref-utils
+vref-utils==0.0.10
