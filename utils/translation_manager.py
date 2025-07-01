@@ -2,22 +2,20 @@ import os
 import uuid
 from typing import List, Dict, Optional, Tuple
 
-# Debug: Let's see what packages are available
+# Import vref_utils package
 import sys
-print("Python path:", sys.path)
-try:
-    import vref_utils
-    print("vref_utils imported successfully")
-except ImportError as e:
-    print(f"Failed to import vref_utils: {e}")
-    print("Available packages:", [p for p in sys.modules.keys() if 'vref' in p.lower()])
 
 from vref_utils import Vref
 
-# Import storage - this works because when translation.py imports this module,
-# the current working directory should be the project root
+# Import storage using relative import from parent package
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import os
+
+# Add parent directory to path if not already there
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
 from storage import get_storage
 
 
