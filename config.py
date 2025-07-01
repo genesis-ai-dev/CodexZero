@@ -8,7 +8,11 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-key-change-in-production'
     
     # Database Configuration - using DATABASE_URL
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'mysql+pymysql://codex_zero:codex_pass@localhost/codex_db'
+    database_url = os.environ.get('DATABASE_URL') or 'mysql+pymysql://codex_zero:codex_pass@localhost/codex_db'
+    # Ensure we use pymysql driver instead of MySQLdb
+    if database_url.startswith('mysql://'):
+        database_url = database_url.replace('mysql://', 'mysql+pymysql://', 1)
+    SQLALCHEMY_DATABASE_URI = database_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Google OAuth Configuration
