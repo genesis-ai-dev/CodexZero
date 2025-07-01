@@ -4,7 +4,11 @@ import uuid
 from typing import List, Dict, Optional, Tuple
 
 # Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+print(f"DEBUG: Adding {project_root} to sys.path")
+print(f"DEBUG: Current working directory: {os.getcwd()}")
+print(f"DEBUG: Storage directory exists: {os.path.exists(os.path.join(project_root, 'storage'))}")
+sys.path.insert(0, project_root)
 
 from vref_utils import Vref
 from storage import get_storage
