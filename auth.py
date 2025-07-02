@@ -47,11 +47,45 @@ def create_flow(redirect_uri=None):
     flow.redirect_uri = redirect_uri
     return flow
 
+@auth.route("/dev-login")
+def dev_login():
+    """Development-only automatic login"""
+    if not current_app.config.get('DEVELOPMENT_MODE'):
+        flash('Development login not available in production', 'error')
+        return redirect(url_for('index'))
+    
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
+    # Create or get development user
+    dev_user = User.query.filter_by(email='dev@codexzero.local').first()
+    if not dev_user:
+        dev_user = User(
+            google_id='dev_user_123',
+            email='dev@codexzero.local',
+            name='Development User',
+            created_at=datetime.utcnow()
+        )
+        db.session.add(dev_user)
+    
+    dev_user.last_login = datetime.utcnow()
+    db.session.commit()
+    
+    login_user(dev_user, remember=True)
+    flash(f'Welcome, {dev_user.name}! (Development Mode)', 'success')
+    
+    return redirect(url_for('dashboard'))
+
 @auth.route("/login")
 def login():
     """Initiate Google OAuth login"""
     if current_user.is_authenticated:
         return redirect(url_for('index'))
+    
+    # In development mode, redirect to dev login
+    if current_app.config.get('DEVELOPMENT_MODE'):
+        flash('Using development login. For Google OAuth, set DEVELOPMENT_MODE=false', 'info')
+        return redirect(url_for('auth.dev_login'))
     
     # Create flow and store the redirect URI used
     flow = create_flow()

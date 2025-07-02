@@ -189,7 +189,18 @@ def import_ulb_automatically(project_id: int):
 
 @app.route('/')
 def index():
+    # In development mode, if user is not authenticated, redirect to dev login
+    if app.config.get('DEVELOPMENT_MODE') and not current_user.is_authenticated:
+        return redirect(url_for('auth.dev_login'))
     return render_template('index.html')
+
+@app.route('/dev')
+def dev_shortcut():
+    """Quick development login shortcut"""
+    if not app.config.get('DEVELOPMENT_MODE'):
+        flash('Development shortcuts not available in production', 'error')
+        return redirect(url_for('index'))
+    return redirect(url_for('auth.dev_login'))
 
 @app.route('/health')
 def health():
@@ -2330,9 +2341,22 @@ def toggle_model_visibility(project_id, job_id):
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
+    # Set development environment
+    os.environ['FLASK_ENV'] = 'development'
+    os.environ['DEVELOPMENT_MODE'] = 'true'
+    
     # For development only - disable in production
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
     
-    print("Starting Flask app on http://localhost:5000")
-    print("Make sure to access the app via localhost, not 127.0.0.1")
+    print("=" * 60)
+    print("🚀 Starting CodexZero in DEVELOPMENT MODE")
+    print("=" * 60)
+    print("📍 App URL: http://localhost:5000")
+    print("🔧 Dev Login: http://localhost:5000/dev")
+    print("👤 Auto-login: Visit any page to automatically log in as 'Development User'")
+    print("📚 Dashboard: http://localhost:5000/dashboard")
+    print("")
+    print("💡 To use Google OAuth instead, set DEVELOPMENT_MODE=false")
+    print("=" * 60)
+    
     app.run(debug=True, host='localhost', port=5000)

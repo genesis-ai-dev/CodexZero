@@ -7,6 +7,9 @@ load_dotenv(override=True)
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-key-change-in-production'
     
+    # Development mode flag
+    DEVELOPMENT_MODE = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEVELOPMENT_MODE') == 'true'
+    
     # Database Configuration - using DATABASE_URL
     database_url = os.environ.get('DATABASE_URL') or 'mysql+pymysql://codex_zero:codex_pass@localhost/codex_db'
     # Ensure we use pymysql driver instead of MySQLdb
@@ -19,7 +22,7 @@ class Config:
     GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
     GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
     
-    # Security settings
-    SESSION_COOKIE_SECURE = True  # Set to True in production with HTTPS
+    # Security settings - relaxed for development
+    SESSION_COOKIE_SECURE = not DEVELOPMENT_MODE  # False in development
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax' 

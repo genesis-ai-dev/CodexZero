@@ -6,15 +6,16 @@ class TranslationDragDrop {
         this.collectedVerseNumbers = new Set(); // Track verse numbers to prevent duplicates
         this.isDragging = false;
         this.sourceWindowId = null;
-        // Don't set up global listeners here - we'll add them to textareas individually
+        
+        // Don't handle drops here - let text-window.js handle them
     }
     
     setupGlobalListeners() {
-        // Removed - we'll use dragover events on individual textareas instead
+        // Not needed anymore
     }
     
     setupTextareaForMultiSelect(textarea) {
-        // Only listen for dragenter - fires once when entering the textarea
+        // Listen for dragenter to collect verses as user drags over them
         textarea.addEventListener('dragenter', (e) => {
             if (!this.isDragging) return;
             
@@ -37,13 +38,6 @@ class TranslationDragDrop {
             
             // Add to collection
             this.collectVerse(textarea, targetWindow);
-        });
-        
-        // Keep dragover for allowing the drop, but don't collect verses
-        textarea.addEventListener('dragover', (e) => {
-            if (this.isDragging) {
-                e.preventDefault(); // Allow dropping
-            }
         });
     }
     
@@ -137,10 +131,24 @@ class TranslationDragDrop {
         }
     }
     
-    getTextWindow(textarea) {
+    getTextWindow(element) {
+        // Works for both textareas and any element within a window
         for (const [id, window] of this.editor.textWindows) {
-            if (window.element?.contains(textarea)) {
+            if (window.element?.contains(element)) {
                 return window;
+            }
+        }
+        return null;
+    }
+    
+    getWindowAtPosition(x, y) {
+        // Find which window contains the mouse coordinates
+        for (const [id, window] of this.editor.textWindows) {
+            if (window.element) {
+                const rect = window.element.getBoundingClientRect();
+                if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                    return window;
+                }
             }
         }
         return null;

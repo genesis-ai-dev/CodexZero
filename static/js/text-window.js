@@ -68,6 +68,9 @@ class TextWindow {
         container.appendChild(textWindow);
         this.element = textWindow;
         
+        // Add drop listeners to the entire window element
+        this.addWindowDropListeners(textWindow);
+        
         return textWindow;
     }
     
@@ -416,9 +419,6 @@ class TextWindow {
             return content;
         }
         
-        // Add window-level drop listeners for easier dropping
-        this.addWindowDropListeners(content);
-        
         this.data.verses.forEach(verseData => {
             const verseWrapper = this.createVerseElement(verseData);
             content.appendChild(verseWrapper);
@@ -496,8 +496,8 @@ class TextWindow {
         });
     }
     
-    addWindowDropListeners(content) {
-        content.addEventListener('dragover', (e) => {
+    addWindowDropListeners(windowElement) {
+        windowElement.addEventListener('dragover', (e) => {
             e.preventDefault();
             
             // Check if this is a valid drop target
@@ -505,31 +505,26 @@ class TextWindow {
             if (dragDrop && dragDrop.isDragging) {
                 if (dragDrop.isValidDropTarget(this)) {
                     e.dataTransfer.dropEffect = 'copy';
-                    content.style.backgroundColor = '#f0fdf4';
-                    content.style.boxShadow = 'inset 0 0 0 3px rgba(16, 185, 129, 0.3)';
+                    windowElement.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.5)';
                 } else {
                     e.dataTransfer.dropEffect = 'none';
-                    content.style.backgroundColor = '#fef2f2';
-                    content.style.boxShadow = 'inset 0 0 0 3px rgba(239, 68, 68, 0.3)';
+                    windowElement.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.5)';
                 }
             } else {
                 e.dataTransfer.dropEffect = 'copy';
-                content.style.backgroundColor = '#f0fdf4';
-                content.style.boxShadow = 'inset 0 0 0 3px rgba(16, 185, 129, 0.3)';
+                windowElement.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.5)';
             }
         });
         
-        content.addEventListener('dragleave', (e) => {
-            if (!content.contains(e.relatedTarget)) {
-                content.style.backgroundColor = '';
-                content.style.boxShadow = '';
+        windowElement.addEventListener('dragleave', (e) => {
+            if (!windowElement.contains(e.relatedTarget)) {
+                windowElement.style.boxShadow = '';
             }
         });
         
-        content.addEventListener('drop', async (e) => {
+        windowElement.addEventListener('drop', async (e) => {
             e.preventDefault();
-            content.style.backgroundColor = '';
-            content.style.boxShadow = '';
+            windowElement.style.boxShadow = '';
             
             try {
                 let dragData;
