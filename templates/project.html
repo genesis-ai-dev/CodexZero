@@ -2,18 +2,56 @@
 
 {% block title %}{{ project.target_language }} Translation - CodexZero{% endblock %}
 
+{% if admin_view %}
+<style>
+.admin-view .delete-file-btn,
+.admin-view .pair-file-btn, 
+.admin-view .unpair-file-btn,
+.admin-view .btn-marker,
+.admin-view .toggle-section-btn {
+    display: none !important;
+}
+</style>
+{% endif %}
+
 {% block content %}
-<section class="min-h-screen paper-white">
+<section class="min-h-screen paper-white{% if admin_view %} admin-view{% endif %}">
+    {% if admin_view %}
+    <!-- Admin View Banner -->
+    <div class="bg-blue-50 border-b border-blue-200">
+        <div class="max-w-5xl mx-auto px-6 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center text-sm text-blue-700 font-medium">
+                    <i class="fas fa-shield-alt mr-2"></i>
+                    Admin View: {{ project_owner.name }}'s Project
+                </div>
+                <a href="{{ url_for('admin.user_detail', encoded_user_id=encode_id(project_owner.id, 'user')) }}" 
+                   class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                    <i class="fas fa-arrow-left mr-1"></i>
+                    Back to {{ project_owner.name }}'s Profile
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
     <!-- Clean Header with marker theme -->
     <div class="paper-cream border-b border-neutral-300">
         <div class="max-w-5xl mx-auto px-6 py-8">
             <div class="flex items-center justify-between">
                 <div>
                     <div class="flex items-center text-sm text-neutral-600 mb-2 font-medium">
+                        {% if admin_view %}
+                        <a href="{{ url_for('admin.user_detail', encoded_user_id=encode_id(project_owner.id, 'user')) }}" class="hover:text-neutral-900 transition-colors">
+                            <i class="fas fa-arrow-left mr-2"></i>
+                            {{ project_owner.name }}'s Projects
+                        </a>
+                        {% else %}
                         <a href="{{ url_for('projects.dashboard') }}" class="hover:text-neutral-900 transition-colors">
                             <i class="fas fa-arrow-left mr-2"></i>
                             Projects
                         </a>
+                        {% endif %}
                         <span class="mx-2">→</span>
                         <span>{{ project.target_language }}</span>
                     </div>
@@ -41,6 +79,7 @@
                     </div>
                 </div>
                 
+                {% if not admin_view %}
                 <div class="flex items-center space-x-3">
                     {% set has_files = project.files and project.files|length > 0 %}
                     {% set can_translate = has_files %}
@@ -58,6 +97,12 @@
                         Edit
                     </a>
                 </div>
+                {% else %}
+                <div class="text-sm text-neutral-600 font-medium">
+                    <i class="fas fa-eye mr-2"></i>
+                    Read-only Admin View
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -133,10 +178,17 @@
                                                 </div>
                                             </div>
                                             <div class="flex items-center space-x-2 ml-2">
-                                                <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=pair.file1.id) }}"
-                                                   class="text-neutral-500 hover:text-neutral-700">
-                                                    <i class="fas fa-download"></i>
-                                                </a>
+                                                                                {% if admin_view %}
+                                <a href="{{ url_for('admin.download_user_project_file', encoded_user_id=encode_id(project_owner.id, 'user'), encoded_project_id=encode_id(project.id, 'project'), encoded_file_id=encode_id(pair.file1.id, 'file')) }}"
+                                   class="text-neutral-500 hover:text-neutral-700">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                {% else %}
+                                <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=pair.file1.id) }}"
+                                   class="text-neutral-500 hover:text-neutral-700">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                {% endif %}
                                                 <button type="button" class="delete-file-btn text-neutral-500 hover:text-red-600"
                                                         data-file-id="{{ pair.file1.id }}" 
                                                         data-filename="{{ pair.file1.original_filename }}">
@@ -159,10 +211,17 @@
                                                 </div>
                                             </div>
                                             <div class="flex items-center space-x-2 ml-2">
-                                                <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=pair.file2.id) }}"
-                                                   class="text-neutral-500 hover:text-neutral-700">
-                                                    <i class="fas fa-download"></i>
-                                                </a>
+                                                                                {% if admin_view %}
+                                <a href="{{ url_for('admin.download_user_project_file', encoded_user_id=encode_id(project_owner.id, 'user'), encoded_project_id=encode_id(project.id, 'project'), encoded_file_id=encode_id(pair.file2.id, 'file')) }}"
+                                   class="text-neutral-500 hover:text-neutral-700">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                {% else %}
+                                <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=pair.file2.id) }}"
+                                   class="text-neutral-500 hover:text-neutral-700">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                {% endif %}
                                                 <button type="button" class="delete-file-btn text-neutral-500 hover:text-red-600"
                                                         data-file-id="{{ pair.file2.id }}" 
                                                         data-filename="{{ pair.file2.original_filename }}">
@@ -204,10 +263,17 @@
                                             Pair
                                         </button>
                                         {% endif %}
-                                        <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=file.id) }}"
-                                           class="text-neutral-500 hover:text-neutral-700">
-                                            <i class="fas fa-download"></i>
-                                        </a>
+                                                                {% if admin_view %}
+                        <a href="{{ url_for('admin.download_user_project_file', encoded_user_id=encode_id(project_owner.id, 'user'), encoded_project_id=encode_id(project.id, 'project'), encoded_file_id=encode_id(file.id, 'file')) }}"
+                           class="text-neutral-500 hover:text-neutral-700">
+                            <i class="fas fa-download"></i>
+                        </a>
+                        {% else %}
+                        <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=file.id) }}"
+                           class="text-neutral-500 hover:text-neutral-700">
+                            <i class="fas fa-download"></i>
+                        </a>
+                        {% endif %}
                                         <button type="button" class="delete-file-btn text-neutral-500 hover:text-red-600"
                                                 data-file-id="{{ file.id }}" 
                                                 data-filename="{{ file.original_filename }}">

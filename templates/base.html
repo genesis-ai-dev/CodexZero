@@ -118,6 +118,12 @@
                             <i class="fas fa-question-circle mr-1"></i>
                             FAQ
                         </a>
+                        {% if current_user.email == 'danieljlosey@gmail.com' %}
+                        <a href="{{ url_for('admin.dashboard') }}" class="nav-link text-sm font-medium">
+                            <i class="fas fa-shield-alt mr-1"></i>
+                            Admin
+                        </a>
+                        {% endif %}
                         <span class="text-sm text-neutral-600 font-medium">
                             <i class="fas fa-user mr-1"></i>
                             {{ current_user.name }}

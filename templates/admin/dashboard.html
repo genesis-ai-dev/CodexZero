@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - CodexZero{% endblock %}
+
+{% block content %}
+<section class="min-h-screen paper-white">
+    <!-- Header -->
+    <div class="paper-cream border-b marker-border-thin">
+        <div class="max-w-7xl mx-auto px-6 py-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold" style="color: #2d2d2d;">Admin Dashboard</h1>
+                    <p class="text-sm text-neutral-700 mt-1 font-medium">
+                        {{ total_users }} users • {{ recent_users }} new this month • {{ active_users }} active this week
+                    </p>
+                </div>
+                <div class="text-sm text-neutral-600 font-medium">
+                    <i class="fas fa-shield-alt mr-2"></i>
+                    Admin Access
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-6 py-8">
+        
+        <!-- Recent Activity and User List -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Recent Signups -->
+            <div class="paper-cream p-6 marker-border">
+                <h2 class="text-xl font-bold mb-4" style="color: #2d2d2d;">
+                    Recent Signups
+                    {% if recent_signups %}({{ recent_signups|length }}){% endif %}
+                </h2>
+                {% if recent_signups %}
+                    <div class="space-y-3">
+                        {% for user in recent_signups %}
+                        <div class="flex items-center justify-between paper-white p-3 marker-border-thin">
+                            <div>
+                                <p class="font-medium" style="color: #2d2d2d;">{{ user.name }}</p>
+                                <p class="text-sm text-neutral-600">{{ user.email }}</p>
+                            </div>
+                            <div class="text-xs text-neutral-500 font-medium">
+                                {{ user.created_at.strftime('%b %d') }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-neutral-600 text-center py-4 font-medium">No recent signups</p>
+                {% endif %}
+            </div>
+
+            <!-- User List -->
+            <div class="lg:col-span-2 paper-cream p-6 marker-border">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-bold" style="color: #2d2d2d;">
+                        All Users ({{ users.total }})
+                    </h2>
+                    <a href="{{ url_for('admin.users') }}" class="text-sm font-medium text-blue-600 hover:text-blue-800">
+                        View All
+                        <i class="fas fa-arrow-right ml-1"></i>
+                    </a>
+                </div>
+                
+                {% if users.items %}
+                    <div class="space-y-3 max-h-96 overflow-y-auto">
+                        {% for user in users.items %}
+                        <div class="flex items-center justify-between paper-white p-3 marker-border-thin">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-8 h-8 paper-light marker-border-thin flex items-center justify-center">
+                                    <i class="fas fa-user text-blue-600 text-sm"></i>
+                                </div>
+                                <div>
+                                    <p class="font-medium" style="color: #2d2d2d;">{{ user.name }}</p>
+                                    <p class="text-sm text-neutral-600">
+                                        {{ user.email }}
+                                        {% if user.projects|length > 0 %}
+                                        • {{ user.projects|length }} project{{ 's' if user.projects|length != 1 else '' }}
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <div class="text-xs text-neutral-500 text-right font-medium">
+                                    <div>{{ user.created_at.strftime('%b %d, %Y') }}</div>
+                                </div>
+                                <a href="{{ url_for('admin.user_detail', encoded_user_id=encode_id(user.id, 'user')) }}" class="text-blue-600 hover:text-blue-800">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Pagination Info -->
+                    <div class="mt-4 text-center text-sm text-neutral-600 font-medium">
+                        Showing page {{ users.page }} of {{ users.pages }}
+                    </div>
+                {% else %}
+                    <p class="text-neutral-600 text-center py-8 font-medium">No users found</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Platform Overview -->
+        <div class="mt-8 paper-cream p-6 marker-border">
+            <h2 class="text-xl font-bold mb-4" style="color: #2d2d2d;">Platform Activity</h2>
+            <div class="text-sm text-neutral-700 font-medium">
+                <p>Users have created {{ total_projects }} projects, uploaded {{ total_files }} files, generated {{ total_translations }} translations, and run {{ total_fine_tuning_jobs }} fine-tuning jobs.</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %} 

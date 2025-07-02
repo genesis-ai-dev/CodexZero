@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user.name }} - User Details - Admin - CodexZero{% endblock %}
+
+{% block content %}
+<section class="min-h-screen paper-white">
+    <!-- Header -->
+    <div class="paper-cream border-b marker-border-thin">
+        <div class="max-w-7xl mx-auto px-6 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-6">
+                    <a href="{{ url_for('admin.users') }}" class="nav-link text-sm font-medium">
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        User Management
+                    </a>
+                    <div class="h-6 w-px marker-border-thin"></div>
+                    <div>
+                        <h1 class="text-3xl font-bold" style="color: #2d2d2d;">{{ user.name }}</h1>
+                        <p class="text-sm text-neutral-700 mt-1 font-medium">
+                            {{ user.email }}
+                            {% if projects|length > 0 %}
+                            • {{ projects|length }} project{{ 's' if projects|length != 1 else '' }}
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div class="text-sm text-neutral-600 font-medium">
+                    <i class="fas fa-user mr-2"></i>
+                    User ID: {{ user.id }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-6 py-8">
+        
+        <!-- User Overview -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            
+            <!-- User Info -->
+            <div class="paper-cream p-6 marker-border">
+                <h2 class="text-xl font-bold mb-4" style="color: #2d2d2d;">User Information</h2>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-sm font-medium text-neutral-600">Full Name</p>
+                        <p class="font-bold" style="color: #2d2d2d;">{{ user.name }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-neutral-600">Email Address</p>
+                        <p class="font-bold" style="color: #2d2d2d;">{{ user.email }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-neutral-600">Google ID</p>
+                        <p class="font-mono text-sm text-neutral-700">{{ user.google_id }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-neutral-600">Account Created</p>
+                        <p class="font-bold" style="color: #2d2d2d;">{{ user.created_at.strftime('%B %d, %Y at %I:%M %p') }}</p>
+                    </div>
+                    {% if user.last_login %}
+                    <div>
+                        <p class="text-sm font-medium text-neutral-600">Last Login</p>
+                        <p class="font-bold" style="color: #2d2d2d;">{{ user.last_login.strftime('%B %d, %Y at %I:%M %p') }}</p>
+                    </div>
+                    {% else %}
+                    <div>
+                        <p class="text-sm font-medium text-neutral-600">Last Login</p>
+                        <p class="font-bold text-neutral-500">Never logged in</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Activity Summary -->
+            <div class="paper-cream p-6 marker-border">
+                <h2 class="text-xl font-bold mb-4" style="color: #2d2d2d;">Activity Summary</h2>
+                <div class="text-sm text-neutral-700 font-medium space-y-2">
+                    {% if projects|length > 0 %}
+                    <p>This user has created {{ projects|length }} project{{ 's' if projects|length != 1 else '' }}{% if total_files > 0 %} with {{ total_files }} uploaded file{{ 's' if total_files != 1 else '' }}{% endif %}.</p>
+                    {% else %}
+                    <p>This user hasn't created any projects yet.</p>
+                    {% endif %}
+                    
+                    {% if total_translations > 0 %}
+                    <p>Generated {{ total_translations }} translation{{ 's' if total_translations != 1 else '' }}{% if total_fine_tuning > 0 %} and {{ total_fine_tuning }} fine-tuning job{{ 's' if total_fine_tuning != 1 else '' }}{% endif %}.</p>
+                    {% elif total_fine_tuning > 0 %}
+                    <p>Ran {{ total_fine_tuning }} fine-tuning job{{ 's' if total_fine_tuning != 1 else '' }}.</p>
+                    {% endif %}
+
+                    {% if projects|length == 0 and total_translations == 0 and total_fine_tuning == 0 %}
+                    <p>No platform activity yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Projects -->
+        <div class="paper-cream marker-border">
+            <div class="px-6 py-4 paper-light border-b marker-border-thin">
+                <h2 class="text-xl font-bold" style="color: #2d2d2d;">
+                    Projects
+                    {% if projects|length > 0 %}({{ projects|length }}){% endif %}
+                </h2>
+            </div>
+            
+            {% if projects %}
+                <div class="divide-y divide-neutral-200">
+                    {% for project in projects %}
+                    <div class="px-6 py-4 hover:paper-light transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-4">
+                                <div class="w-10 h-10 paper-white marker-border-thin flex items-center justify-center">
+                                    <i class="fas fa-folder text-orange-600"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold" style="color: #2d2d2d;">{{ project.target_language }} Translation</h3>
+                                    <div class="text-sm text-neutral-600 space-x-3 font-medium">
+                                        <span>{{ project.audience }}</span>
+                                        <span>•</span>
+                                        <span>{{ project.style }} style</span>
+                                        {% if project.files|length > 0 %}
+                                        <span>•</span>
+                                        <span>{{ project.files|length }} file{{ 's' if project.files|length != 1 else '' }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center space-x-6 text-sm">
+                                {% if project.translations|length > 0 %}
+                                <div class="text-center">
+                                    <p class="font-bold text-neutral-900">{{ project.translations|length }}</p>
+                                    <p class="text-neutral-600 font-medium">Translations</p>
+                                </div>
+                                {% endif %}
+                                {% if project.fine_tuning_jobs|length > 0 %}
+                                <div class="text-center">
+                                    <p class="font-bold text-neutral-900">{{ project.fine_tuning_jobs|length }}</p>
+                                    <p class="text-neutral-600 font-medium">Fine-tuning</p>
+                                </div>
+                                {% endif %}
+                                <div class="text-center">
+                                    <p class="font-bold text-neutral-900">{{ project.created_at.strftime('%b %d, %Y') }}</p>
+                                    <p class="text-neutral-600 font-medium">Created</p>
+                                </div>
+                                <a href="{{ url_for('admin.view_user_project', encoded_user_id=encode_id(user.id, 'user'), encoded_project_id=encode_id(project.id, 'project')) }}" 
+                                   class="px-4 py-2 paper-white marker-border-thin text-blue-600 hover:text-blue-800 hover:paper-light transition-colors font-medium"
+                                   title="View {{ user.name }}'s {{ project.target_language }} project">
+                                    <i class="fas fa-external-link-alt mr-2"></i>
+                                    View Project
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <!-- Project Details -->
+                        {% if project.instructions %}
+                        <div class="mt-3 ml-14">
+                            <div class="paper-white p-3 marker-border-thin">
+                                <p class="text-sm font-medium text-neutral-600 mb-1">Instructions:</p>
+                                <p class="text-sm text-neutral-700">{{ project.instructions[:200] }}{% if project.instructions|length > 200 %}...{% endif %}</p>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="px-6 py-12 text-center">
+                    <div class="w-16 h-16 paper-light marker-border-thin flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-folder-open text-neutral-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-bold mb-2" style="color: #2d2d2d;">No projects yet</h3>
+                    <p class="text-neutral-600 font-medium">This user hasn't created any projects</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %} 
