@@ -104,6 +104,21 @@ def dashboard():
                          recent_signups=recent_signups,
                          encode_id=encode_id)
 
+@admin.route('/admin/models')
+@login_required
+@admin_required
+def models():
+    """Simple paginated view of all fine-tuned models"""
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    
+    # Get all fine-tuning jobs ordered by creation date (newest first)
+    jobs = FineTuningJob.query.order_by(desc(FineTuningJob.created_at)).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    return render_template('admin/models.html', jobs=jobs, encode_id=encode_id)
+
 @admin.route('/admin/users')
 @login_required
 @admin_required

@@ -107,7 +107,13 @@
 
         <!-- Platform Overview -->
         <div class="mt-8 paper-cream p-6 marker-border">
-            <h2 class="text-xl font-bold mb-4" style="color: #2d2d2d;">Platform Activity</h2>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold" style="color: #2d2d2d;">Platform Activity</h2>
+                <a href="{{ url_for('admin.models') }}" class="text-sm font-medium text-blue-600 hover:text-blue-800">
+                    View Models
+                    <i class="fas fa-arrow-right ml-1"></i>
+                </a>
+            </div>
             <div class="text-sm text-neutral-700 font-medium">
                 <p>Users have created {{ total_projects }} projects, uploaded {{ total_files }} files, generated {{ total_translations }} translations, and run {{ total_fine_tuning_jobs }} fine-tuning jobs.</p>
             </div>

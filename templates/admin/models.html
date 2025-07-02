@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Fine-tuned Models - Admin - CodexZero{% endblock %}
+
+{% block content %}
+<section class="min-h-screen paper-white">
+    <!-- Header -->
+    <div class="paper-cream border-b marker-border-thin">
+        <div class="max-w-7xl mx-auto px-6 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-6">
+                    <a href="{{ url_for('admin.dashboard') }}" class="nav-link text-sm font-medium">
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        Admin Dashboard
+                    </a>
+                    <div class="h-6 w-px marker-border-thin"></div>
+                    <div>
+                        <h1 class="text-3xl font-bold" style="color: #2d2d2d;">Fine-tuned Models</h1>
+                        <p class="text-sm text-neutral-700 mt-1 font-medium">{{ jobs.total }} total models</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Models List -->
+    <div class="max-w-7xl mx-auto px-6 py-6">
+        <div class="paper-cream marker-border">
+            {% if jobs.items %}
+                <div class="divide-y divide-neutral-200">
+                    {% for job in jobs.items %}
+                    <div class="px-6 py-4 hover:paper-light transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-4">
+                                <div class="w-10 h-10 paper-white marker-border-thin flex items-center justify-center">
+                                    {% if job.status == 'completed' %}
+                                    <i class="fas fa-check-circle text-green-600"></i>
+                                    {% elif job.status == 'failed' %}
+                                    <i class="fas fa-times-circle text-red-600"></i>
+                                    {% elif job.status in ['training', 'validating'] %}
+                                    <i class="fas fa-spinner fa-spin text-blue-600"></i>
+                                    {% else %}
+                                    <i class="fas fa-clock text-yellow-600"></i>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <h3 class="font-bold" style="color: #2d2d2d;">
+                                        {% if job.display_name %}
+                                            {{ job.display_name }}
+                                        {% else %}
+                                            Model {{ job.id }}
+                                        {% endif %}
+                                    </h3>
+                                    <div class="text-sm text-neutral-600 space-x-3 font-medium">
+                                        <span>{{ job.status.title() }}</span>
+                                        <span>•</span>
+                                        <span>{{ job.base_model }}</span>
+                                        {% if job.training_examples %}
+                                        <span>•</span>
+                                        <span>{{ job.training_examples }} examples</span>
+                                        {% endif %}
+                                        {% if job.is_instruction_tuning %}
+                                        <span>•</span>
+                                        <span>Instruction Tuning</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center space-x-6 text-sm">
+                                {% if job.estimated_cost %}
+                                <div class="text-center">
+                                    <p class="font-bold text-neutral-900">${{ "%.2f"|format(job.estimated_cost) }}</p>
+                                    <p class="text-neutral-600 font-medium">Est. Cost</p>
+                                </div>
+                                {% endif %}
+                                <div class="text-center">
+                                    <p class="font-bold text-neutral-900">{{ job.created_at.strftime('%b %d, %Y') }}</p>
+                                    <p class="text-neutral-600 font-medium">Created</p>
+                                </div>
+                                {% if job.project %}
+                                <div class="text-center">
+                                    <p class="font-bold text-neutral-900">{{ job.project.target_language }}</p>
+                                    <p class="text-neutral-600 font-medium">Project</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        {% if job.source_file and job.target_file %}
+                        <div class="mt-3 ml-14">
+                            <div class="paper-white p-3 marker-border-thin">
+                                <p class="text-sm text-neutral-700 font-medium">
+                                    {{ job.source_file.original_filename }} → {{ job.target_file.original_filename }}
+                                </p>
+                                {% if job.model_name %}
+                                <p class="text-xs text-neutral-500 mt-1 font-mono">{{ job.model_name }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if job.error_message %}
+                        <div class="mt-3 ml-14">
+                            <div class="paper-white p-3 marker-border-thin border-red-200">
+                                <p class="text-sm text-red-600 font-medium">Error: {{ job.error_message }}</p>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Pagination -->
+                {% if jobs.pages > 1 %}
+                <div class="px-6 py-4 paper-light border-t marker-border-thin">
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm text-neutral-600 font-medium">
+                            Showing {{ (jobs.page - 1) * jobs.per_page + 1 }} to 
+                            {{ jobs.page * jobs.per_page if jobs.page * jobs.per_page < jobs.total else jobs.total }} 
+                            of {{ jobs.total }} models
+                        </div>
+                        
+                        <div class="flex items-center space-x-2">
+                            {% if jobs.has_prev %}
+                                <a href="{{ url_for('admin.models', page=jobs.prev_num) }}" 
+                                   class="px-3 py-2 paper-white marker-border-thin text-neutral-700 hover:text-neutral-900 font-medium">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            {% endif %}
+                            
+                            {% for page_num in jobs.iter_pages() %}
+                                {% if page_num %}
+                                    {% if page_num != jobs.page %}
+                                        <a href="{{ url_for('admin.models', page=page_num) }}" 
+                                           class="px-3 py-2 paper-white marker-border-thin text-neutral-700 hover:text-neutral-900 font-medium">
+                                            {{ page_num }}
+                                        </a>
+                                    {% else %}
+                                        <span class="px-3 py-2 btn-marker">{{ page_num }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="px-3 py-2 text-neutral-400">…</span>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if jobs.has_next %}
+                                <a href="{{ url_for('admin.models', page=jobs.next_num) }}" 
+                                   class="px-3 py-2 paper-white marker-border-thin text-neutral-700 hover:text-neutral-900 font-medium">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            {% else %}
+                <div class="px-6 py-12 text-center">
+                    <div class="w-16 h-16 paper-light marker-border-thin flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-robot text-neutral-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-bold mb-2" style="color: #2d2d2d;">No models yet</h3>
+                    <p class="text-neutral-600 font-medium">No fine-tuned models have been created</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %} 
