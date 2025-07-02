@@ -3,7 +3,7 @@
 {% block content %}
 <section class="py-24 px-6 relative min-h-screen flex items-center">
     <div class="max-w-4xl mx-auto text-center w-full">
-        <div class="scattered-title mb-6 relative h-32" id="scatteredTitle">
+        <div class="scattered-title mb-8 relative h-48 flex items-center justify-center" id="scatteredTitle">
             <!-- Letters will be dynamically inserted here -->
         </div>
         <p class="text-2xl text-neutral-600 mb-12 max-w-3xl mx-auto leading-relaxed font-medium opacity-0 transition-opacity duration-1000 delay-1000" id="subtitle">
@@ -57,11 +57,13 @@
 <style>
 .scattered-letter {
     display: inline-block;
-    font-size: 7rem;
-    font-weight: bold;
+    font-size: 8.5rem;
+    font-weight: 900;
     color: #2d2d2d;
     opacity: 0;
     transition: transform 1.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 1.2s;
+    text-shadow: 0 4px 8px rgba(45, 45, 45, 0.1);
+    letter-spacing: -0.02em;
 }
 
 .scattered-letter.animate {
@@ -72,9 +74,21 @@
     transform: translate(0, 0) !important;
 }
 
+@media (max-width: 1024px) {
+    .scattered-letter {
+        font-size: 6.5rem;
+    }
+}
+
 @media (max-width: 768px) {
     .scattered-letter {
-        font-size: 4rem;
+        font-size: 4.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .scattered-letter {
+        font-size: 3.5rem;
     }
 }
 </style>
@@ -87,7 +101,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Create scattered letters
     title.split('').forEach((char, index) => {
         if (char === ' ') {
-            container.appendChild(document.createTextNode(' '));
+            const space = document.createElement('span');
+            space.innerHTML = '&nbsp;';
+            space.className = 'scattered-letter';
+            space.style.opacity = '0';
+            container.appendChild(space);
             return;
         }
         
@@ -95,12 +113,13 @@ document.addEventListener('DOMContentLoaded', function() {
         span.textContent = char;
         span.className = 'scattered-letter';
         
-        // Random scattered positions for initial animation
-        const randomX = (Math.random() - 0.5) * window.innerWidth * 0.8;
-        const randomY = (Math.random() - 0.5) * window.innerHeight * 0.6;
-        const randomRotate = (Math.random() - 0.5) * 360;
+        // Random scattered positions for initial animation - more dramatic spread
+        const randomX = (Math.random() - 0.5) * window.innerWidth * 1.2;
+        const randomY = (Math.random() - 0.5) * window.innerHeight * 0.8;
+        const randomRotate = (Math.random() - 0.5) * 720; // More rotation for fun
+        const randomScale = 0.3 + Math.random() * 0.7; // Random initial scale
         
-        span.style.transform = `translate(${randomX}px, ${randomY}px) rotate(${randomRotate}deg)`;
+        span.style.transform = `translate(${randomX}px, ${randomY}px) rotate(${randomRotate}deg) scale(${randomScale})`;
         
         container.appendChild(span);
     });
@@ -111,10 +130,10 @@ document.addEventListener('DOMContentLoaded', function() {
         letters.forEach((letter, index) => {
             setTimeout(() => {
                 letter.style.opacity = '1';
-                letter.style.transform = 'translate(0, 0) rotate(0deg)';
-            }, index * 100);
+                letter.style.transform = 'translate(0, 0) rotate(0deg) scale(1)';
+            }, index * 80); // Slightly faster animation
         });
-    }, 500);
+    }, 300); // Start sooner for more immediate impact
     
     // Show subtitle and CTA after title animation
     setTimeout(() => {
