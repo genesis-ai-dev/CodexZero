@@ -12,7 +12,7 @@
         
         <div class="opacity-0 transition-opacity duration-1000 delay-1500" id="ctaButton">
             {% if current_user.is_authenticated %}
-                <a href="{{ url_for('dashboard') }}" class="btn-marker text-lg inline-block">
+                <a href="{{ url_for('projects.dashboard') }}" class="btn-marker text-lg inline-block">
                     <i class="fas fa-folder mr-2"></i>
                     Go to Projects
                 </a>

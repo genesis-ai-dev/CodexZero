@@ -10,7 +10,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <div class="flex items-center text-sm text-neutral-600 mb-2 font-medium">
-                        <a href="{{ url_for('dashboard') }}" class="hover:text-neutral-900 transition-colors">
+                        <a href="{{ url_for('projects.dashboard') }}" class="hover:text-neutral-900 transition-colors">
                             <i class="fas fa-arrow-left mr-2"></i>
                             Projects
                         </a>
@@ -52,7 +52,7 @@
                         Translate
                     </a>
                     
-                    <a href="{{ url_for('edit_project', project_id=project.id) }}" 
+                    <a href="{{ url_for('projects.edit_project', project_id=project.id) }}"
                        class="px-4 py-2 paper-light text-neutral-700 border border-neutral-300 font-bold hover:bg-neutral-100 transition-colors">
                         <i class="fas fa-edit mr-2"></i>
                         Edit
@@ -133,7 +133,7 @@
                                                 </div>
                                             </div>
                                             <div class="flex items-center space-x-2 ml-2">
-                                                <a href="{{ url_for('download_project_file', project_id=project.id, file_id=pair.file1.id) }}" 
+                                                <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=pair.file1.id) }}"
                                                    class="text-neutral-500 hover:text-neutral-700">
                                                     <i class="fas fa-download"></i>
                                                 </a>
@@ -159,7 +159,7 @@
                                                 </div>
                                             </div>
                                             <div class="flex items-center space-x-2 ml-2">
-                                                <a href="{{ url_for('download_project_file', project_id=project.id, file_id=pair.file2.id) }}" 
+                                                <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=pair.file2.id) }}"
                                                    class="text-neutral-500 hover:text-neutral-700">
                                                     <i class="fas fa-download"></i>
                                                 </a>
@@ -204,7 +204,7 @@
                                             Pair
                                         </button>
                                         {% endif %}
-                                        <a href="{{ url_for('download_project_file', project_id=project.id, file_id=file.id) }}" 
+                                        <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=file.id) }}"
                                            class="text-neutral-500 hover:text-neutral-700">
                                             <i class="fas fa-download"></i>
                                         </a>
@@ -693,7 +693,7 @@
                 
                 <div class="text-center py-8">
                     <i class="fas fa-code text-purple-600 text-2xl mb-4"></i>
-                    <a href="{{ url_for('usfm_import', project_id=project.id) }}" class="btn-marker inline-block">
+                    <a href="{{ url_for('files.usfm_import', project_id=project.id) }}" class="btn-marker inline-block">
                         <i class="fas fa-external-link-alt mr-2"></i>
                         Go to USFM Import
                     </a>

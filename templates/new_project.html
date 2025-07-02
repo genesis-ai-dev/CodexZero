@@ -10,7 +10,7 @@
 <section class="py-12 px-6">
     <div class="max-w-3xl mx-auto">
         <div class="mb-8">
-            <a href="{{ url_for('dashboard') }}" class="text-sm text-neutral-600 hover:text-neutral-900 transition-colors">
+            <a href="{{ url_for('projects.dashboard') }}" class="text-sm text-neutral-600 hover:text-neutral-900 transition-colors">
                 <i class="fas fa-arrow-left mr-1"></i>
                 Back to Projects
             </a>
@@ -21,7 +21,7 @@
         {% include 'components/step_indicator.html' %}
         
         <div class="p-8">
-            <form method="POST" action="{{ url_for('create_project') }}" enctype="multipart/form-data" class="space-y-8">
+            <form method="POST" action="{{ url_for('projects.create_project') }}" enctype="multipart/form-data" class="space-y-8">
                 {% include 'components/step_translation_goals.html' %}
                 {% include 'components/step_language_details.html' %}
                 {% include 'components/step_training_data.html' %}
@@ -29,7 +29,7 @@
                 {% include 'components/form_datalists.html' %}
                 
                 <div class="fixed bottom-6 left-6">
-                    <a href="{{ url_for('dashboard') }}" class="text-sm text-neutral-600 hover:text-neutral-900 transition-colors">
+                    <a href="{{ url_for('projects.dashboard') }}" class="text-sm text-neutral-600 hover:text-neutral-900 transition-colors">
                         <i class="fas fa-arrow-left mr-1"></i>
                         Cancel
                     </a>

@@ -52,10 +52,10 @@ def dev_login():
     """Development-only automatic login"""
     if not current_app.config.get('DEVELOPMENT_MODE'):
         flash('Development login not available in production', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('main.index'))
     
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('projects.dashboard'))
     
     # Create or get development user
     dev_user = User.query.filter_by(email='dev@codexzero.local').first()
@@ -74,13 +74,13 @@ def dev_login():
     login_user(dev_user, remember=True)
     flash(f'Welcome, {dev_user.name}! (Development Mode)', 'success')
     
-    return redirect(url_for('dashboard'))
+    return redirect(url_for('projects.dashboard'))
 
 @auth.route("/login")
 def login():
     """Initiate Google OAuth login"""
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return redirect(url_for('main.index'))
     
     # In development mode, redirect to dev login
     if current_app.config.get('DEVELOPMENT_MODE'):
@@ -105,7 +105,7 @@ def callback():
     # Verify state parameter
     if request.args.get('state') != session.get('state'):
         flash('Invalid state parameter', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('main.index'))
     
     # Extract the base redirect URI from the current request
     # This ensures it matches exactly what Google is expecting
@@ -136,7 +136,7 @@ def callback():
     
     if not google_id or not email:
         flash('Failed to get user information from Google', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('main.index'))
     
     # Check if user exists, create if not
     user = User.query.filter_by(google_id=google_id).first()
@@ -161,7 +161,7 @@ def callback():
     
     # Redirect to next page or home
     next_page = request.args.get('next')
-    return redirect(next_page) if next_page else redirect(url_for('index'))
+    return redirect(next_page) if next_page else redirect(url_for('main.index'))
 
 @auth.route("/logout")
 @login_required
@@ -172,4 +172,4 @@ def logout():
     session.pop('state', None)
     session.pop('redirect_uri', None)
     flash('You have been logged out', 'info')
-    return redirect(url_for('index')) 
+    return redirect(url_for('main.index'))

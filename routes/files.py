@@ -1,0 +1,735 @@
+import os
+import io
+import json
+import uuid
+import threading
+from datetime import datetime
+from werkzeug.utils import secure_filename
+from flask import Blueprint, request, jsonify, send_file, redirect, url_for, render_template
+from flask_login import current_user, login_required
+
+from models import db, Project, ProjectFile, FilePair, FineTuningJob
+from utils.file_helpers import save_project_file
+from storage import get_storage
+
+files = Blueprint('files', __name__)
+
+
+@files.route('/project/<int:project_id>/files/<int:file_id>', methods=['DELETE'])
+@login_required
+def delete_project_file(project_id, file_id):
+    """Delete a project file and associated relationships"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    project_file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
+    
+    # Delete any FilePair relationships involving this file
+    file_pairs = FilePair.query.filter(
+        db.or_(
+            FilePair.file1_id == file_id,
+            FilePair.file2_id == file_id
+        ),
+        FilePair.project_id == project_id
+    ).all()
+    
+    for pair in file_pairs:
+        db.session.delete(pair)
+    
+    # Delete any fine-tuning jobs involving this file
+    fine_tuning_jobs = FineTuningJob.query.filter(
+        db.or_(
+            FineTuningJob.source_file_id == file_id,
+            FineTuningJob.target_file_id == file_id
+        ),
+        FineTuningJob.project_id == project_id
+    ).all()
+    
+    for job in fine_tuning_jobs:
+        db.session.delete(job)
+    
+    # Delete from storage (if file exists)
+    storage = get_storage()
+    try:
+        storage.delete_file(project_file.storage_path)
+    except Exception as e:
+        # Log the error but continue with database deletion
+        print(f"Warning: Could not delete file from storage: {e}")
+        # This is not a fatal error - the file might already be deleted
+    
+    # Delete file from database
+    db.session.delete(project_file)
+    db.session.commit()
+    
+    return '', 204  # No content response
+
+
+@files.route('/project/<int:project_id>/upload-file', methods=['POST'])
+@login_required
+def upload_file_unified(project_id):
+    """Unified file upload endpoint for all file types with pairing support"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    upload_type = request.form.get('upload_type', 'regular')
+    
+    try:
+        if upload_type == 'usfm':
+            # Handle USFM file upload
+            return handle_usfm_upload(project_id, project)
+        else:
+            # Handle regular file upload (existing logic)
+            return handle_regular_upload(project_id, project)
+            
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+
+
+def handle_usfm_upload(project_id, project):
+    """Handle USFM file upload and conversion to eBible format"""
+    from utils.usfm_parser import USFMParser, EBibleBuilder
+    
+    if 'usfm_files' not in request.files:
+        return jsonify({'error': 'No USFM files provided'}), 400
+    
+    files = request.files.getlist('usfm_files')
+    if not files or len(files) == 0:
+        return jsonify({'error': 'No USFM files selected'}), 400
+    
+    # Validate file types
+    for file in files:
+        if not file.filename:
+            return jsonify({'error': 'Empty filename in upload'}), 400
+        
+        extension = file.filename.lower().split('.')[-1]
+        if extension not in ['usfm', 'sfm', 'txt']:
+            return jsonify({'error': f'Invalid file type: {file.filename}. Only .usfm, .sfm, and .txt files are allowed'}), 400
+    
+    # Initialize USFM parser and eBible builder
+    parser = USFMParser()
+    vref_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'vref.txt')
+    builder = EBibleBuilder(vref_path)
+    
+    # Check if there's already a USFM-generated eBible file
+    existing_ebible = ProjectFile.query.filter_by(
+        project_id=project_id,
+        file_type='usfm_ebible'
+    ).first()
+    
+    existing_ebible_lines = None
+    if existing_ebible:
+        # Load existing eBible content
+        with open(existing_ebible.storage_path, 'r', encoding='utf-8') as f:
+            existing_ebible_lines = [line.rstrip('\n') for line in f.readlines()]
+    
+    # Parse all uploaded USFM files
+    all_verses = {}
+    processed_books = []
+    
+    for file in files:
+        try:
+            content = file.read().decode('utf-8')
+            file_verses = parser.parse_file(content)
+            all_verses.update(file_verses)
+            
+            # Track which books were processed
+            if parser.current_book:
+                processed_books.append(parser.current_book)
+                
+        except Exception as e:
+            return jsonify({'error': f'Error parsing {file.filename}: {str(e)}'}), 400
+    
+    if not all_verses:
+        return jsonify({'error': 'No verses found in the uploaded files'}), 400
+    
+    # Create or update eBible format
+    ebible_lines = builder.create_ebible_from_usfm_verses(all_verses, existing_ebible_lines)
+    
+    # Get statistics
+    stats = builder.get_completion_stats(ebible_lines)
+    
+    # Save the eBible file
+    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+    if existing_ebible:
+        # Update existing file
+        with open(existing_ebible.storage_path, 'w', encoding='utf-8') as f:
+            for line in ebible_lines:
+                f.write(line + '\n')
+        
+        # Update file size
+        existing_ebible.file_size = os.path.getsize(existing_ebible.storage_path)
+        existing_ebible.created_at = datetime.utcnow()  # Update timestamp
+        db.session.commit()
+        
+        message = f'USFM files processed and merged into existing eBible. Added/updated {len(all_verses)} verses.'
+        project_file = existing_ebible
+        
+    else:
+        # Create new eBible file
+        filename = f"ebible_from_usfm_{timestamp}.txt"
+        ebible_content = '\n'.join(ebible_lines)
+        
+        project_file = save_project_file(
+            project_id,
+            ebible_content,
+            filename,
+            'usfm_ebible',
+            'text/plain'
+        )
+        
+        db.session.commit()
+        
+        message = f'USFM files converted to eBible format. Processed {len(all_verses)} verses.'
+    
+    # Generate detailed response
+    processed_books_str = ', '.join(set(processed_books)) if processed_books else 'Multiple books'
+    
+    return jsonify({
+        'success': True,
+        'message': f'{message} Books processed: {processed_books_str}',
+        'file_id': project_file.id,
+        'stats': stats,
+        'processed_books': processed_books,
+        'verses_added': len(all_verses)
+    })
+
+
+def handle_regular_upload(project_id, project):
+    """Handle regular file upload (non-USFM)"""
+    file_type = request.form.get('file_type', '')
+    upload_method = request.form.get('upload_method', 'file')
+    
+    # Handle file content
+    if upload_method == 'file':
+        if 'text_file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['text_file']
+        if not file.filename:
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not file.filename.lower().endswith('.txt'):
+            return jsonify({'error': 'Only .txt files are allowed'}), 400
+        
+        filename = secure_filename(file.filename)
+        file_content = file
+        
+    elif upload_method == 'text':
+        text_content = request.form.get('text_content', '').strip()
+        if not text_content:
+            return jsonify({'error': 'No text content provided'}), 400
+        
+        if len(text_content) > 16000:
+            return jsonify({'error': 'Text content exceeds 16,000 character limit'}), 400
+        
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        filename = f"text_{timestamp}.txt"
+        file_content = text_content
+        
+    else:
+        return jsonify({'error': 'Invalid upload method'}), 400
+    
+    # Handle pairing for back translations
+    paired_with_id = None
+    if file_type == 'back_translation':
+        paired_with_id = request.form.get('paired_with_id')
+        if not paired_with_id:
+            return jsonify({'error': 'Back translations must be paired with a forward translation'}), 400
+        
+        # Verify the paired file exists and belongs to this project
+        paired_file = ProjectFile.query.filter_by(
+            id=paired_with_id, 
+            project_id=project_id
+        ).first()
+        
+        if not paired_file:
+            return jsonify({'error': 'Selected forward translation not found'}), 400
+        
+        if paired_file.file_type not in ['ebible', 'text']:
+            return jsonify({'error': 'Can only pair with eBible or text files'}), 400
+    
+    # Save the file
+    project_file = save_project_file(
+        project_id,
+        file_content,
+        filename,
+        file_type,
+        'text/plain'
+    )
+    
+    # Set pairing if this is a back translation
+    if paired_with_id:
+        project_file.paired_with_id = int(paired_with_id)
+    
+    db.session.commit()
+    
+    # Generate success message
+    if file_type == 'back_translation':
+        paired_file = ProjectFile.query.get(paired_with_id)
+        message = f'Back translation "{filename}" uploaded and paired with "{paired_file.original_filename}"'
+    else:
+        file_type_label = {
+            'ebible': 'eBible',
+            'text': 'Text',
+            'back_translation': 'Back translation'
+        }.get(file_type, file_type.title())
+        
+        if upload_method == 'text':
+            message = f'{file_type_label} uploaded successfully ({len(text_content)} characters)'
+        else:
+            message = f'{file_type_label} file "{filename}" uploaded successfully'
+    
+    return jsonify({
+        'success': True,
+        'message': message,
+        'file_id': project_file.id
+    })
+
+
+@files.route('/project/<int:project_id>/usfm-import')
+@login_required
+def usfm_import(project_id):
+    """USFM import page"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    return render_template('usfm_import.html', project=project)
+
+
+@files.route('/project/<int:project_id>/usfm-upload', methods=['POST'])
+@login_required
+def usfm_upload(project_id):
+    """Handle USFM file uploads for the dedicated import page"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    try:
+        from utils.usfm_parser import USFMParser, EBibleBuilder
+        
+        if 'usfm_files' not in request.files:
+            return jsonify({'error': 'No USFM files provided'}), 400
+        
+        files = request.files.getlist('usfm_files')
+        if not files or len(files) == 0:
+            return jsonify({'error': 'No USFM files selected'}), 400
+        
+        # Validate file types
+        for file in files:
+            if not file.filename:
+                return jsonify({'error': 'Empty filename in upload'}), 400
+            
+            extension = file.filename.lower().split('.')[-1]
+            if extension not in ['usfm', 'sfm', 'txt']:
+                return jsonify({'error': f'Invalid file type: {file.filename}. Only .usfm, .sfm, and .txt files are allowed'}), 400
+        
+        # Initialize USFM parser and eBible builder
+        parser = USFMParser()
+        vref_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'vref.txt')
+        builder = EBibleBuilder(vref_path)
+        
+        # Use temporary files instead of session for large data
+        temp_dir = os.path.join('storage', 'temp_usfm')
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        session_file_path = os.path.join(temp_dir, f'session_{project_id}_{current_user.id}.json')
+        ebible_file_path = os.path.join(temp_dir, f'ebible_{project_id}_{current_user.id}.txt')
+        
+        # Load existing session data
+        if os.path.exists(session_file_path):
+            with open(session_file_path, 'r', encoding='utf-8') as f:
+                usfm_session = json.load(f)
+        else:
+            usfm_session = {'uploaded_files': []}
+        
+        # Load existing eBible lines
+        if os.path.exists(ebible_file_path):
+            with open(ebible_file_path, 'r', encoding='utf-8') as f:
+                existing_ebible_lines = [line.rstrip('\n') for line in f.readlines()]
+        else:
+            existing_ebible_lines = [''] * 31170  # Initialize empty eBible
+        
+        # Parse all uploaded USFM files
+        all_verses = {}
+        uploaded_file_info = []
+        
+        for file in files:
+            try:
+                content = file.read().decode('utf-8')
+                file_verses = parser.parse_file(content)
+                all_verses.update(file_verses)
+                
+                # Track file info
+                file_info = {
+                    'filename': file.filename,
+                    'verses_count': len(file_verses),
+                    'books': [parser.current_book] if parser.current_book else []
+                }
+                uploaded_file_info.append(file_info)
+                usfm_session['uploaded_files'].append(file_info)
+                
+            except Exception as e:
+                return jsonify({'error': f'Error parsing {file.filename}: {str(e)}'}), 400
+        
+        if not all_verses:
+            return jsonify({'error': 'No verses found in the uploaded files'}), 400
+        
+        # Update eBible lines with new verses
+        updated_ebible_lines = builder.create_ebible_from_usfm_verses(
+            all_verses, 
+            existing_ebible_lines
+        )
+        
+        # Get statistics
+        stats = builder.get_completion_stats(updated_ebible_lines)
+        
+        # Save session data to file
+        with open(session_file_path, 'w', encoding='utf-8') as f:
+            json.dump(usfm_session, f)
+        
+        # Save eBible lines to file
+        with open(ebible_file_path, 'w', encoding='utf-8') as f:
+            for line in updated_ebible_lines:
+                f.write(line + '\n')
+        
+        processed_books = list(set([book for file_info in uploaded_file_info for book in file_info['books']]))
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully uploaded {len(files)} USFM file(s)',
+            'uploaded_files': uploaded_file_info,
+            'stats': stats,
+            'processed_books': processed_books,
+            'verses_added': len(all_verses)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+
+
+@files.route('/project/<int:project_id>/usfm-status')
+@login_required
+def usfm_status(project_id):
+    """Get current USFM import session status"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    try:
+        from utils.usfm_parser import EBibleBuilder
+        
+        # Check temporary files
+        temp_dir = os.path.join('storage', 'temp_usfm')
+        session_file_path = os.path.join(temp_dir, f'session_{project_id}_{current_user.id}.json')
+        ebible_file_path = os.path.join(temp_dir, f'ebible_{project_id}_{current_user.id}.txt')
+        
+        if not os.path.exists(session_file_path) or not os.path.exists(ebible_file_path):
+            # No session, return empty state
+            return jsonify({
+                'stats': {
+                    'total_verses': 31170,
+                    'filled_verses': 0,
+                    'missing_verses': 31170,
+                    'completion_percentage': 0
+                },
+                'uploaded_files': []
+            })
+        
+        # Load session data
+        with open(session_file_path, 'r', encoding='utf-8') as f:
+            usfm_session = json.load(f)
+        
+        # Load eBible lines
+        with open(ebible_file_path, 'r', encoding='utf-8') as f:
+            ebible_lines = [line.rstrip('\n') for line in f.readlines()]
+        
+        vref_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'vref.txt')
+        builder = EBibleBuilder(vref_path)
+        
+        # Get current statistics
+        stats = builder.get_completion_stats(ebible_lines)
+        
+        return jsonify({
+            'stats': stats,
+            'uploaded_files': usfm_session['uploaded_files']
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Status check failed: {str(e)}'}), 500
+
+
+@files.route('/project/<int:project_id>/usfm-complete', methods=['POST'])
+@login_required
+def usfm_complete(project_id):
+    """Complete USFM import and create final eBible file"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    try:
+        from utils.usfm_parser import EBibleBuilder
+        
+        # Check temporary files
+        temp_dir = os.path.join('storage', 'temp_usfm')
+        session_file_path = os.path.join(temp_dir, f'session_{project_id}_{current_user.id}.json')
+        ebible_file_path = os.path.join(temp_dir, f'ebible_{project_id}_{current_user.id}.txt')
+        
+        if not os.path.exists(session_file_path) or not os.path.exists(ebible_file_path):
+            return jsonify({'error': 'No USFM files uploaded in current session'}), 400
+        
+        # Load session data
+        with open(session_file_path, 'r', encoding='utf-8') as f:
+            usfm_session = json.load(f)
+        
+        if not usfm_session['uploaded_files']:
+            return jsonify({'error': 'No USFM files uploaded in current session'}), 400
+        
+        # Load eBible content
+        with open(ebible_file_path, 'r', encoding='utf-8') as f:
+            ebible_content = f.read()
+        
+        # Create final eBible file
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        filename = f"ebible_from_usfm_{timestamp}.txt"
+        
+        # Save as regular eBible file (not usfm_ebible since it's finalized)
+        project_file = save_project_file(
+            project_id,
+            ebible_content,
+            filename,
+            'ebible',  # Save as regular eBible
+            'text/plain'
+        )
+        
+        db.session.commit()
+        
+        # Get final statistics
+        ebible_lines = ebible_content.split('\n')
+        vref_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'vref.txt')
+        builder = EBibleBuilder(vref_path)
+        stats = builder.get_completion_stats(ebible_lines)
+        
+        # Clean up temporary files
+        try:
+            os.remove(session_file_path)
+            os.remove(ebible_file_path)
+        except OSError:
+            pass  # Files may not exist or may be locked
+        
+        return jsonify({
+            'success': True,
+            'message': f'eBible created successfully! {stats["completion_percentage"]:.1f}% complete with {stats["filled_verses"]:,} verses.',
+            'file_id': project_file.id,
+            'stats': stats
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Completion failed: {str(e)}'}), 500
+
+
+@files.route('/project/<int:project_id>/upload-target-text', methods=['POST'])
+@login_required
+def upload_target_text(project_id):
+    """Upload target language text file (legacy endpoint)"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    upload_method = request.form.get('upload_method', 'file')
+    
+    try:
+        if upload_method == 'file':
+            # Handle file upload
+            if 'target_text_file' not in request.files:
+                return jsonify({'error': 'No file provided'}), 400
+            
+            file = request.files['target_text_file']
+            if not file.filename:
+                return jsonify({'error': 'No file selected'}), 400
+            
+            if not file.filename.lower().endswith('.txt'):
+                return jsonify({'error': 'Only .txt files are allowed'}), 400
+            
+            # Determine file type based on filename
+            filename = secure_filename(file.filename)
+            file_type = 'ebible' if 'ebible' in filename.lower() else 'text'
+            
+            # Save the file
+            project_file = save_project_file(
+                project_id,
+                file,
+                filename,
+                file_type,
+                file.content_type or 'text/plain'
+            )
+            
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': f'Target text file "{filename}" uploaded successfully',
+                'file_id': project_file.id
+            })
+            
+        elif upload_method == 'text':
+            # Handle pasted text
+            text_content = request.form.get('target_text_content', '').strip()
+            if not text_content:
+                return jsonify({'error': 'No text content provided'}), 400
+            
+            if len(text_content) > 16000:
+                return jsonify({'error': 'Text content exceeds 16,000 character limit'}), 400
+            
+            # Create filename with timestamp
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            filename = f"target_text_{timestamp}.txt"
+            
+            # Save as text file
+            project_file = save_project_file(
+                project_id,
+                text_content,
+                filename,
+                'text',
+                'text/plain'
+            )
+            
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': f'Target text uploaded successfully ({len(text_content)} characters)',
+                'file_id': project_file.id
+            })
+        
+        else:
+            return jsonify({'error': 'Invalid upload method'}), 400
+            
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+
+
+@files.route('/project/<int:project_id>/files')
+@login_required
+def project_files(project_id):
+    """List files for a project"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    return jsonify([{
+        'id': f.id,
+        'filename': f.original_filename,
+        'type': f.file_type,
+        'size': f.file_size,
+        'url': url_for('files.serve_upload', filename=f.storage_path),
+        'created_at': f.created_at.isoformat()
+    } for f in project.files])
+
+
+@files.route('/project/<int:project_id>/files/<int:file_id>/download')
+@login_required  
+def download_project_file(project_id, file_id):
+    """Download a project file with proper headers"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    project_file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
+    
+    storage = get_storage()
+    
+    try:
+        # For local storage, serve file directly with download headers
+        if hasattr(storage, 'base_path'):  # LocalStorage
+            file_data = storage.get_file(project_file.storage_path)
+            return send_file(
+                io.BytesIO(file_data), 
+                as_attachment=True, 
+                download_name=project_file.original_filename,
+                mimetype=project_file.content_type or 'application/octet-stream'
+            )
+        else:  # Cloud storage
+            # For cloud storage, redirect to a signed URL for download
+            return redirect(storage.get_file_url(project_file.storage_path))
+    except Exception as e:
+        return jsonify({'error': f'File download failed: {str(e)}'}), 500
+
+
+@files.route('/project/<int:project_id>/files/<int:file1_id>/pair/<int:file2_id>', methods=['POST'])
+@login_required
+def pair_files(project_id, file1_id, file2_id):
+    """Pair two files as parallel texts"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    # Verify both files exist and belong to this project
+    file1 = ProjectFile.query.filter_by(id=file1_id, project_id=project.id).first_or_404()
+    file2 = ProjectFile.query.filter_by(id=file2_id, project_id=project.id).first_or_404()
+    
+    if file1_id == file2_id:
+        return jsonify({'error': 'Cannot pair a file with itself'}), 400
+    
+        # Check if either file is already paired
+    if file1.is_paired():
+        return jsonify({'error': f'{file1.original_filename} is already paired with another file'}), 400
+
+    if file2.is_paired():
+        return jsonify({'error': f'{file2.original_filename} is already paired with another file'}), 400
+    
+    # Check if both files are text files
+    if file1.content_type != 'text/plain' or file2.content_type != 'text/plain':
+        return jsonify({'error': 'Only .txt files can be paired together'}), 400
+    
+    # Check if both files have the same line count for proper alignment
+    if file1.line_count != file2.line_count:
+        return jsonify({'error': f'Files must have the same line count to be paired. {file1.original_filename} has {file1.line_count} lines, {file2.original_filename} has {file2.line_count} lines'}), 400
+    
+    try:
+        # Create the file pair (store with smaller ID first for consistency)
+        if file1_id < file2_id:
+            file_pair = FilePair(project_id=project.id, file1_id=file1_id, file2_id=file2_id)
+        else:
+            file_pair = FilePair(project_id=project.id, file1_id=file2_id, file2_id=file1_id)
+        
+        db.session.add(file_pair)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully paired {file1.original_filename} with {file2.original_filename}',
+            'pair_id': file_pair.id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to pair files: {str(e)}'}), 500
+
+
+@files.route('/project/<int:project_id>/files/<int:file_id>/unpair', methods=['POST'])
+@login_required
+def unpair_file(project_id, file_id):
+    """Unpair a file from its parallel text"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
+    
+    # Find and delete the file pair
+    pair_as_file1 = FilePair.query.filter_by(project_id=project.id, file1_id=file_id).first()
+    pair_as_file2 = FilePair.query.filter_by(project_id=project.id, file2_id=file_id).first()
+    
+    pair_to_delete = pair_as_file1 or pair_as_file2
+    
+    if not pair_to_delete:
+        return jsonify({'error': f'{file.original_filename} is not paired with any file'}), 400
+    
+    try:
+        # Get the other file's name for the success message
+        other_file_id = pair_to_delete.file2_id if pair_to_delete.file1_id == file_id else pair_to_delete.file1_id
+        other_file = ProjectFile.query.get(other_file_id)
+        
+        db.session.delete(pair_to_delete)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully unpaired {file.original_filename} from {other_file.original_filename}'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to unpair files: {str(e)}'}), 500
+
+
+@files.route('/uploads/<path:filename>')
+def serve_upload(filename):
+    """Serve uploaded files"""
+    storage = get_storage()
+    
+    # For local storage, serve file directly
+    if hasattr(storage, 'base_path'):  # LocalStorage
+        file_data = storage.get_file(filename)
+        return send_file(io.BytesIO(file_data), as_attachment=False, download_name=filename)
+    else:  # Cloud storage
+        return redirect(storage.get_file_url(filename)) 
