@@ -298,7 +298,7 @@ def translate():
         target_file_id = data.get('target_file_id')
         
         # New parameters for model configuration
-        temperature = data.get('temperature', 0.7)  # Default to 0.7 for more creative translations
+        temperature = data.get('temperature', 0.2)  # Default to 0.2 for more consistent translations
         use_examples = data.get('use_examples', True)  # Default to True
         
         # Test mode parameters
@@ -319,9 +319,9 @@ def translate():
         try:
             temperature = float(temperature)
             if not (0.0 <= temperature <= 2.0):
-                temperature = 0.7  # Default fallback
+                temperature = 0.2  # Default fallback
         except (ValueError, TypeError):
-            temperature = 0.7  # Default fallback
+            temperature = 0.2  # Default fallback
         
         # Get project to access translation model
         project = Project.query.get(project_id)

@@ -217,9 +217,9 @@ class TranslationDragDrop {
         try {
             const project = await this.editor.getProjectInfo();
             
-            // Get current translation settings from UI
+            // Get automatic translation settings based on current model
             const settings = this.editor.ui.getTranslationSettings();
-            console.log('Translation request settings:', settings);
+            console.log('Automatic translation settings:', settings);
             
             // Check if target textarea already has content (test mode)
             const existingContent = textarea.value?.trim();
@@ -232,8 +232,8 @@ class TranslationDragDrop {
                 target_language: targetWindow?.targetLanguage || project?.target_language,
                 verse_reference: verse.reference,
                 project_id: this.editor.projectId,
-                temperature: settings.temperature,
-                use_examples: settings.useExamples
+                temperature: settings.temperature,  // Always 0.2
+                use_examples: settings.useExamples  // Auto-determined by model type
             };
             
             // Add test mode parameters if target has content
@@ -284,20 +284,10 @@ class TranslationDragDrop {
                 throw new Error(data.error || 'Translation failed');
             }
         } catch (error) {
-            // Error state
+            console.error('Translation error:', error);
             textarea.style.borderColor = '#dc2626';
             textarea.style.backgroundColor = '#fef2f2';
-            textarea.placeholder = `Error translating verse ${verse.verse}`;
-            console.error('Translation failed:', error);
-            
-            // Clear error state after a longer delay
-            setTimeout(() => {
-                textarea.style.borderColor = '';
-                textarea.style.borderWidth = '';
-                textarea.style.backgroundColor = '';
-                textarea.disabled = false;
-                textarea.placeholder = `Edit verse ${verse.verse} or drop text here...`;
-            }, 3000);
+            textarea.placeholder = 'Translation failed';
         }
     }
 }

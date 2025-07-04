@@ -1,7 +1,8 @@
 import os
-from flask import Flask, send_file
-from flask_login import LoginManager
+from flask import Flask, send_file, request, jsonify
+from flask_login import LoginManager, login_required
 from datetime import datetime
+import asyncio
 
 from config import Config
 from models import db, User
@@ -13,6 +14,7 @@ from routes.files import files
 from routes.api import api
 from routes.fine_tuning import fine_tuning
 from routes.admin import admin
+from ai.bot import Chatbot
 
 
 def create_app():
@@ -69,6 +71,68 @@ def create_app():
 
 
 app = create_app()
+
+
+@app.route('/api/translate', methods=['POST'])
+@login_required
+def translate_passage():
+    """Translate a Bible passage using AI"""
+    try:
+        data = request.get_json()
+        
+        # Get form data
+        passage_key = data.get('passage')
+        target_language = data.get('target_language', '')
+        audience = data.get('audience', '')
+        style = data.get('style', '')
+        model = data.get('model')  # Optional model override
+        
+        # Bible passages mapping
+        passages = {
+            'john3:16': 'For God so loved the world that he gave his one and only Son, that whoever believes in him shall not perish but have eternal life.',
+            'genesis1:1': 'In the beginning God created the heavens and the earth.',
+            'psalm23:1': 'The Lord is my shepherd, I lack nothing.',
+            'matthew28:19': 'Therefore go and make disciples of all nations, baptizing them in the name of the Father and of the Son and of the Holy Spirit.',
+            'romans3:23': 'For all have sinned and fall short of the glory of God.',
+            'revelation21:4': 'He will wipe every tear from their eyes. There will be no more death or mourning or crying or pain, for the old order of things has passed away.'
+        }
+        
+        original_text = passages.get(passage_key)
+        
+        # Create chatbot instance with conservative temperature
+        chatbot = Chatbot()
+        
+        # Translate using AI
+        def run_translation():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(
+                    chatbot.translate_text(
+                        text=original_text,
+                        target_language=target_language,
+                        audience=audience,
+                        style=style,
+                        context=f"Bible verse ({passage_key})",
+                        model=model,
+                        temperature=0.2  # Use consistent temperature
+                    )
+                )
+            finally:
+                loop.close()
+        
+        translation = run_translation()
+        
+        return jsonify({
+            'success': True,
+            'translation': translation,
+            'passage': passage_key,
+            'original': original_text
+        })
+        
+    except Exception as e:
+        print(f"Translation error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 if __name__ == '__main__':

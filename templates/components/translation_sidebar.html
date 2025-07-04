@@ -1,14 +1,15 @@
 {% macro translation_sidebar(project) %}
-<!-- Translation Editor Sidebar -->
-<div id="translation-sidebar" class="w-80 bg-white border-r border-black border-r-[0.5px] flex flex-col transition-all duration-300 h-full overflow-hidden rounded-tl-sm">
-    <!-- Collapse Button -->
-    <button id="sidebar-toggle" class="absolute top-4 -right-4 z-10 w-8 h-8 bg-white border border-black border-[0.5px] rounded-full flex items-center justify-center hover:bg-gray-50 transition-colors" title="Toggle sidebar">
-        <i class="fas fa-chevron-left text-sm"></i>
-    </button>
+<!-- Translation Sidebar -->
+<div class="w-80 bg-white border-r border-neutral-200 border-r-[0.5px] overflow-y-auto">
     
-    <!-- Scrollable Content -->
-    <div class="flex-1 overflow-y-auto">
-        <!-- Translation Model Selection -->
+    <!-- Save Button -->
+    <div class="border-b-2 border-black p-6" style="border-bottom: 2px solid #2d2d2d;">
+        <button id="save-changes-btn" class="w-full p-3 text-sm font-bold transition-colors marker-border-thin" style="background: #e5e5e5; color: #2d2d2d; border: 1px solid #2d2d2d; border-radius: 2px;">
+            NO CHANGES TO SAVE
+        </button>
+    </div>
+    
+    <!-- Model Selection -->
     <div class="border-b-2 border-black p-6" style="border-bottom: 2px solid #2d2d2d;">
         <div class="flex items-center justify-between mb-4">
             <h3 class="font-bold text-lg tracking-wide" style="color: #2d2d2d;">TRANSLATION MODEL</h3>
@@ -30,122 +31,66 @@
         </div>
     </div>
     
-    <!-- Translation Settings -->
-    <div class="border-b-2 border-black p-6" style="border-bottom: 2px solid #2d2d2d;">
-        <h3 class="font-bold text-lg tracking-wide mb-4" style="color: #2d2d2d;">TRANSLATION SETTINGS</h3>
-        <p class="text-xs font-medium mb-4" style="color: #6b7280;">Configure AI translation behavior</p>
+    <!-- Navigation Section -->
+    <div class="p-6">
+        <h3 class="font-bold text-lg tracking-wide mb-4" style="color: #2d2d2d;">NAVIGATION</h3>
         
-        <!-- Temperature Control -->
+        <!-- Book Selection -->
         <div class="mb-4">
-            <div class="flex items-center justify-between mb-2">
-                <label class="text-sm font-bold" style="color: #374151;">Creativity</label>
-                <span id="temperature-value" class="text-xs font-bold px-2 py-1" style="background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 3px;">0.7</span>
-            </div>
-            <div class="relative">
-                <input type="range" id="temperature-slider" min="0" max="2" step="0.1" value="0.7" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <div class="flex justify-between text-xs font-medium mt-1" style="color: #6b7280;">
-                    <span>Conservative</span>
-                    <span>Balanced</span>
-                    <span>Creative</span>
-                </div>
-            </div>
-            <p class="text-xs mt-2" style="color: #6b7280;">Lower values produce more consistent translations; higher values are more creative</p>
+            <label class="block text-xs font-medium mb-2" style="color: #6b7280;">Book</label>
+            <select id="goto-book" class="w-full p-2 text-sm font-medium marker-border-thin" style="background: #fefdf8; color: #2d2d2d; border: 1px solid #2d2d2d; border-radius: 2px;">
+                <option value="">Select Book...</option>
+            </select>
         </div>
         
-        <!-- Use Examples Toggle -->
+        <!-- Chapter Selection -->
         <div class="mb-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <label class="text-sm font-bold" style="color: #374151;">In-Context Learning</label>
-                    <p class="text-xs mt-1" style="color: #6b7280;">Use translation examples for consistency</p>
-                </div>
-                <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" id="use-examples-toggle" class="sr-only peer" checked>
-                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
-            </div>
+            <label class="block text-xs font-medium mb-2" style="color: #6b7280;">Chapter</label>
+            <select id="goto-chapter" class="w-full p-2 text-sm font-medium marker-border-thin" style="background: #fefdf8; color: #2d2d2d; border: 1px solid #2d2d2d; border-radius: 2px;">
+                <option value="">Select Chapter...</option>
+            </select>
         </div>
         
-        <!-- Settings Status -->
-        <div id="settings-status" class="hidden p-2 text-xs font-medium" style="background: #dcfce7; color: #166534; border: 1px solid #166534; border-radius: 3px;">
-            <i class="fas fa-check-circle mr-1"></i>
-            <span id="settings-message">Settings updated</span>
-        </div>
-    </div>
-    
-    <!-- Load Texts -->
-    <div class="border-b-2 border-black p-6" style="border-bottom: 2px solid #2d2d2d;">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold text-lg tracking-wide" style="color: #2d2d2d;">LOAD TEXTS</h3>
-            <button id="new-translation-btn" class="px-3 py-1 text-sm font-bold transition-colors marker-border-green" style="background: #dcfce7; color: #166534; border: 1px solid #166534; border-radius: 3px;">
-                <i class="fas fa-plus mr-1"></i>
-                NEW
-            </button>
-        </div>
-        <p class="text-xs font-medium mb-4" style="color: #6b7280;">Load any text - drag to primary slot or use as reference</p>
-        
-        <!-- Unified Text Selection -->
-        <select id="text-select" class="w-full p-3 mb-3 font-medium marker-border-thin" style="background: #fefdf8; color: #2d2d2d; border: 1px solid #2d2d2d; border-radius: 2px;">
-            <option value="">Select any text to load...</option>
-            <!-- Options will be populated -->
-        </select>
-        
-        <button id="add-text-btn" class="w-full px-3 py-2 text-sm font-bold transition-colors marker-border-blue" style="background: #dbeafe; color: #1e40af; border: 1px solid #1e40af; border-radius: 3px;">
-            <i class="fas fa-plus mr-1"></i>
-            LOAD SELECTED TEXT
-        </button>
-        
-        <!-- Text Loading Feedback -->
-        <div id="text-info" class="hidden mt-3 p-2 text-xs font-medium" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #3b82f6; border-radius: 3px;">
-            <div id="text-details">Loading...</div>
-        </div>
-    </div>
-    
-        <!-- Navigation -->
-        <div class="border-b-2 border-black p-6" style="border-bottom: 2px solid #2d2d2d;">
-            <h3 class="font-bold text-lg tracking-wide mb-4" style="color: #2d2d2d;">NAVIGATION</h3>
-            
-            <!-- Current Chapter Info -->
-            <div id="current-chapter-info" class="mb-4 p-3 text-xs font-medium" style="background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 3px;">
-                <div class="text-center" style="color: #374151;">
-                    <div id="current-chapter-title" class="font-bold">Select a chapter</div>
-                    <div id="current-chapter-progress" class="text-xs mt-1" style="color: #6b7280;"></div>
-                </div>
+        <!-- Testament Sections -->
+        <div class="space-y-3">
+            <div>
+                <button class="w-full text-left text-xs font-bold text-gray-700 mb-2 flex items-center justify-between" onclick="toggleTestamentSection('ot')">
+                    <span>Old Testament</span>
+                    <i class="fas fa-chevron-down transition-transform" id="ot-toggle"></i>
+                </button>
+                <div id="ot-books" class="space-y-1 max-h-32 overflow-y-auto"></div>
             </div>
             
-            <!-- Book Selection -->
-            <div class="space-y-3 mt-4">
-                <!-- Old Testament -->
-                <div>
-                    <button id="ot-toggle" class="w-full flex items-center justify-between p-3 text-sm font-bold transition-colors marker-border-thin" style="background: #fefdf8; color: #2d2d2d; border: 1px solid #2d2d2d; border-radius: 3px;">
-                        <span>OLD TESTAMENT</span>
-                        <i id="ot-chevron" class="fas fa-chevron-down text-xs transition-transform"></i>
-                    </button>
-                    <div id="ot-books" class="hidden mt-2 space-y-1 max-h-48 overflow-y-auto">
-                        <!-- Will be populated by JavaScript -->
-                    </div>
-                </div>
-                
-                <!-- New Testament -->
-                <div>
-                    <button id="nt-toggle" class="w-full flex items-center justify-between p-3 text-sm font-bold transition-colors marker-border-thin" style="background: #fefdf8; color: #2d2d2d; border: 1px solid #2d2d2d; border-radius: 3px;">
-                        <span>NEW TESTAMENT</span>
-                        <i id="nt-chevron" class="fas fa-chevron-down text-xs transition-transform"></i>
-                    </button>
-                    <div id="nt-books" class="hidden mt-2 space-y-1 max-h-48 overflow-y-auto">
-                        <!-- Will be populated by JavaScript -->
-                    </div>
-                </div>
+            <div>
+                <button class="w-full text-left text-xs font-bold text-gray-700 mb-2 flex items-center justify-between" onclick="toggleTestamentSection('nt')">
+                    <span>New Testament</span>
+                    <i class="fas fa-chevron-down transition-transform" id="nt-toggle"></i>
+                </button>
+                <div id="nt-books" class="space-y-1 max-h-32 overflow-y-auto"></div>
             </div>
-        </div>
-    </div>
-    
-    <!-- Footer -->
-    <div class="mt-auto p-4 border-t border-neutral-200">
-        <div class="text-xs text-neutral-600 font-medium text-center">
-            <div class="mb-1">Translation Editor</div>
-            <div>{{ project.target_language }}</div>
         </div>
     </div>
 </div>
+
+<script>
+// Testament section toggle functionality
+function toggleTestamentSection(testament) {
+    const container = document.getElementById(`${testament}-books`);
+    const toggle = document.getElementById(`${testament}-toggle`);
+    
+    if (container.classList.contains('hidden')) {
+        container.classList.remove('hidden');
+        toggle.style.transform = 'rotate(180deg)';
+    } else {
+        container.classList.add('hidden');
+        toggle.style.transform = 'rotate(0deg)';
+    }
+}
+
+// Initialize testament sections as collapsed
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('ot-books').classList.add('hidden');
+    document.getElementById('nt-books').classList.add('hidden');
+});
+</script>
 {% endmacro %} 

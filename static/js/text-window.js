@@ -107,6 +107,7 @@ class TextWindow {
         header.setAttribute('data-window-header', 'true');
         
         const downloadButton = this.createDownloadButton();
+        const plusButton = this.createPlusButton();
         const closeButton = `<button class="text-red-600 hover:text-red-800 hover:bg-red-100 rounded p-1 transition-colors close-text-btn" 
                        data-text-id="${this.id}" 
                        title="Remove this text">
@@ -127,6 +128,7 @@ class TextWindow {
         
         const rightContainer = header.querySelector('div:last-child');
         rightContainer.insertBefore(downloadButton, rightContainer.firstChild);
+        rightContainer.insertBefore(plusButton, rightContainer.firstChild);
         rightContainer.insertBefore(colorPicker, rightContainer.firstChild);
         
         header.addEventListener('dragstart', (e) => {
@@ -278,6 +280,25 @@ class TextWindow {
         downloadDropdown.classList.add('download-dropdown');
         
         return downloadContainer;
+    }
+
+    createPlusButton() {
+        const plusButton = document.createElement('button');
+        plusButton.className = 'text-gray-600 hover:text-green-600 hover:bg-green-50 rounded p-1 transition-colors';
+        plusButton.title = 'Load additional text';
+        plusButton.innerHTML = '<i class="fas fa-plus text-xs"></i>';
+
+        plusButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.openTextSelectionModal();
+        });
+
+        return plusButton;
+    }
+
+    openTextSelectionModal() {
+        const isPrimary = this.type === 'primary';
+        window.translationEditor.ui.showTextSelectionModal(isPrimary);
     }
 
     downloadChapter(format) {
@@ -434,7 +455,9 @@ class TextWindow {
         
         const textarea = document.createElement('textarea');
         
-        textarea.className = `w-full min-h-25 p-5 pt-8 pr-12 border border-stone-300 rounded-sm text-base leading-7 resize-none focus:ring-0 focus:border-gray-800 focus:bg-white bg-white font-['Inter'] transition-all duration-200 overflow-hidden hover:border-stone-400`;
+        // Adjust padding based on window type - primary windows need more right padding for sparkle button
+        const rightPadding = this.type === 'primary' ? 'pr-16' : 'pr-10';
+        textarea.className = `w-full min-h-25 p-5 pt-8 ${rightPadding} border border-stone-300 rounded-sm text-base leading-7 resize-none focus:ring-0 focus:border-gray-800 focus:bg-white bg-white font-['Inter'] transition-all duration-200 overflow-hidden hover:border-stone-400`;
         textarea.placeholder = `Edit verse ${verseData.verse} or drop text here...`;
         textarea.dataset.verse = verseData.verse;
         textarea.dataset.verseIndex = verseData.index;
@@ -453,14 +476,29 @@ class TextWindow {
         
         verseWrapper.appendChild(textarea);
         
-        const dragHandle = document.createElement('div');
-        dragHandle.className = 'absolute top-2.5 right-2.5 w-5 h-5 bg-transparent border-0 cursor-grab flex items-center justify-center z-10 transition-all duration-200 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-500 hover:scale-125 hover:drop-shadow-lg active:cursor-grabbing active:scale-90 sparkle-drag-handle';
-        dragHandle.draggable = true;
-        dragHandle.innerHTML = '<i class="fas fa-grip-vertical"></i>';
+        // Only add sparkle translate button for primary windows
+        if (this.type === 'primary') {
+            const sparkleButton = document.createElement('button');
+            sparkleButton.className = 'absolute top-2.5 right-8 w-5 h-5 bg-transparent border-0 cursor-pointer flex items-center justify-center z-10 transition-all duration-200 text-gray-400 hover:text-purple-500 hover:scale-125 hover:drop-shadow-lg active:scale-90 sparkle-translate-btn';
+            sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+            sparkleButton.title = 'Translate this verse with AI';
+            sparkleButton.setAttribute('data-verse', verseData.verse);
+            sparkleButton.setAttribute('data-verse-index', verseData.index);
+            
+            this.addSparkleButtonListener(sparkleButton, verseData, textarea);
+            verseWrapper.appendChild(sparkleButton);
+        }
         
-        verseWrapper.appendChild(dragHandle);
+        // Create drag handle - position based on whether sparkle button exists
+        const dragHandle = document.createElement('div');
+        const rightPosition = this.type === 'primary' ? 'right-2' : 'right-2'; // Keep consistent positioning
+        dragHandle.className = `absolute top-2.5 ${rightPosition} w-5 h-5 bg-gray-100 border border-gray-300 rounded-sm cursor-move flex items-center justify-center z-10 transition-all duration-200 hover:bg-gray-200 hover:border-gray-400 sparkle-drag-handle`;
+        dragHandle.innerHTML = '<i class="fas fa-arrows-alt text-xs text-gray-500"></i>';
+        dragHandle.title = 'Drag to translate';
+        dragHandle.draggable = true;
         
         this.addDragListeners(dragHandle, verseData);
+        verseWrapper.appendChild(dragHandle);
         
         return verseWrapper;
     }
@@ -493,6 +531,76 @@ class TextWindow {
         dragHandle.addEventListener('dragend', () => {
             const container = dragHandle.closest('[data-verse]');
             container.classList.remove('opacity-70', 'bg-blue-100', 'border', 'border-blue-500', 'rounded');
+        });
+    }
+    
+    addSparkleButtonListener(sparkleButton, verseData, textarea) {
+        sparkleButton.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Find source text from other windows
+            let sourceText = '';
+            let sourceWindow = null;
+            
+            // Look for any other window with text in this verse
+            for (const [id, textWindow] of window.translationEditor.textWindows) {
+                if (textWindow.id !== this.id) {
+                    const sourceTextarea = textWindow.element?.querySelector(`textarea[data-verse="${verseData.verse}"]`);
+                    if (sourceTextarea && sourceTextarea.value?.trim()) {
+                        sourceText = sourceTextarea.value.trim();
+                        sourceWindow = textWindow;
+                        break;
+                    }
+                }
+            }
+            
+            if (!sourceText) {
+                // Flash error
+                sparkleButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+                sparkleButton.style.color = '#dc2626';
+                setTimeout(() => {
+                    sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+                    sparkleButton.style.color = '';
+                }, 1500);
+                return;
+            }
+            
+            // Create drag data and use existing translation system
+            const dragData = {
+                sourceText: sourceText,
+                sourceId: sourceWindow.id,
+                verse: verseData.verse,
+                reference: verseData.reference,
+                sourceType: sourceWindow.type,
+                sourceTitle: sourceWindow.title
+            };
+            
+            // Show loading
+            sparkleButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            sparkleButton.style.color = '#3b82f6';
+            
+            try {
+                // Use existing translation system
+                await window.translationEditor.translateFromDrag(dragData, textarea, this);
+                
+                // Success
+                sparkleButton.innerHTML = '<i class="fas fa-check"></i>';
+                sparkleButton.style.color = '#10b981';
+                setTimeout(() => {
+                    sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+                    sparkleButton.style.color = '';
+                }, 2000);
+                
+            } catch (error) {
+                // Error
+                sparkleButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+                sparkleButton.style.color = '#dc2626';
+                setTimeout(() => {
+                    sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+                    sparkleButton.style.color = '';
+                }, 2000);
+            }
         });
     }
     

@@ -27,15 +27,19 @@ class TranslationNavigation {
     }
     
     updateChapterTitle() {
-        document.getElementById('chapter-title').textContent = `${this.editor.currentBook} ${this.editor.currentChapter}`;
+        // Chapter title element no longer exists in simplified header
         this.updateNavigationButtons();
+        this.updateChapterOptions();
         this.populateTestamentSections();
-        this.addToRecentChapters();
     }
     
     updateNavigationButtons() {
+        // Navigation buttons no longer exist in simplified header
         const prevBtn = document.getElementById('prev-chapter-btn');
         const nextBtn = document.getElementById('next-chapter-btn');
+        
+        if (!prevBtn || !nextBtn) return; // Elements don't exist in simplified header
+        
         const maxChapters = this.editor.bookChapters[this.editor.currentBook] || 1;
         
         // Update prev button
@@ -224,8 +228,27 @@ class TranslationNavigation {
     }
     
     updateChapterOptions() {
-        // This method would update chapter dropdown options based on selected book
-        // Implementation depends on your UI structure
+        const chapterSelect = document.getElementById('goto-chapter');
+        if (!chapterSelect) return;
+        
+        chapterSelect.innerHTML = '';
+        
+        if (!this.editor.currentBook || !this.editor.bookChapters[this.editor.currentBook]) {
+            chapterSelect.innerHTML = '<option value="">Select Chapter...</option>';
+            return;
+        }
+        
+        const maxChapters = this.editor.bookChapters[this.editor.currentBook];
+        
+        for (let i = 1; i <= maxChapters; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.textContent = `Chapter ${i}`;
+            if (i === this.editor.currentChapter) {
+                option.selected = true;
+            }
+            chapterSelect.appendChild(option);
+        }
     }
 }
 

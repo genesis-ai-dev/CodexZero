@@ -1,106 +1,79 @@
 // Translation UI Controls
 class TranslationUI {
-    constructor(translationEditor) {
-        this.editor = translationEditor;
+    constructor() {
         this.currentModels = {};
-        this.setupAutoResize();
+        this.setupModelSelection();
+        // Don't load models immediately - wait for translation editor to be ready
     }
     
-    setupAutoResize() {
-        // Auto-resize textareas as content changes
-        document.addEventListener('input', (e) => {
-            if (e.target.tagName === 'TEXTAREA') {
-                this.autoResizeTextarea(e.target);
-            }
-        });
+    setupModelSelection() {
+        const modelSelect = document.getElementById('translation-model-select');
+        const refreshBtn = document.getElementById('refresh-models-btn');
+        
+        if (modelSelect) {
+            modelSelect.addEventListener('change', (e) => {
+                const modelId = e.target.value;
+                if (modelId && this.currentModels[modelId]) {
+                    this.setTranslationModel(modelId);
+                    this.showModelInfo(modelId);
+                }
+            });
+        }
+        
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                this.loadTranslationModels();
+            });
+        }
     }
     
-    autoResizeTextarea(textarea) {
-        textarea.style.height = 'auto';
-        const newHeight = Math.max(80, textarea.scrollHeight);
-        textarea.style.height = newHeight + 'px';
-    }
-    
-    initializeEventListeners() {
-        // Model selection
-        document.getElementById('translation-model-select').addEventListener('change', (e) => {
-            this.handleModelChange(e.target.value);
-        });
-        
-        document.getElementById('refresh-models-btn').addEventListener('click', () => {
-            this.loadTranslationModels();
-        });
-        
-        // Read mode and sidebar controls
-        document.getElementById('read-mode-toggle').addEventListener('change', (e) => {
-            this.editor.isReadMode = e.target.checked;
-            this.toggleReadMode();
-        });
-        
-        document.getElementById('sidebar-toggle').addEventListener('click', () => {
-            this.toggleSidebar();
-        });
-        
-        // Modal controls
-        this.setupModalListeners();
-        
-        // Text loading
-        document.getElementById('add-text-btn').addEventListener('click', async () => {
-            const select = document.getElementById('text-select');
-            if (select.value) {
-                await this.editor.loadText(select.value, false);
-                select.value = '';
-                document.getElementById('text-info').classList.add('hidden');
-            }
-        });
-        
-        // Save and navigation
-        document.getElementById('save-changes-btn').addEventListener('click', async () => {
-            await this.editor.saveSystem.saveAllChanges();
-        });
-        
-        // Testament toggles
-        document.getElementById('ot-toggle').addEventListener('click', () => {
-            this.editor.navigation.toggleTestamentSection('ot');
-        });
-        
-        document.getElementById('nt-toggle').addEventListener('click', () => {
-            this.editor.navigation.toggleTestamentSection('nt');
-        });
-        
-        // Translation settings controls
-        this.setupTranslationSettings();
-        
-        // Load models on initialization
+    // Called by translation editor after it's initialized
+    initializeModels() {
         this.loadTranslationModels();
     }
     
     async loadTranslationModels() {
-        const select = document.getElementById('translation-model-select');
-        const refreshBtn = document.getElementById('refresh-models-btn');
-        
         try {
-            // Show loading state
-            select.innerHTML = '<option value="">Loading models...</option>';
-            refreshBtn.disabled = true;
-            refreshBtn.querySelector('i').classList.add('fa-spin');
-            
-            const response = await fetch(`/project/${this.editor.projectId}/translation-models`);
-            const data = await response.json();
-            
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to load models');
+            const projectId = window.translationEditor?.projectId;
+            if (!projectId) {
+                console.warn('Translation editor not available yet for model loading');
+                return;
             }
             
-            this.currentModels = data.models;
-            this.populateModelSelect(data.models, data.current_model);
+            const response = await fetch(`/project/${projectId}/translation-models`);
+            const data = await response.json();
             
+            if (data.success) {
+                this.currentModels = data.models;
+                this.populateModelSelect(data.models, data.current_model);
+            } else {
+                console.error('Failed to load models:', data.error);
+            }
         } catch (error) {
             console.error('Error loading translation models:', error);
-            select.innerHTML = '<option value="">Error loading models</option>';
-        } finally {
-            refreshBtn.disabled = false;
-            refreshBtn.querySelector('i').classList.remove('fa-spin');
+        }
+    }
+    
+    async setTranslationModel(modelId) {
+        try {
+            const projectId = window.translationEditor?.projectId;
+            if (!projectId) return;
+            
+            const response = await fetch(`/project/${projectId}/translation-model`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ model_id: modelId })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showModelUpdateFeedback(data.message);
+            }
+        } catch (error) {
+            console.error('Error setting translation model:', error);
         }
     }
     
@@ -165,41 +138,6 @@ class TranslationUI {
         }
     }
     
-    async handleModelChange(modelId) {
-        if (!modelId) {
-            this.hideModelInfo();
-            return;
-        }
-        
-        try {
-            // Update backend
-            const response = await fetch(`/project/${this.editor.projectId}/translation-model`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    model_id: modelId
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to update model');
-            }
-            
-            // Show success feedback
-            this.showModelUpdateFeedback(data.message);
-            this.showModelInfo(modelId);
-            
-        } catch (error) {
-            console.error('Error updating translation model:', error);
-            // Show error and revert selection
-            alert('Failed to update model: ' + error.message);
-        }
-    }
-    
     showModelInfo(modelId) {
         const modelInfo = this.currentModels[modelId];
         if (!modelInfo) return;
@@ -214,13 +152,14 @@ class TranslationUI {
         if (modelInfo.type === 'fine_tuned' && modelInfo.training_examples) {
             typeText += ` • ${modelInfo.training_examples.toLocaleString()} training examples`;
         }
+        
+        // Add automatic settings info
+        const isFineTuned = modelInfo.type === 'fine_tuned';
+        typeText += ` • Temperature: 0.2 • In-context: ${isFineTuned ? 'OFF' : 'ON'}`;
+        
         typeDiv.textContent = typeText;
         
         infoDiv.classList.remove('hidden');
-    }
-    
-    hideModelInfo() {
-        document.getElementById('model-info').classList.add('hidden');
     }
     
     showModelUpdateFeedback(message) {
@@ -239,69 +178,25 @@ class TranslationUI {
         }, 3000);
     }
     
-    setupTranslationSettings() {
-        // Initialize settings from storage
-        this.translationSettings = {
-            temperature: parseFloat(localStorage.getItem('translation_temperature') || '0.7'),
-            useExamples: localStorage.getItem('translation_use_examples') !== 'false'
-        };
-        
-        // Set up temperature slider
-        const temperatureSlider = document.getElementById('temperature-slider');
-        const temperatureValue = document.getElementById('temperature-value');
-        
-        if (temperatureSlider && temperatureValue) {
-            temperatureSlider.value = this.translationSettings.temperature;
-            temperatureValue.textContent = this.translationSettings.temperature;
-            
-            temperatureSlider.addEventListener('input', (e) => {
-                const value = parseFloat(e.target.value);
-                this.translationSettings.temperature = value;
-                temperatureValue.textContent = value;
-                this.saveTranslationSettings();
-                this.showSettingsUpdateFeedback('Temperature updated');
-            });
-        }
-        
-        // Set up use examples toggle
-        const useExamplesToggle = document.getElementById('use-examples-toggle');
-        
-        if (useExamplesToggle) {
-            useExamplesToggle.checked = this.translationSettings.useExamples;
-            
-            useExamplesToggle.addEventListener('change', (e) => {
-                this.translationSettings.useExamples = e.target.checked;
-                this.saveTranslationSettings();
-                console.log(`In-context learning ${e.target.checked ? 'ENABLED' : 'DISABLED'} - will ${e.target.checked ? 'use' : 'NOT use'} examples for translation`);
-                this.showSettingsUpdateFeedback(
-                    e.target.checked ? 'In-context learning enabled' : 'In-context learning disabled'
-                );
-            });
-        }
-    }
-    
-    saveTranslationSettings() {
-        localStorage.setItem('translation_temperature', this.translationSettings.temperature.toString());
-        localStorage.setItem('translation_use_examples', this.translationSettings.useExamples.toString());
-    }
-    
-    showSettingsUpdateFeedback(message) {
-        const statusDiv = document.getElementById('settings-status');
-        const messageSpan = document.getElementById('settings-message');
-        
-        if (statusDiv && messageSpan) {
-            messageSpan.textContent = message;
-            statusDiv.classList.remove('hidden');
-            
-            // Hide after 2 seconds
-            setTimeout(() => {
-                statusDiv.classList.add('hidden');
-            }, 2000);
-        }
-    }
-    
     getTranslationSettings() {
-        return this.translationSettings;
+        // Get current model info to determine settings
+        const modelSelect = document.getElementById('translation-model-select');
+        const currentModelId = modelSelect?.value;
+        const currentModel = this.currentModels[currentModelId];
+        
+        if (currentModel) {
+            const isFineTuned = currentModel.type === 'fine_tuned';
+            return {
+                temperature: 0.2,  // Fixed at 0.2 for all models
+                useExamples: !isFineTuned  // true for base models, false for fine-tuned
+            };
+        }
+        
+        // Fallback defaults
+        return {
+            temperature: 0.2,
+            useExamples: true
+        };
     }
     
     setupModalListeners() {
@@ -320,166 +215,8 @@ class TranslationUI {
         });
     }
     
-    toggleReadMode() {
-        const textWindows = document.querySelectorAll('[data-text-id]');
-        
-        textWindows.forEach(window => {
-            const content = window.querySelector('[data-window-content]');
-            if (!content) return;
-            
-            if (this.editor.isReadMode) {
-                this.convertWindowToReadMode(window, content);
-            } else {
-                this.convertWindowToEditMode(window, content);
-            }
-        });
-        
-        // Update UI visual state
-        if (this.editor.isReadMode) {
-            document.body.classList.add('read-mode');
-        } else {
-            document.body.classList.remove('read-mode');
-        }
-    }
+
     
-    convertWindowToReadMode(window, content) {
-        if (content.readModeContainer) return; // Already converted
-        
-        // Collect all verse data
-        const verses = [];
-        const textareas = content.querySelectorAll('textarea');
-        
-        textareas.forEach(textarea => {
-            const verseNumber = textarea.dataset.verse;
-            const text = textarea.value || '';
-            const verseIndex = textarea.dataset.verseIndex;
-            
-            verses.push({
-                number: verseNumber,
-                text: text,
-                index: verseIndex,
-                textarea: textarea
-            });
-        });
-        
-        // Create continuous text container
-        const readModeContainer = document.createElement('div');
-        readModeContainer.className = 'read-mode-text p-4 leading-relaxed text-base';
-        readModeContainer.style.lineHeight = '1.8';
-        
-        // Build flowing text with verse markers
-        verses.forEach((verse, index) => {
-            // Add verse number as a clickable marker
-            const verseMarker = document.createElement('span');
-            verseMarker.className = 'verse-marker font-bold text-blue-600 cursor-pointer hover:bg-blue-50 px-1 rounded';
-            verseMarker.textContent = verse.number;
-            verseMarker.dataset.verse = verse.number;
-            verseMarker.dataset.verseIndex = verse.index;
-            verseMarker.title = `Verse ${verse.number} - Click to edit`;
-            
-            // Add click to edit functionality
-            verseMarker.addEventListener('click', () => {
-                this.editor.isReadMode = false;
-                document.getElementById('read-mode-toggle').checked = false;
-                this.toggleReadMode();
-                // Focus the corresponding textarea after a brief delay
-                setTimeout(() => {
-                    verse.textarea.focus();
-                    verse.textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 100);
-            });
-            
-            // Add the verse text as editable span
-            const verseText = document.createElement('span');
-            verseText.className = 'verse-text editable-verse drop-target';
-            verseText.textContent = verse.text || `[verse ${verse.number} not translated]`;
-            verseText.dataset.verse = verse.number;
-            verseText.dataset.verseIndex = verse.index;
-            verseText.style.cursor = 'text';
-            
-            if (!verse.text) {
-                verseText.style.fontStyle = 'italic';
-                verseText.style.color = '#9ca3af';
-            }
-            
-            // Add drag and drop listeners
-            this.addReadModeDropListeners(verseText, verse.textarea);
-            
-            readModeContainer.appendChild(verseMarker);
-            readModeContainer.appendChild(document.createTextNode(' '));
-            readModeContainer.appendChild(verseText);
-            
-            // Add space between verses (except for the last one)
-            if (index < verses.length - 1) {
-                readModeContainer.appendChild(document.createTextNode(' '));
-            }
-        });
-        
-        // Hide original content and show read mode
-        content.style.display = 'none';
-        content.readModeContainer = readModeContainer;
-        content.parentElement.appendChild(readModeContainer);
-    }
-    
-    convertWindowToEditMode(window, content) {
-        if (!content.readModeContainer) return; // Not in read mode
-        
-        content.style.display = 'block';
-        content.readModeContainer.remove();
-        delete content.readModeContainer;
-    }
-    
-    addReadModeDropListeners(verseSpan, originalTextarea) {
-        verseSpan.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'copy';
-            verseSpan.classList.add('drag-over');
-        });
-        
-        verseSpan.addEventListener('dragleave', (e) => {
-            if (!verseSpan.contains(e.relatedTarget)) {
-                verseSpan.classList.remove('drag-over');
-            }
-        });
-        
-        verseSpan.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            verseSpan.classList.remove('drag-over');
-            
-            try {
-                const dragData = JSON.parse(e.dataTransfer.getData('text/plain'));
-                await this.editor.dragDrop.translateFromDragReadMode(dragData, verseSpan, originalTextarea);
-            } catch (error) {
-                console.error('Error processing drop in read mode:', error);
-                alert('Failed to process dropped text');
-            }
-        });
-    }
-    
-    toggleSidebar() {
-        const sidebar = document.getElementById('translation-sidebar');
-        const toggleBtn = document.getElementById('sidebar-toggle');
-        const toggleIcon = toggleBtn.querySelector('i');
-        const body = document.body;
-        
-        if (sidebar.classList.contains('collapsed')) {
-            // Expand sidebar
-            sidebar.classList.remove('collapsed');
-            toggleBtn.classList.remove('collapsed');
-            body.classList.remove('sidebar-collapsed');
-            toggleIcon.className = 'fas fa-chevron-left text-sm';
-            toggleBtn.title = 'Collapse sidebar';
-        } else {
-            // Collapse sidebar
-            sidebar.classList.add('collapsed');
-            toggleBtn.classList.add('collapsed');
-            body.classList.add('sidebar-collapsed');
-            toggleIcon.className = 'fas fa-chevron-right text-sm';
-            toggleBtn.title = 'Expand sidebar';
-        }
-    }
-    
-    // Add event listener for close buttons
     addCloseButtonListeners() {
         document.addEventListener('click', (e) => {
             if (e.target.closest('.close-text-btn')) {
@@ -530,6 +267,140 @@ class TranslationUI {
                 console.error('Error processing window drop:', error);
             }
         });
+    }
+
+    showTextSelectionModal(isPrimary) {
+        const modal = document.getElementById('text-selection-modal');
+        const select = document.getElementById('text-select');
+        const addBtn = document.getElementById('add-text-btn');
+        const newTranslationBtn = document.getElementById('new-translation-btn');
+        const cancelBtn = document.getElementById('cancel-text-selection');
+
+        if (!modal || !select || !addBtn || !cancelBtn || !newTranslationBtn) return;
+
+        modal.dataset.isPrimary = isPrimary.toString();
+        modal.classList.remove('hidden');
+        select.value = '';
+        addBtn.classList.add('hidden'); // Hide load text button initially
+
+        const newAddBtn = addBtn.cloneNode(true);
+        const newNewTranslationBtn = newTranslationBtn.cloneNode(true);
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        const newSelect = select.cloneNode(true);
+        
+        addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+        newTranslationBtn.parentNode.replaceChild(newNewTranslationBtn, newTranslationBtn);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        select.parentNode.replaceChild(newSelect, select);
+        
+        // Populate the dropdown with available texts
+        this.populateTextSelection(newSelect);
+        
+        newSelect.focus();
+
+        // Show/hide buttons based on selection
+        newSelect.addEventListener('change', () => {
+            if (newSelect.value) {
+                newAddBtn.classList.remove('hidden');
+                newNewTranslationBtn.classList.add('hidden');
+            } else {
+                newAddBtn.classList.add('hidden');
+                newNewTranslationBtn.classList.remove('hidden');
+            }
+        });
+
+        newAddBtn.addEventListener('click', async () => {
+            if (newSelect.value) {
+                await window.translationEditor.loadText(newSelect.value, isPrimary);
+                modal.classList.add('hidden');
+                document.getElementById('text-info').classList.add('hidden');
+            }
+        });
+
+        newNewTranslationBtn.addEventListener('click', () => {
+            const newTranslationModal = document.getElementById('new-translation-modal');
+            newTranslationModal.dataset.isPrimary = isPrimary.toString();
+            
+            modal.classList.add('hidden');
+            newTranslationModal.classList.remove('hidden');
+            
+            const nameInput = document.getElementById('translation-name');
+            if (nameInput) {
+                setTimeout(() => nameInput.focus(), 100);
+            }
+        });
+
+        newCancelBtn.addEventListener('click', () => {
+            modal.classList.add('hidden');
+            newSelect.value = '';
+            newAddBtn.classList.add('hidden');
+            newNewTranslationBtn.classList.remove('hidden');
+        });
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.add('hidden');
+                newSelect.value = '';
+                newAddBtn.classList.add('hidden');
+                newNewTranslationBtn.classList.remove('hidden');
+            }
+        });
+    }
+
+    populateTextSelection(select) {
+        // Clear existing options except the first one
+        select.innerHTML = '<option value="">Choose a text...</option>';
+        
+        // Get text metadata from the editor
+        const textMetadata = window.translationEditor?.textMetadata;
+        if (!textMetadata) return;
+        
+        // Group texts by type
+        const sourceTexts = [];
+        const translations = [];
+        
+        textMetadata.forEach((metadata, textId) => {
+            if (metadata.type === 'Translation') {
+                translations.push([textId, metadata]);
+            } else {
+                sourceTexts.push([textId, metadata]);
+            }
+        });
+        
+        // Sort translations by name
+        translations.sort((a, b) => a[1].name.localeCompare(b[1].name));
+        
+        // Sort source texts by name
+        sourceTexts.sort((a, b) => a[1].name.localeCompare(b[1].name));
+        
+        // Add translations first (if any)
+        if (translations.length > 0) {
+            const translationGroup = document.createElement('optgroup');
+            translationGroup.label = '📝 Translations';
+            translations.forEach(([textId, metadata]) => {
+                const option = document.createElement('option');
+                option.value = textId;
+                option.textContent = metadata.name;
+                if (metadata.progress !== undefined) {
+                    option.textContent += ` (${metadata.progress}% complete)`;
+                }
+                translationGroup.appendChild(option);
+            });
+            select.appendChild(translationGroup);
+        }
+        
+        // Add source texts
+        if (sourceTexts.length > 0) {
+            const sourceGroup = document.createElement('optgroup');
+            sourceGroup.label = '📖 Source Texts';
+            sourceTexts.forEach(([textId, metadata]) => {
+                const option = document.createElement('option');
+                option.value = textId;
+                option.textContent = metadata.name;
+                sourceGroup.appendChild(option);
+            });
+            select.appendChild(sourceGroup);
+        }
     }
 }
 

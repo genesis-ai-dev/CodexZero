@@ -363,7 +363,7 @@
                     </div>
                     <div>
                         <h2 class="text-xl font-bold" style="color: #2d2d2d;">Fine-Tuning</h2>
-                        <p class="text-sm text-neutral-600 font-medium">Train custom AI models with your parallel texts or continue training existing models</p>
+                        <p class="text-sm text-neutral-600 font-medium">Train custom AI models with your parallel texts</p>
                     </div>
                 </div>
                 
@@ -379,20 +379,8 @@
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <!-- Configuration Panel -->
                     <div class="lg:col-span-2 space-y-6">
-                        <!-- Fine-tuning Type Selector -->
+                        <!-- Fine-tuning Configuration -->
                         <div class="bg-white border border-neutral-200 p-6">
-                            <div class="flex space-x-1 bg-neutral-100 border border-neutral-200 p-1 mb-6">
-                                <button id="regular-tuning-tab" class="flex-1 px-4 py-2 text-sm font-bold text-center paper-white border border-transparent focus:outline-none">
-                                    📚 Regular
-                                </button>
-                                <button id="instruction-tuning-tab" class="flex-1 px-4 py-2 text-sm font-bold text-center text-neutral-600 focus:outline-none">
-                                    🎯 Instruction
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Regular Fine-tuning Configuration -->
-                        <div id="regular-tuning-config" class="hidden">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-sm font-bold text-neutral-700 mb-2">Source-Target Pair</label>
@@ -431,66 +419,7 @@
                             </div>
                         </div>
                         
-                        <!-- Instruction Fine-tuning Configuration -->
-                        <div id="instruction-tuning-config" class="hidden">
-                            <div class="space-y-4">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-bold text-neutral-700 mb-2">Source-Target Pair</label>
-                                        <select id="instruction-file-pair-select" class="w-full p-3 border border-neutral-200 paper-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                            <option value="">Select a paired file...</option>
-                                            {% for file in paired_files %}
-                                                {% set parallel_file = file.get_parallel_file() %}
-                                                <option value="{{ file.id }},{{ parallel_file.id }}">
-                                                    {{ file.original_filename }} → {{ parallel_file.original_filename }}
-                                                </option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                    
-                                    <div>
-                                        <label class="block text-sm font-bold text-neutral-700 mb-2">Base Model</label>
-                                        <select id="instruction-base-model-select" class="w-full p-3 border border-neutral-200 paper-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                            <option value="">Loading models...</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-bold text-neutral-700 mb-2">
-                                        Model Name <span class="text-red-500">*</span>
-                                    </label>
-                                    <input type="text" 
-                                           id="instruction-model-name-input" 
-                                           maxlength="100"
-                                           placeholder="e.g., Spanish Bible v1, Arabic Youth Translation..."
-                                           class="w-full p-3 border border-neutral-200 paper-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                    <p class="text-xs text-neutral-600 font-medium mt-1">
-                                        <i class="fas fa-info-circle mr-1"></i>
-                                        Required - only named models appear in translation dropdown
-                                    </p>
-                                </div>
-
-                                
-                                <div>
-                                    <label class="block text-sm font-bold text-neutral-700 mb-2">Max Examples</label>
-                                    <select id="max-examples-select" class="w-full p-3 border border-neutral-200 paper-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                        <option value="25">25 examples</option>
-                                        <option value="50" selected>50 examples</option>
-                                        <option value="75">75 examples</option>
-                                        <option value="100">100 examples</option>
-                                    </select>
-                                </div>
-                                
-                                <div class="p-3 bg-purple-50 border border-purple-200">
-                                    <p class="text-sm text-purple-700 font-medium">
-                                        <strong>How it works:</strong> Selects non-blank lines randomly, then for each line uses the source text to find similar examples for context-aware training.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Regular Fine-tuning Estimate -->
+                        <!-- Fine-tuning Estimate -->
                         <div id="fine-tuning-estimate" class="hidden p-4 bg-blue-50 border border-blue-200">
                             <div class="grid grid-cols-3 gap-4 text-sm text-blue-700 font-medium mb-3">
                                 <div><strong>Model:</strong> <span id="estimated-model">-</span></div>
@@ -506,38 +435,6 @@
                                     <i class="fas fa-rocket mr-2"></i>
                                     Start Fine-Tuning
                                 </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Instruction Fine-tuning Estimate -->
-                        <div id="instruction-fine-tuning-estimate" class="hidden p-4 bg-purple-50 border border-purple-200">
-                            <div class="grid grid-cols-3 gap-4 text-sm text-purple-700 font-medium mb-3">
-                                <div><strong>Model:</strong> <span id="estimated-model">-</span></div>
-                                <div><strong>Examples:</strong> <span id="estimated-examples">-</span></div>
-                                <div><strong>Est. Cost:</strong> $<span id="estimated-cost">-</span> USD</div>
-                            </div>
-                            <div class="flex space-x-3">
-                                <button id="preview-instruction-example-btn" class="px-4 py-2 bg-purple-600 text-white border border-purple-600 text-sm font-bold hover:bg-purple-700 transition-colors" disabled>
-                                    <i class="fas fa-database mr-2"></i>
-                                    Get Training Data
-                                </button>
-                                <button id="start-instruction-fine-tuning-btn" class="px-6 py-2 btn-marker opacity-50 cursor-not-allowed" disabled>
-                                    <i class="fas fa-rocket mr-2"></i>
-                                    Start Fine-Tuning
-                                </button>
-                            </div>
-                            
-                            <!-- Progress indicator for instruction fine-tuning job creation -->
-                            <div id="instruction-progress" class="hidden mt-4 p-4 bg-purple-50 border border-purple-200">
-                                <div class="text-sm text-purple-700 font-medium mb-2">
-                                    <span id="instruction-progress-message">Processing...</span>
-                                </div>
-                                <div class="w-full bg-purple-200 h-2 mb-2">
-                                    <div id="instruction-progress-bar" class="bg-purple-600 h-2 transition-all duration-300" style="width: 0%"></div>
-                                </div>
-                                <div class="text-xs text-purple-600">
-                                    <span id="instruction-progress-current">0</span> / <span id="instruction-progress-total">0</span> examples processed
-                                </div>
                             </div>
                         </div>
                         
