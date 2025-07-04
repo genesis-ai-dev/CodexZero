@@ -84,8 +84,8 @@ class TranslationUI {
         select.innerHTML = '';
         
         // Group models by type
-        const baseModels = [];
         const fineTunedModels = [];
+        const baseModels = [];
         
         Object.entries(models).forEach(([modelId, modelInfo]) => {
             if (modelInfo.type === 'fine_tuned') {
@@ -108,7 +108,7 @@ class TranslationUI {
         // Add fine-tuned models first (if any)
         if (fineTunedModels.length > 0) {
             const fineTunedGroup = document.createElement('optgroup');
-            fineTunedGroup.label = '🎯 Fine-tuned Models';
+            fineTunedGroup.label = '🎯 Custom Fine-tuned Models';
             fineTunedModels.forEach(([modelId, modelInfo]) => {
                 const option = document.createElement('option');
                 option.value = modelId;
@@ -118,10 +118,10 @@ class TranslationUI {
             select.appendChild(fineTunedGroup);
         }
         
-        // Add base models
+        // Add base models (Claude 3.5 Sonnet)
         if (baseModels.length > 0) {
             const baseGroup = document.createElement('optgroup');
-            baseGroup.label = '🚀 Base Models';
+            baseGroup.label = '🧠 Base Models';
             baseModels.forEach(([modelId, modelInfo]) => {
                 const option = document.createElement('option');
                 option.value = modelId;

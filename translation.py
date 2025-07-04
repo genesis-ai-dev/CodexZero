@@ -8,10 +8,10 @@ from datetime import datetime
 import threading
 
 from models import Project, Translation, ProjectFile, db
-from ai.bot import Chatbot
+from ai.bot import Chatbot, extract_translation_from_xml
 from ai.contextquery import ContextQuery, MemoryContextQuery
 from utils.translation_manager import VerseReferenceManager, TranslationFileManager
-
+from typing import Tuple, List, Dict, Any
 from storage import get_storage
 
 translation = Blueprint('translation', __name__)
@@ -91,9 +91,7 @@ def _get_translation_examples(project_id, source_file_id, target_file_id, query_
             file_content = storage.get_file(project_file.storage_path)
             content = simple_decode_utf8(file_content)
             target_lines = content.split('\n')
-            print(f"DEBUG: Loaded target file with {len(target_lines)} lines (content length: {len(content)} chars)")
-            print(f"DEBUG: First few lines: {target_lines[:3] if target_lines else []}")
-            print(f"DEBUG: Last few lines: {target_lines[-3:] if len(target_lines) >= 3 else target_lines}")
+            print(f"DEBUG: Loaded target file with {len(target_lines)} lines")
         else:
             print(f"DEBUG: Target file not found: {file_id}")
     elif target_file_id.startswith('translation_'):
@@ -167,6 +165,66 @@ def _get_translation_examples(project_id, source_file_id, target_file_id, query_
     
     print(f"DEBUG: Final examples count: {len(examples)}")
     return examples, status_msg
+
+def translate_text(project_id: int, text: str, model: str = None, temperature: float = 0.2, 
+                  source_file_id: str = None, target_file_id: str = None) -> Dict[str, Any]:
+    """
+    Translate text using the specified model and project settings.
+    Returns translation with metadata including confidence and examples used.
+    """
+    
+    # Get project details
+    project = Project.query.get(project_id)
+    if not project:
+        raise ValueError(f"Project {project_id} not found")
+    
+    # Use project's default model if none specified
+    if not model:
+        model = project.default_model
+    
+    # Get translation examples if file IDs are provided
+    examples = []
+    status_msg = ""
+    
+    if source_file_id and target_file_id:
+        # Only get examples for base models (not fine-tuned models)
+        if not model.startswith('ft:'):
+            examples, status_msg = _get_translation_examples(
+                project_id, source_file_id, target_file_id, text
+            )
+    
+    # Create system prompt
+    system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+    
+    # Create user prompt with examples if available
+    if examples:
+        context_parts = ["TRANSLATION EXAMPLES:"]
+        context_parts.extend(examples)
+        context_parts.append("")
+        context_parts.append("Following the style and patterns shown in the examples above:")
+        context_parts.append(f"Translate this text: {text}")
+        context_parts.append("")
+        context_parts.append("Provide your final translation inside <translation></translation> tags.")
+        
+        user_prompt = '\n'.join(context_parts)
+    else:
+        user_prompt = f"Translate this text: {text}\n\nProvide your final translation inside <translation></translation> tags."
+
+    chatbot = Chatbot(temperature=temperature)
+    response = chatbot.chat_sync(user_prompt, system_prompt, model=model)
+    
+    # Extract translation from XML tags
+    translation = extract_translation_from_xml(response)
+    
+    return {
+        'translation': translation,
+        'model': model,
+        'status_msg': status_msg,
+        'examples_used': len(examples),
+        'temperature': temperature,
+        'project_id': project_id
+    }
+
 
 def _get_verse_content(project_id, file_id, verse_index):
     """Get content for a specific verse index"""
@@ -584,15 +642,25 @@ def _generate_translation_with_examples(text, target_language, examples, source_
         context_parts.append("")
         context_parts.append("Following the style and patterns shown in the examples above:")
         context_parts.append(f"Translate this text: {text}")
+        context_parts.append("")
+        context_parts.append("Provide your final translation inside <translation></translation> tags.")
         
         user_prompt = '\n'.join(context_parts)
     else:
         # When no examples, use the exact same structure as fine-tuning
-        user_prompt = f"Translate this text: {text}"
+        user_prompt = f"Translate this text: {text}\n\nProvide your final translation inside <translation></translation> tags."
 
     chatbot = Chatbot(temperature=temperature)
     response = chatbot.chat_sync(user_prompt, system_prompt, model=model)
-    return response.strip()
+    
+    # Extract translation from XML tags
+    import re
+    match = re.search(r'<translation>(.*?)</translation>', response, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    else:
+        # Fallback: if no XML tags found, return the whole response stripped
+        return response.strip()
 
 
 # ===== NEW TRANSLATION EDITOR ENDPOINTS =====

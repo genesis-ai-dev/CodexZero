@@ -93,7 +93,7 @@ DATABASE_URL=mysql+pymysql://username:password@host:port/database
 SECRET_KEY=your-64-character-secret-key
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
-ANTHROPIC_KEY=your-anthropic-api-key
+ANTHROPIC_API_KEY=your-anthropic-api-key
 OPENAI_API_KEY=your-openai-api-key
 STORAGE_TYPE=spaces
 ```

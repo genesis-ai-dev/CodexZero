@@ -55,8 +55,10 @@ CodexZero is a Flask web application that provides AI-assisted Bible translation
 - **Framework**: Flask 2.3.3 with SQLAlchemy ORM
 - **Database**: MySQL with PyMySQL connector
 - **AI Integration**: 
-  - Anthropic Claude API (claude-sonnet-4-20250514) for translation and back-translation
-  - OpenAI GPT-4o/GPT-4o-mini for translation and fine-tuning
+  - **LiteLLM**: Unified interface supporting multiple AI providers
+  - **Translation Models**: Claude 3.5 Sonnet + Fine-tuned GPT-4.1 models
+  - **Fine-tuning**: GPT-4.1 series models only (gpt-4.1, gpt-4.1-mini, gpt-4.1-nano)
+  - Anthropic Claude API for back-translation and quality assessment
 - **Authentication**: Google OAuth 2.0
 - **Storage**: Abstracted system supporting local and DigitalOcean Spaces
 - **String Matching**: thefuzz library for translation accuracy scoring
@@ -71,10 +73,11 @@ FineTuningJob -> tracks OpenAI fine-tuning with local JSONL backup
 ```
 
 ### AI Modules
-- `ai/bot.py` - OpenAI chatbot with async/sync translation capabilities
+- `ai/bot.py` - **LiteLLM-powered chatbot** with async/sync translation capabilities supporting multiple AI providers
 - `ai/back_translator.py` - Batch back-translation using Anthropic API
 - `ai/contextquery.py` - Context-aware example selection and ranking
 - `ai/fine_tuning.py` - OpenAI fine-tuning service with progress tracking
+- `ai/example_usage.py` - Example script demonstrating multi-provider usage
 
 ### USFM Processing
 - `utils/usfm_parser.py` - USFM file parser and eBible format converter
@@ -129,7 +132,9 @@ FineTuningJob -> tracks OpenAI fine-tuning with local JSONL backup
 - Final eBible creation treated exactly like regular eBible imports with download support
 
 ### AI Integration
-- Multi-provider AI support (OpenAI + Anthropic)
+- **LiteLLM Multi-Provider Support**: Unified interface for OpenAI and Anthropic providers
+- **Simplified Model Selection**: Claude 3.5 Sonnet for base translation + custom fine-tuned GPT-4.1 models
+- **Focused Fine-tuning**: GPT-4.1 series models only for specialized translation tasks
 - Async/sync operation modes
 - Batch processing for large translation jobs
 - Context-aware translation with audience/style targeting
@@ -171,7 +176,7 @@ FineTuningJob -> tracks OpenAI fine-tuning with local JSONL backup
 - Environment-based configuration via `.env`
 - Database URL configuration for flexible deployment
 - Google OAuth client credentials
-- Anthropic API key integration (`ANTHROPIC_KEY`)
+- Anthropic API key integration (`ANTHROPIC_API_KEY`)
 - OpenAI API key integration (`OPENAI_API_KEY`)
 - Storage configuration (local vs DigitalOcean Spaces)
 
@@ -180,8 +185,9 @@ FineTuningJob -> tracks OpenAI fine-tuning with local JSONL backup
 Flask==2.3.3
 Flask-SQLAlchemy==3.0.5
 Werkzeug==2.3.7
-openai==1.35.5
+openai>=1.55.3
 anthropic>=0.25.0
+litellm>=1.0.0
 python-dotenv==1.0.0
 Flask-Login==0.6.3
 bcrypt==4.0.1
@@ -192,6 +198,8 @@ google-auth-oauthlib
 google-auth
 pymysql
 thefuzz
+vref-utils==0.0.10
+boto3
 ```
 
 ## Deployment

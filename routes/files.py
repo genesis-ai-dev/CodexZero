@@ -9,7 +9,7 @@ from flask import Blueprint, request, jsonify, send_file, redirect, url_for, ren
 from flask_login import current_user, login_required
 
 from models import db, Project, ProjectFile, FilePair, FineTuningJob
-from utils.file_helpers import save_project_file
+from utils.file_helpers import save_project_file, detect_usfm_content, validate_text_file
 from storage import get_storage
 
 files = Blueprint('files', __name__)
@@ -62,189 +62,170 @@ def delete_project_file(project_id, file_id):
     return '', 204  # No content response
 
 
-@files.route('/project/<int:project_id>/upload-file', methods=['POST'])
+@files.route('/project/<int:project_id>/upload', methods=['POST'])
 @login_required
-def upload_file_unified(project_id):
-    """Unified file upload endpoint for all file types with pairing support"""
+def upload_file_auto_detect(project_id):
+    """
+    Unified file upload endpoint with automatic USFM detection.
+    Automatically detects USFM content and routes to appropriate workflow.
+    """
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     
-    upload_type = request.form.get('upload_type', 'regular')
+    # Handle both file upload and text paste
+    upload_method = request.form.get('upload_method', 'file')
     
     try:
-        if upload_type == 'usfm':
-            # Handle USFM file upload
-            return handle_usfm_upload(project_id, project)
-        else:
-            # Handle regular file upload (existing logic)
-            return handle_regular_upload(project_id, project)
+        if upload_method == 'file':
+            if 'file' not in request.files:
+                return jsonify({'error': 'No file provided'}), 400
             
+            file = request.files['file']
+            if not file.filename:
+                return jsonify({'error': 'No file selected'}), 400
+            
+            if not file.filename.lower().endswith('.txt'):
+                return jsonify({'error': 'Only .txt files are allowed'}), 400
+            
+            # Read file content for analysis
+            file_content = file.read().decode('utf-8')
+            file.seek(0)  # Reset file pointer
+            filename = secure_filename(file.filename)
+            
+        elif upload_method == 'text':
+            text_content = request.form.get('text_content', '').strip()
+            if not text_content:
+                return jsonify({'error': 'No text content provided'}), 400
+            
+            file_content = text_content
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            filename = f"text_{timestamp}.txt"
+            
+        else:
+            return jsonify({'error': 'Invalid upload method'}), 400
+        
+        # Detect USFM content
+        is_usfm = detect_usfm_content(file_content)
+        
+        if is_usfm:
+            # Route to USFM workflow
+            return handle_usfm_auto_upload(project_id, project, file_content, filename)
+        else:
+            # Route to regular text workflow
+            return handle_text_auto_upload(project_id, project, file_content, filename)
+            
+    except UnicodeDecodeError:
+        return jsonify({'error': 'File encoding not supported. Please use UTF-8 encoded text files.'}), 400
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
 
-def handle_usfm_upload(project_id, project):
-    """Handle USFM file upload and conversion to eBible format"""
+@files.route('/project/<int:project_id>/upload-file', methods=['POST'])
+@login_required
+def upload_file_unified(project_id):
+    """Legacy unified file upload endpoint - redirects to auto-detect"""
+    # For backward compatibility, redirect to the new auto-detect endpoint
+    return upload_file_auto_detect(project_id)
+
+
+def handle_usfm_auto_upload(project_id, project, file_content, filename):
+    """Handle USFM file upload with auto-detection"""
     from utils.usfm_parser import USFMParser, EBibleBuilder
-    
-    if 'usfm_files' not in request.files:
-        return jsonify({'error': 'No USFM files provided'}), 400
-    
-    files = request.files.getlist('usfm_files')
-    if not files or len(files) == 0:
-        return jsonify({'error': 'No USFM files selected'}), 400
-    
-    # Validate file types
-    for file in files:
-        if not file.filename:
-            return jsonify({'error': 'Empty filename in upload'}), 400
-        
-        extension = file.filename.lower().split('.')[-1]
-        if extension not in ['usfm', 'sfm', 'txt']:
-            return jsonify({'error': f'Invalid file type: {file.filename}. Only .usfm, .sfm, and .txt files are allowed'}), 400
     
     # Initialize USFM parser and eBible builder
     parser = USFMParser()
     vref_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'vref.txt')
     builder = EBibleBuilder(vref_path)
     
-    # Check if there's already a USFM-generated eBible file
-    existing_ebible = ProjectFile.query.filter_by(
-        project_id=project_id,
-        file_type='usfm_ebible'
-    ).first()
+    # Use temporary files for USFM session management
+    temp_dir = os.path.join('storage', 'temp_usfm')
+    os.makedirs(temp_dir, exist_ok=True)
     
-    existing_ebible_lines = None
-    if existing_ebible:
-        # Load existing eBible content
-        with open(existing_ebible.storage_path, 'r', encoding='utf-8') as f:
-            existing_ebible_lines = [line.rstrip('\n') for line in f.readlines()]
+    session_file_path = os.path.join(temp_dir, f'session_{project_id}_{current_user.id}.json')
+    ebible_file_path = os.path.join(temp_dir, f'ebible_{project_id}_{current_user.id}.txt')
     
-    # Parse all uploaded USFM files
-    all_verses = {}
-    processed_books = []
-    
-    for file in files:
-        try:
-            content = file.read().decode('utf-8')
-            file_verses = parser.parse_file(content)
-            all_verses.update(file_verses)
-            
-            # Track which books were processed
-            if parser.current_book:
-                processed_books.append(parser.current_book)
-                
-        except Exception as e:
-            return jsonify({'error': f'Error parsing {file.filename}: {str(e)}'}), 400
-    
-    if not all_verses:
-        return jsonify({'error': 'No verses found in the uploaded files'}), 400
-    
-    # Create or update eBible format
-    ebible_lines = builder.create_ebible_from_usfm_verses(all_verses, existing_ebible_lines)
-    
-    # Get statistics
-    stats = builder.get_completion_stats(ebible_lines)
-    
-    # Save the eBible file
-    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-    if existing_ebible:
-        # Update existing file
-        with open(existing_ebible.storage_path, 'w', encoding='utf-8') as f:
-            for line in ebible_lines:
-                f.write(line + '\n')
-        
-        # Update file size
-        existing_ebible.file_size = os.path.getsize(existing_ebible.storage_path)
-        existing_ebible.created_at = datetime.utcnow()  # Update timestamp
-        db.session.commit()
-        
-        message = f'USFM files processed and merged into existing eBible. Added/updated {len(all_verses)} verses.'
-        project_file = existing_ebible
-        
+    # Load existing session data
+    if os.path.exists(session_file_path):
+        with open(session_file_path, 'r', encoding='utf-8') as f:
+            usfm_session = json.load(f)
     else:
-        # Create new eBible file
-        filename = f"ebible_from_usfm_{timestamp}.txt"
-        ebible_content = '\n'.join(ebible_lines)
+        usfm_session = {'uploaded_files': []}
+    
+    # Load existing eBible lines
+    if os.path.exists(ebible_file_path):
+        with open(ebible_file_path, 'r', encoding='utf-8') as f:
+            existing_ebible_lines = [line.rstrip('\n') for line in f.readlines()]
+    else:
+        existing_ebible_lines = [''] * 31170  # Initialize empty eBible
+    
+    # Parse the USFM file
+    try:
+        file_verses = parser.parse_file(file_content)
         
-        project_file = save_project_file(
-            project_id,
-            ebible_content,
-            filename,
-            'usfm_ebible',
-            'text/plain'
+        if not file_verses:
+            return jsonify({'error': 'No verses found in the USFM file'}), 400
+        
+        # Track file info
+        file_info = {
+            'filename': filename,
+            'verses_count': len(file_verses),
+            'books': [parser.current_book] if parser.current_book else []
+        }
+        
+        # Update eBible lines with new verses
+        updated_ebible_lines = builder.create_ebible_from_usfm_verses(
+            file_verses, 
+            existing_ebible_lines
         )
         
-        db.session.commit()
+        # Get statistics
+        stats = builder.get_completion_stats(updated_ebible_lines)
         
-        message = f'USFM files converted to eBible format. Processed {len(all_verses)} verses.'
-    
-    # Generate detailed response
-    processed_books_str = ', '.join(set(processed_books)) if processed_books else 'Multiple books'
-    
-    return jsonify({
-        'success': True,
-        'message': f'{message} Books processed: {processed_books_str}',
-        'file_id': project_file.id,
-        'stats': stats,
-        'processed_books': processed_books,
-        'verses_added': len(all_verses)
-    })
+        # Update session data
+        usfm_session['uploaded_files'].append(file_info)
+        
+        # Save session data to file
+        with open(session_file_path, 'w', encoding='utf-8') as f:
+            json.dump(usfm_session, f)
+        
+        # Save eBible lines to file
+        with open(ebible_file_path, 'w', encoding='utf-8') as f:
+            for line in updated_ebible_lines:
+                f.write(line + '\n')
+        
+        processed_books = list(set([book for book in file_info['books']]))
+        
+        return jsonify({
+            'success': True,
+            'is_usfm': True,
+            'message': f'USFM file "{filename}" processed successfully',
+            'redirect_url': f'/project/{project_id}/usfm-import',
+            'uploaded_files': [file_info],
+            'stats': stats,
+            'processed_books': processed_books,
+            'verses_added': len(file_verses)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error parsing USFM file: {str(e)}'}), 400
 
 
-def handle_regular_upload(project_id, project):
-    """Handle regular file upload (non-USFM)"""
-    file_type = request.form.get('file_type', '')
-    upload_method = request.form.get('upload_method', 'file')
+def handle_text_auto_upload(project_id, project, file_content, filename):
+    """Handle regular text file upload with auto-detection"""
     
-    # Handle file content
-    if upload_method == 'file':
-        if 'text_file' not in request.files:
-            return jsonify({'error': 'No file provided'}), 400
-        
-        file = request.files['text_file']
-        if not file.filename:
-            return jsonify({'error': 'No file selected'}), 400
-        
-        if not file.filename.lower().endswith('.txt'):
-            return jsonify({'error': 'Only .txt files are allowed'}), 400
-        
-        filename = secure_filename(file.filename)
-        file_content = file
-        
-    elif upload_method == 'text':
-        text_content = request.form.get('text_content', '').strip()
-        if not text_content:
-            return jsonify({'error': 'No text content provided'}), 400
-        
-        if len(text_content) > 16000:
-            return jsonify({'error': 'Text content exceeds 16,000 character limit'}), 400
-        
-        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-        filename = f"text_{timestamp}.txt"
-        file_content = text_content
-        
+    # Validate text file
+    validation = validate_text_file(file_content, filename)
+    if not validation['valid']:
+        return jsonify({'error': validation['error']}), 400
+    
+    # Determine file type based on line count and content
+    line_count = validation['line_count']
+    
+    # If it's around 31,170 lines, it's likely an eBible file
+    if 30000 <= line_count <= 32000:
+        file_type = 'ebible'
     else:
-        return jsonify({'error': 'Invalid upload method'}), 400
-    
-    # Handle pairing for back translations
-    paired_with_id = None
-    if file_type == 'back_translation':
-        paired_with_id = request.form.get('paired_with_id')
-        if not paired_with_id:
-            return jsonify({'error': 'Back translations must be paired with a forward translation'}), 400
-        
-        # Verify the paired file exists and belongs to this project
-        paired_file = ProjectFile.query.filter_by(
-            id=paired_with_id, 
-            project_id=project_id
-        ).first()
-        
-        if not paired_file:
-            return jsonify({'error': 'Selected forward translation not found'}), 400
-        
-        if paired_file.file_type not in ['ebible', 'text']:
-            return jsonify({'error': 'Can only pair with eBible or text files'}), 400
+        file_type = 'text'
     
     # Save the file
     project_file = save_project_file(
@@ -255,32 +236,15 @@ def handle_regular_upload(project_id, project):
         'text/plain'
     )
     
-    # Set pairing if this is a back translation
-    if paired_with_id:
-        project_file.paired_with_id = int(paired_with_id)
-    
     db.session.commit()
-    
-    # Generate success message
-    if file_type == 'back_translation':
-        paired_file = ProjectFile.query.get(paired_with_id)
-        message = f'Back translation "{filename}" uploaded and paired with "{paired_file.original_filename}"'
-    else:
-        file_type_label = {
-            'ebible': 'eBible',
-            'text': 'Text',
-            'back_translation': 'Back translation'
-        }.get(file_type, file_type.title())
-        
-        if upload_method == 'text':
-            message = f'{file_type_label} uploaded successfully ({len(text_content)} characters)'
-        else:
-            message = f'{file_type_label} file "{filename}" uploaded successfully'
     
     return jsonify({
         'success': True,
-        'message': message,
-        'file_id': project_file.id
+        'is_usfm': False,
+        'message': f'Text file "{filename}" uploaded successfully ({line_count:,} lines)',
+        'file_id': project_file.id,
+        'file_type': file_type,
+        'line_count': line_count
     })
 
 

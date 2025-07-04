@@ -1,15 +1,17 @@
 import os
 import json
 import uuid
-from typing import List, Dict, Tuple, Optional
+import random
+from typing import Dict, List, Tuple, Optional, Any
 from openai import OpenAI
+from models import Project, ProjectFile, FineTuningJob, db
 from storage import get_storage
-from models import db, ProjectFile, FineTuningJob, Project
+
 
 import time
 from datetime import datetime
 
-# IMPORTANT NOTE: Text fine-tuning model support as of 2024
+# IMPORTANT NOTE: Text fine-tuning model support as of 2025
 # - GPT-4o and GPT-4o-mini do NOT support fine-tuning for text tasks
 # - Only GPT-4.1 series models support text fine-tuning:
 #   * gpt-4.1 - Most capable
@@ -19,8 +21,34 @@ from datetime import datetime
 # For the most current information, check: https://platform.openai.com/docs/guides/fine-tuning
 
 def safe_decode_content(file_content):
-    """Simple UTF-8 decode that ignores problematic bytes"""
-    return file_content.decode('utf-8', errors='ignore')
+    """Safely decode file content to string"""
+    if isinstance(file_content, bytes):
+        return file_content.decode('utf-8', errors='replace')
+    return str(file_content)
+
+def _create_instruction_prompt(source_text: str, context_examples: List[str] = None) -> str:
+    """Create instruction prompt with optional context examples"""
+    if context_examples:
+        context_parts = ["TRANSLATION EXAMPLES:"]
+        context_parts.extend(context_examples)
+        context_parts.append("")
+        context_parts.append("Following the style and patterns shown in the examples above:")
+        context_parts.append(f"Translate this text: {source_text}")
+        context_parts.append("")
+        context_parts.append("Provide your final translation inside <translation></translation> tags.")
+        return '\n'.join(context_parts)
+    else:
+        return f"Translate this text: {source_text}\n\nProvide your final translation inside <translation></translation> tags."
+
+def _create_training_example(system_prompt: str, user_prompt: str, target_text: str) -> Dict:
+    """Create a training example in the proper format"""
+    return {
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+            {"role": "assistant", "content": f"<translation>{target_text}</translation>"}
+        ]
+    }
 
 # Global progress cache that persists across requests
 _global_progress_cache = {}
@@ -66,8 +94,17 @@ class FineTuningService:
         return self.get_all_models()
     
     def get_all_models(self) -> Dict:
-        """Get all available models (base + fine-tuned with proper names)"""
-        models = self.base_models.copy()
+        """Get all available models for translation (fine-tuned GPT-4.1 + Claude 3.5 Sonnet only)"""
+        models = {}
+        
+        # Add only Claude 3.5 Sonnet for translation
+        models['claude-3-5-sonnet-20241022'] = {
+            'name': 'Claude 3.5 Sonnet',
+            'description': 'Anthropic\'s most capable model for complex reasoning',
+            'cost_per_1k_tokens': 0.015,
+            'max_context': 200000,
+            'type': 'base'
+        }
         
         # Add fine-tuned models with custom names (exclude hidden models)
         from models import FineTuningJob
@@ -95,7 +132,8 @@ class FineTuningService:
         return models
     
     def get_fine_tuning_models_for_project(self, project_id: int) -> Dict:
-        """Get available models for fine-tuning for a specific project"""
+        """Get available models for fine-tuning for a specific project (GPT-4.1 models only)"""
+        # Only allow GPT-4.1 base models for fine-tuning
         models = self.base_models.copy()
         
         # Add project-specific fine-tuned models with custom names (exclude hidden models)
@@ -169,8 +207,8 @@ class FineTuningService:
                     "line_number": i + 1,  # Original line number in file
                     "messages": [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"Translate this text: {source_line}"},
-                        {"role": "assistant", "content": target_line}
+                        {"role": "user", "content": f"Translate this text: {source_line}\n\nProvide your final translation inside <translation></translation> tags."},
+                        {"role": "assistant", "content": f"<translation>{target_line}</translation>"}
                     ],
                     "source_text": source_line,
                     "target_text": target_line
@@ -187,8 +225,8 @@ class FineTuningService:
         jsonl_example = {
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Translate this text: {preview_example['source_text']}"},
-                {"role": "assistant", "content": preview_example['target_text']}
+                {"role": "user", "content": f"Translate this text: {preview_example['source_text']}\n\nProvide your final translation inside <translation></translation> tags."},
+                {"role": "assistant", "content": f"<translation>{preview_example['target_text']}</translation>"}
             ]
         }
         
@@ -254,8 +292,8 @@ class FineTuningService:
                 example = {
                     "messages": [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"Translate this text: {source_line}"},
-                        {"role": "assistant", "content": target_line}
+                        {"role": "user", "content": f"Translate this text: {source_line}\n\nProvide your final translation inside <translation></translation> tags."},
+                        {"role": "assistant", "content": f"<translation>{target_line}</translation>"}
                     ]
                 }
                 training_examples.append(example)
@@ -542,7 +580,6 @@ class FineTuningService:
             raise ValueError("No valid training examples found (both source and target lines must be longer than 10 characters)")
         
         # Select up to max_examples randomly - this is the actual number of training examples
-        import random
         if len(valid_pairs) > max_examples:
             selected_pairs = random.sample(valid_pairs, max_examples)
         else:
@@ -577,16 +614,18 @@ class FineTuningService:
             context_parts.append("")
             context_parts.append("Following the style and patterns shown in the examples above:")
             context_parts.append(f"Translate this text: {preview_pair['source_text']}")
+            context_parts.append("")
+            context_parts.append("Provide your final translation inside <translation></translation> tags.")
             user_prompt = '\n'.join(context_parts)
         else:
-            user_prompt = f"Translate this text: {preview_pair['source_text']}"
+            user_prompt = f"Translate this text: {preview_pair['source_text']}\n\nProvide your final translation inside <translation></translation> tags."
         
         # Generate JSONL format for the preview
         jsonl_example = {
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
-                {"role": "assistant", "content": preview_pair["target_text"]}
+                {"role": "assistant", "content": f"<translation>{preview_pair['target_text']}</translation>"}
             ]
         }
         
@@ -667,7 +706,6 @@ class FineTuningService:
             progress_callback(0, max_examples, "Selecting examples...")
         
         # Select up to max_examples randomly
-        import random
         if len(valid_pairs) > max_examples:
             selected_pairs = random.sample(valid_pairs, max_examples)
         else:
@@ -701,23 +739,8 @@ class FineTuningService:
                 context_examples = []
             
             # Create context-aware instruction
-            if context_examples:
-                context_parts = ["TRANSLATION EXAMPLES:"]
-                context_parts.extend(context_examples)
-                context_parts.append("")
-                context_parts.append("Following the style and patterns shown in the examples above:")
-                context_parts.append(f"Translate this text: {source_text}")
-                user_prompt = '\n'.join(context_parts)
-            else:
-                user_prompt = f"Translate this text: {source_text}"
-            
-            training_example = {
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                    {"role": "assistant", "content": target_text}
-                ]
-            }
+            user_prompt = _create_instruction_prompt(source_text, context_examples)
+            training_example = _create_training_example(system_prompt, user_prompt, target_text)
             training_examples.append(training_example)
         
         if progress_callback:
@@ -933,7 +956,6 @@ class FineTuningService:
             progress_callback(0, max_examples, "Selecting examples...")
         
         # Select up to max_examples randomly
-        import random
         if len(valid_pairs) > max_examples:
             selected_pairs = random.sample(valid_pairs, max_examples)
         else:
@@ -967,23 +989,8 @@ class FineTuningService:
                 context_examples = []
             
             # Create context-aware instruction
-            if context_examples:
-                context_parts = ["TRANSLATION EXAMPLES:"]
-                context_parts.extend(context_examples)
-                context_parts.append("")
-                context_parts.append("Following the style and patterns shown in the examples above:")
-                context_parts.append(f"Translate this text: {source_text}")
-                user_prompt = '\n'.join(context_parts)
-            else:
-                user_prompt = f"Translate this text: {source_text}"
-            
-            training_example = {
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                    {"role": "assistant", "content": target_text}
-                ]
-            }
+            user_prompt = _create_instruction_prompt(source_text, context_examples)
+            training_example = _create_training_example(system_prompt, user_prompt, target_text)
             training_examples.append(training_example)
         
         if progress_callback:
@@ -997,6 +1004,45 @@ class FineTuningService:
         
         return jsonl_content, len(training_examples)
     
+    def _process_instruction_training_pairs(self, selected_pairs: List[Dict], project: Project, 
+                                          source_file_id: int, target_file_id: int, 
+                                          project_id: int, progress_callback=None) -> List[Dict]:
+        """Process training pairs with context examples - helper method to reduce duplication"""
+        from translation import _get_translation_examples
+        
+        system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+        
+        source_file_id_str = f"file_{source_file_id}"
+        target_file_id_str = f"file_{target_file_id}"
+        
+        training_examples = []
+        
+        for i, pair in enumerate(selected_pairs):
+            source_text = pair["source_text"]
+            target_text = pair["target_text"]
+            
+            if progress_callback:
+                progress_callback(i + 1, len(selected_pairs), f"Processing example {i + 1}/{len(selected_pairs)}")
+            
+            try:
+                # Use source text as query to find context examples
+                context_examples, _ = _get_translation_examples(
+                    project_id, source_file_id_str, target_file_id_str, source_text
+                )
+                
+                # Remove the exact match if it appears in context and limit examples
+                context_examples = [ex for ex in context_examples if source_text not in ex][:5]
+                
+            except Exception:
+                context_examples = []
+            
+            # Create context-aware instruction
+            user_prompt = _create_instruction_prompt(source_text, context_examples)
+            training_example = _create_training_example(system_prompt, user_prompt, target_text)
+            training_examples.append(training_example)
+        
+        return training_examples
+
     def get_progress(self, progress_id: str) -> Dict:
         """Get progress for a given progress ID"""
         return self.progress_cache.get(progress_id, {"current": 0, "total": 0, "status": "not_found", "message": "Progress not found"})
@@ -1062,7 +1108,6 @@ class FineTuningService:
             progress_callback(0, max_examples, "Selecting examples...")
         
         # Select up to max_examples randomly
-        import random
         if len(valid_pairs) > max_examples:
             selected_pairs = random.sample(valid_pairs, max_examples)
         else:
@@ -1097,23 +1142,8 @@ class FineTuningService:
                 context_examples = []
             
             # Create context-aware instruction
-            if context_examples:
-                context_parts = ["TRANSLATION EXAMPLES:"]
-                context_parts.extend(context_examples)
-                context_parts.append("")
-                context_parts.append("Following the style and patterns shown in the examples above:")
-                context_parts.append(f"Translate this text: {source_text}")
-                user_prompt = '\n'.join(context_parts)
-            else:
-                user_prompt = f"Translate this text: {source_text}"
-            
-            training_example = {
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                    {"role": "assistant", "content": target_text}
-                ]
-            }
+            user_prompt = _create_instruction_prompt(source_text, context_examples)
+            training_example = _create_training_example(system_prompt, user_prompt, target_text)
             training_examples.append(training_example)
         
         if progress_callback:

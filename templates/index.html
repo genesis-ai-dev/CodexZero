@@ -7,7 +7,7 @@
             <!-- Letters will be dynamically inserted here -->
         </div>
         <p class="text-2xl text-neutral-600 mb-12 max-w-3xl mx-auto leading-relaxed font-medium opacity-0 transition-opacity duration-1000 delay-1000" id="subtitle">
-            Draft the Bible into any language in less than a Day.
+            Efficiently draft the Bible into any language.
         </p>
         
         <div class="opacity-0 transition-opacity duration-1000 delay-1500" id="ctaButton">
@@ -112,6 +112,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const span = document.createElement('span');
         span.textContent = char;
         span.className = 'scattered-letter';
+        span.dataset.originalChar = char;
         
         // Random scattered positions for initial animation - more dramatic spread
         const randomX = (Math.random() - 0.5) * window.innerWidth * 1.2;
@@ -133,6 +134,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 letter.style.transform = 'translate(0, 0) rotate(0deg) scale(1)';
             }, index * 80); // Slightly faster animation
         });
+        
+        // Start morphing immediately as letters appear
+        setTimeout(() => {
+            if (window.startLokiEffect) {
+                console.log('Starting morphing during letter animation...');
+                window.startLokiEffect();
+            }
+        }, 400); // Start morphing while letters are still animating
     }, 300); // Start sooner for more immediate impact
     
     // Show subtitle and CTA after title animation

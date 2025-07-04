@@ -56,7 +56,7 @@ class Project(db.Model):
         return ft_service.get_all_models()
     
     def get_default_translation_model(self):
-        """Get the default translation model (most recent fine-tuned or fallback to base)"""
+        """Get the default translation model (most recent fine-tuned or fallback to Claude 3.5 Sonnet)"""
         # Check for most recent completed fine-tuned model
         latest_job = FineTuningJob.query.filter_by(
             project_id=self.id,
@@ -68,8 +68,8 @@ class Project(db.Model):
         if latest_job and latest_job.model_name:
             return latest_job.model_name
         
-        # Fallback to default base model (use one of our allowed models)
-        return 'gpt-4o-mini'  # Keep this for translation models as it's still valid for translation
+        # Fallback to Claude 3.5 Sonnet
+        return 'claude-3-5-sonnet-20241022'
     
     def get_current_translation_model(self):
         """Get the currently selected translation model or default"""

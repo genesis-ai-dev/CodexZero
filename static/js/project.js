@@ -1,6 +1,35 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Project.js loaded');
     
+    // Tab functionality
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const targetTab = this.getAttribute('data-tab');
+            
+            // Update button states
+            tabButtons.forEach(btn => {
+                btn.classList.remove('active', 'border-blue-600', 'text-blue-600');
+                btn.classList.add('border-transparent', 'text-neutral-500');
+            });
+            
+            this.classList.add('active', 'border-blue-600', 'text-blue-600');
+            this.classList.remove('border-transparent', 'text-neutral-500');
+            
+            // Update content visibility
+            tabContents.forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            const targetContent = document.getElementById(targetTab + '-tab');
+            if (targetContent) {
+                targetContent.classList.remove('hidden');
+            }
+        });
+    });
+    
     // File management modal elements
     const deleteFileModal = document.getElementById('delete-file-modal');
     const closeDeleteModalBtn = document.getElementById('close-delete-modal-btn');
@@ -27,7 +56,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Import modal sections
     const uploadSection = document.getElementById('upload-section');
     const corpusSection = document.getElementById('corpus-section');
-    const usfmSection = document.getElementById('usfm-section');
     
     // Corpus elements
     const corpusFilesLoading = document.getElementById('corpus-files-loading');
@@ -163,14 +191,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Handle text input character counting
+    // Handle text input line counting
     const textContentUpload = document.getElementById('text-content-upload');
-    const uploadCharCount = document.getElementById('upload-char-count');
+    const uploadLineCount = document.getElementById('upload-line-count');
     
-    if (textContentUpload && uploadCharCount) {
+    if (textContentUpload && uploadLineCount) {
         textContentUpload.addEventListener('input', function() {
-            const length = this.value.length;
-            uploadCharCount.textContent = `${length} / 16,000`;
+            const lines = this.value.split('\n').length;
+            uploadLineCount.textContent = `${lines} lines`;
             updateImportButton();
         });
     }
@@ -424,7 +452,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Hide all sections first
         uploadSection.classList.add('hidden');
         corpusSection.classList.add('hidden');
-        usfmSection.classList.add('hidden');
         
         // Show the selected section
         switch(currentImportMethod) {
@@ -434,9 +461,6 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'corpus':
                 corpusSection.classList.remove('hidden');
                 loadCorpusFiles();
-                break;
-            case 'usfm':
-                usfmSection.classList.remove('hidden');
                 break;
         }
     }
@@ -460,9 +484,6 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'corpus':
                 canImport = selectedCorpusFile !== null;
                 break;
-            case 'usfm':
-                canImport = false; // USFM redirects to another page
-                break;
         }
         
         confirmImportBtn.disabled = !canImport;
@@ -480,9 +501,6 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'corpus':
                 confirmImportBtn.textContent = 'Import';
                 break;
-            case 'usfm':
-                confirmImportBtn.textContent = 'Continue';
-                break;
         }
     }
     
@@ -493,9 +511,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 break;
             case 'corpus':
                 importSelectedCorpusFile();
-                break;
-            case 'usfm':
-                window.location.href = `/project/${projectId}/usfm-import`;
                 break;
         }
     }
@@ -508,18 +523,23 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!fileInput.files.length) return;
             
             const formData = new FormData();
-            formData.append('text_file', fileInput.files[0]);
+            formData.append('file', fileInput.files[0]);
             formData.append('upload_method', 'file');
-            formData.append('file_type', 'text'); // Default file type
             
-            fetch(`/project/${projectId}/upload-file`, {
+            fetch(`/project/${projectId}/upload`, {
                 method: 'POST',
                 body: formData
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    location.reload();
+                    if (data.is_usfm && data.redirect_url) {
+                        // USFM detected - redirect to USFM import page
+                        window.location.href = data.redirect_url;
+                    } else {
+                        // Regular text file - reload page
+                        location.reload();
+                    }
                 } else {
                     alert('Error uploading file: ' + data.error);
                 }
@@ -535,16 +555,21 @@ document.addEventListener('DOMContentLoaded', function() {
             const formData = new FormData();
             formData.append('text_content', textContent);
             formData.append('upload_method', 'text');
-            formData.append('file_type', 'text'); // Default file type
             
-            fetch(`/project/${projectId}/upload-file`, {
+            fetch(`/project/${projectId}/upload`, {
                 method: 'POST',
                 body: formData
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    location.reload();
+                    if (data.is_usfm && data.redirect_url) {
+                        // USFM detected - redirect to USFM import page
+                        window.location.href = data.redirect_url;
+                    } else {
+                        // Regular text file - reload page
+                        location.reload();
+                    }
                 } else {
                     alert('Error uploading text: ' + data.error);
                 }
