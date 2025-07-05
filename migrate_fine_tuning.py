@@ -133,10 +133,13 @@ def migrate_database():
         print("2. Test model selection in translation interface")
         print("3. Verify cost estimates are accurate")
 
-if __name__ == "__main__":
-    try:
-        migrate_database()
-    except Exception as e:
-        print(f"\n❌ Migration failed: {e}")
-        print("Please check the error and try again.")
-        sys.exit(1) 
+
+
+
+
+try:
+    migrate_database()
+except Exception as e:
+    print(f"\n❌ Migration failed: {e}")
+    print("Please check the error and try again.")
+    sys.exit(1) 

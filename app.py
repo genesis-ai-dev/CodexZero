@@ -16,6 +16,7 @@ from routes.fine_tuning import fine_tuning
 from routes.admin import admin
 from ai.bot import Chatbot
 
+import migrate_pair_instructions
 
 def create_app():
     app = Flask(__name__)

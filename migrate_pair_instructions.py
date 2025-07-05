@@ -51,7 +51,6 @@ def run_migration():
     finally:
         engine.dispose()
 
-if __name__ == "__main__":
-    print("Running file_pairs instructions migration...")
-    run_migration()
-    print("Migration complete!") 
+print("Running file_pairs instructions migration...")
+run_migration()
+print("Migration complete!") 
