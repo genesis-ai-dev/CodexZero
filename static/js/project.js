@@ -85,16 +85,32 @@ document.addEventListener('DOMContentLoaded', function() {
             const fileId = btn.getAttribute('data-file-id');
             const filename = btn.getAttribute('data-filename');
             openDeleteFileModal(fileId, filename);
-        } else if (e.target.closest('.pair-file-btn')) {
-            const btn = e.target.closest('.pair-file-btn');
+        } else if (e.target.closest('.save-purpose-btn')) {
+            const btn = e.target.closest('.save-purpose-btn');
             const fileId = btn.getAttribute('data-file-id');
-            const filename = btn.getAttribute('data-filename');
-            openPairingModal(fileId, filename);
-        } else if (e.target.closest('.unpair-file-btn')) {
-            const btn = e.target.closest('.unpair-file-btn');
-            const fileId = btn.getAttribute('data-file-id');
-            const filename = btn.getAttribute('data-filename');
-            unpairFile(fileId, filename);
+            const purposeInput = document.querySelector(`.purpose-input[data-file-id="${fileId}"]`);
+            if (purposeInput) {
+                saveFilePurpose(fileId, purposeInput, btn);
+            }
+        }
+    });
+    
+    // Character counting for purpose inputs
+    document.addEventListener('input', function(e) {
+        if (e.target.classList.contains('purpose-input')) {
+            const charCounter = e.target.parentElement.querySelector('.char-counter');
+            if (charCounter) {
+                const length = e.target.value.length;
+                charCounter.textContent = `${length} / 1,000`;
+                
+                if (length > 1000) {
+                    charCounter.style.color = '#dc2626';
+                    e.target.style.borderColor = '#dc2626';
+                } else {
+                    charCounter.style.color = '#6b7280';
+                    e.target.style.borderColor = '';
+                }
+            }
         }
     });
     
@@ -138,30 +154,7 @@ document.addEventListener('DOMContentLoaded', function() {
         confirmImportBtn.addEventListener('click', handleImport);
     }
     
-    // File pairing modal event listeners
-    if (closePairingModalBtn) {
-        closePairingModalBtn.addEventListener('click', closePairingModal);
-    }
-    
-    if (cancelPairingBtn) {
-        cancelPairingBtn.addEventListener('click', closePairingModal);
-    }
-    
-    if (confirmPairingBtn) {
-        confirmPairingBtn.addEventListener('click', confirmFilePairing);
-    }
-    
-    if (secondFileSelect) {
-        secondFileSelect.addEventListener('change', function() {
-            const isSelected = this.value !== '';
-            confirmPairingBtn.disabled = !isSelected;
-            if (isSelected) {
-                confirmPairingBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-            } else {
-                confirmPairingBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            }
-        });
-    }
+
 
 
     
@@ -217,19 +210,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Character counting for pair instructions
-    if (pairInstructions && pairCharCount) {
-        pairInstructions.addEventListener('input', function() {
-            const length = this.value.length;
-            pairCharCount.textContent = `${length} / 4,000`;
-            
-            if (length > 4000) {
-                pairCharCount.style.color = '#dc2626';
-            } else {
-                pairCharCount.style.color = '#6b7280';
-            }
-        });
-    }
+
 
     // Fine-tuning functionality
     const filePairSelect = document.getElementById('file-pair-select');
@@ -1123,236 +1104,63 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // File pairing functions
-    function openPairingModal(fileId, filename) {
-        currentFileForPairing = { id: fileId, name: filename };
+    // File purpose editing functionality
+    function saveFilePurpose(fileId, purposeInput, button) {
+        const purposeDescription = purposeInput.value.trim();
         
-        // Set the first file name
-        firstFileName.textContent = filename;
-        
-        // Populate the second file select with other files
-        populateSecondFileSelect(fileId);
-        
-        // Show the modal
-        filePairingModal.classList.remove('hidden');
-    }
-    
-    function closePairingModal() {
-        filePairingModal.classList.add('hidden');
-        currentFileForPairing = null;
-        secondFileSelect.innerHTML = '<option value="">Choose a file to pair with...</option>';
-        if (pairInstructions) {
-            pairInstructions.value = '';
-        }
-        if (pairCharCount) {
-            pairCharCount.textContent = '0 / 4,000';
-            pairCharCount.style.color = '#6b7280';
-        }
-        confirmPairingBtn.disabled = true;
-        confirmPairingBtn.classList.add('opacity-50', 'cursor-not-allowed');
-    }
-    
-    function populateSecondFileSelect(excludeFileId) {
-        // Get the line count of the first file for comparison
-        const firstFileBtn = document.querySelector(`[data-file-id="${excludeFileId}"]`);
-        const firstFileLineCount = parseInt(firstFileBtn.getAttribute('data-line-count') || '0');
-        
-        // Get all unpaired files from the individual files section
-        const individualFiles = document.querySelectorAll('.pair-file-btn');
-        secondFileSelect.innerHTML = '<option value="">Choose a file to pair with...</option>';
-        
-        let compatibleFiles = 0;
-        
-        individualFiles.forEach(pairBtn => {
-            const fileId = pairBtn.getAttribute('data-file-id');
-            const filename = pairBtn.getAttribute('data-filename');
-            const lineCount = parseInt(pairBtn.getAttribute('data-line-count') || '0');
-            
-            // Don't include the current file and only show files with matching line count
-            if (fileId !== excludeFileId && lineCount === firstFileLineCount) {
-                const option = document.createElement('option');
-                option.value = fileId;
-                option.textContent = `${filename} (${lineCount} lines)`;
-                secondFileSelect.appendChild(option);
-                compatibleFiles++;
-            }
-        });
-        
-        // If no compatible files, show a message
-        if (compatibleFiles === 0) {
-            const option = document.createElement('option');
-            option.value = '';
-            option.textContent = `No files with ${firstFileLineCount} lines available`;
-            option.disabled = true;
-            secondFileSelect.appendChild(option);
-        }
-    }
-    
-    function confirmFilePairing() {
-        const secondFileId = secondFileSelect.value;
-        const instructions = pairInstructions ? pairInstructions.value.trim() : '';
-        
-        if (!secondFileId || !currentFileForPairing) {
-            alert('Please select a file to pair with');
+        if (purposeDescription.length > 1000) {
+            alert('Purpose description must be 1000 characters or less');
             return;
         }
-
-        if (instructions.length > 4000) {
-            alert('Instructions must be 4000 characters or less');
-            return;
-        }
-        
-        confirmPairingBtn.disabled = true;
-        confirmPairingBtn.textContent = 'Pairing...';
-        
-        // First create the pair
-        fetch(`/project/${projectId}/files/${currentFileForPairing.id}/pair/${secondFileId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // If pairing succeeded and we have instructions, save them
-                if (instructions) {
-                    return fetch(`/project/${projectId}/files/${currentFileForPairing.id}/pair/${secondFileId}/instructions`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ instructions: instructions })
-                    });
-                } else {
-                    return Promise.resolve({ json: () => ({ success: true }) });
-                }
-            } else {
-                throw new Error(data.error || 'Pairing failed');
-            }
-        })
-        .then(response => {
-            if (response.json) {
-                return response.json();
-            }
-            return response;
-        })
-        .then(data => {
-            if (data.success) {
-                closePairingModal();
-                alert('Files paired successfully' + (instructions ? ' with custom instructions' : ''));
-                // Refresh the page to show the pairing
-                window.location.reload();
-            } else {
-                alert('Pairing succeeded but failed to save instructions: ' + (data.error || 'Unknown error'));
-                window.location.reload();
-            }
-        })
-        .catch(error => {
-            console.error('Pairing error:', error);
-            alert('Pairing failed: ' + error.message);
-        })
-        .finally(() => {
-            confirmPairingBtn.disabled = false;
-            confirmPairingBtn.textContent = 'Pair Files';
-        });
-    }
-    
-    function unpairFile(fileId, filename) {
-        if (!confirm(`Are you sure you want to unpair "${filename}" from its parallel text?`)) {
-            return;
-        }
-        
-        fetch(`/project/${projectId}/files/${fileId}/unpair`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(data.message);
-                // Refresh the page to show the change
-                window.location.reload();
-            } else {
-                alert(data.error || 'Unpair failed');
-            }
-        })
-        .catch(error => {
-            console.error('Unpair error:', error);
-            alert('Unpair failed: ' + error.message);
-        });
-    }
-
-
-    
-    // Global function for inline pair instructions saving
-    window.savePairInstructionsInline = function(textarea) {
-        const file1Id = textarea.dataset.file1Id;
-        const file2Id = textarea.dataset.file2Id;
-        const instructions = textarea.value.trim();
-        
-        if (instructions.length > 4000) {
-            alert('Instructions must be 4000 characters or less');
-            return;
-        }
-        
-        // Find the save button
-        const saveButton = textarea.parentElement.querySelector('button');
         
         // Visual feedback
-        textarea.style.opacity = '0.6';
-        textarea.disabled = true;
+        purposeInput.style.opacity = '0.6';
+        purposeInput.disabled = true;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
         
-        if (saveButton) {
-            saveButton.disabled = true;
-            saveButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
-        }
-        
-        fetch(`/project/${projectId}/files/${file1Id}/pair/${file2Id}/instructions`, {
+        fetch(`/project/${projectId}/files/${fileId}/purpose`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ instructions: instructions })
+            body: JSON.stringify({ 
+                purpose_description: purposeDescription,
+                file_purpose: purposeDescription ? 'custom' : null
+            })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 // Show success feedback
-                textarea.style.borderColor = '#10b981';
-                if (saveButton) {
-                    saveButton.innerHTML = '<i class="fas fa-check mr-1"></i>Saved!';
-                    saveButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
-                    saveButton.classList.add('bg-green-600');
-                }
+                purposeInput.style.borderColor = '#10b981';
+                button.innerHTML = '<i class="fas fa-check mr-1"></i>Saved!';
+                
+                // Reset after 2 seconds
                 setTimeout(() => {
-                    textarea.style.borderColor = '#93c5fd';
-                    if (saveButton) {
-                        saveButton.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
-                        saveButton.classList.remove('bg-green-600');
-                        saveButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
-                    }
+                    purposeInput.style.borderColor = '';
+                    button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
                 }, 2000);
             } else {
-                alert('Failed to save instructions: ' + (data.error || 'Unknown error'));
+                alert('Failed to save purpose: ' + (data.error || 'Unknown error'));
+                purposeInput.style.borderColor = '#ef4444';
+                button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
             }
         })
         .catch(error => {
-            console.error('Error saving instructions:', error);
-            alert('Failed to save instructions');
+            console.error('Save error:', error);
+            alert('Failed to save purpose: ' + error.message);
+            purposeInput.style.borderColor = '#ef4444';
+            button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
         })
         .finally(() => {
-            textarea.style.opacity = '1';
-            textarea.disabled = false;
-            if (saveButton) {
-                saveButton.disabled = false;
-                if (saveButton.innerHTML.includes('Saving...')) {
-                    saveButton.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
-                }
-            }
+            purposeInput.style.opacity = '1';
+            purposeInput.disabled = false;
+            button.disabled = false;
         });
-    };
+    }
+    
+
     
     // Close pairing modal when clicking outside
     if (filePairingModal) {
@@ -1891,4 +1699,18 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+    
+    // Toggle training files section
+    window.toggleTrainingFiles = function() {
+        const filesList = document.getElementById('training-files-list');
+        const chevron = document.getElementById('training-files-chevron');
+        
+        if (filesList.classList.contains('hidden')) {
+            filesList.classList.remove('hidden');
+            chevron.classList.add('rotate-180');
+        } else {
+            filesList.classList.add('hidden');
+            chevron.classList.remove('rotate-180');
+        }
+    };
 }); 

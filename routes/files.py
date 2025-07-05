@@ -8,7 +8,7 @@ from werkzeug.utils import secure_filename
 from flask import Blueprint, request, jsonify, send_file, redirect, url_for, render_template
 from flask_login import current_user, login_required
 
-from models import db, Project, ProjectFile, FilePair, FineTuningJob
+from models import db, Project, ProjectFile, FineTuningJob
 from utils.file_helpers import save_project_file, detect_usfm_content, validate_text_file
 from storage import get_storage
 
@@ -22,17 +22,7 @@ def delete_project_file(project_id, file_id):
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     project_file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
     
-    # Delete any FilePair relationships involving this file
-    file_pairs = FilePair.query.filter(
-        db.or_(
-            FilePair.file1_id == file_id,
-            FilePair.file2_id == file_id
-        ),
-        FilePair.project_id == project_id
-    ).all()
-    
-    for pair in file_pairs:
-        db.session.delete(pair)
+    # No need to delete file pairs anymore - using purpose system
     
     # Delete any fine-tuning jobs involving this file
     fine_tuning_jobs = FineTuningJob.query.filter(
@@ -603,135 +593,34 @@ def download_project_file(project_id, file_id):
         return jsonify({'error': f'File download failed: {str(e)}'}), 500
 
 
-@files.route('/project/<int:project_id>/files/<int:file1_id>/pair/<int:file2_id>/instructions', methods=['GET'])
+@files.route('/project/<int:project_id>/files/<int:file_id>/purpose', methods=['POST'])
 @login_required
-def get_pair_instructions(project_id, file1_id, file2_id):
-    """Get instructions for a specific file pair"""
+def update_file_purpose(project_id, file_id):
+    """Update the purpose description for a file"""
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-    
-    # Find the file pair
-    pair = FilePair.query.filter_by(project_id=project_id).filter(
-        ((FilePair.file1_id == file1_id) & (FilePair.file2_id == file2_id)) |
-        ((FilePair.file1_id == file2_id) & (FilePair.file2_id == file1_id))
-    ).first_or_404()
-    
-    return jsonify({
-        'success': True,
-        'instructions': pair.instructions or '',
-        'file1_name': pair.file1.original_filename,
-        'file2_name': pair.file2.original_filename
-    })
-
-
-@files.route('/project/<int:project_id>/files/<int:file1_id>/pair/<int:file2_id>/instructions', methods=['POST'])
-@login_required
-def update_pair_instructions(project_id, file1_id, file2_id):
-    """Update instructions for a specific file pair"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-    
-    # Find the file pair
-    pair = FilePair.query.filter_by(project_id=project_id).filter(
-        ((FilePair.file1_id == file1_id) & (FilePair.file2_id == file2_id)) |
-        ((FilePair.file1_id == file2_id) & (FilePair.file2_id == file1_id))
-    ).first_or_404()
+    project_file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
     
     data = request.get_json()
-    instructions = data.get('instructions', '').strip()
+    purpose_description = data.get('purpose_description', '').strip()
+    file_purpose = data.get('file_purpose', '').strip()
     
-    if len(instructions) > 4000:
-        return jsonify({'error': 'Instructions must be 4000 characters or less'}), 400
+    # Validate purpose description length
+    if len(purpose_description) > 1000:
+        return jsonify({'error': 'Purpose description must be 1000 characters or less'}), 400
     
-    pair.instructions = instructions if instructions else None
+    # Update the file purpose
+    project_file.purpose_description = purpose_description if purpose_description else None
+    project_file.file_purpose = file_purpose if file_purpose else None
     
     try:
         db.session.commit()
-        return jsonify({'success': True})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': f'Failed to update instructions: {str(e)}'}), 500
-
-
-@files.route('/project/<int:project_id>/files/<int:file1_id>/pair/<int:file2_id>', methods=['POST'])
-@login_required
-def pair_files(project_id, file1_id, file2_id):
-    """Pair two files as parallel texts"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-    
-    # Verify both files exist and belong to this project
-    file1 = ProjectFile.query.filter_by(id=file1_id, project_id=project.id).first_or_404()
-    file2 = ProjectFile.query.filter_by(id=file2_id, project_id=project.id).first_or_404()
-    
-    if file1_id == file2_id:
-        return jsonify({'error': 'Cannot pair a file with itself'}), 400
-    
-        # Check if either file is already paired
-    if file1.is_paired():
-        return jsonify({'error': f'{file1.original_filename} is already paired with another file'}), 400
-
-    if file2.is_paired():
-        return jsonify({'error': f'{file2.original_filename} is already paired with another file'}), 400
-    
-    # Check if both files are text files
-    if file1.content_type != 'text/plain' or file2.content_type != 'text/plain':
-        return jsonify({'error': 'Only .txt files can be paired together'}), 400
-    
-    # Check if both files have the same line count for proper alignment
-    if file1.line_count != file2.line_count:
-        return jsonify({'error': f'Files must have the same line count to be paired. {file1.original_filename} has {file1.line_count} lines, {file2.original_filename} has {file2.line_count} lines'}), 400
-    
-    try:
-        # Create the file pair (store with smaller ID first for consistency)
-        if file1_id < file2_id:
-            file_pair = FilePair(project_id=project.id, file1_id=file1_id, file2_id=file2_id)
-        else:
-            file_pair = FilePair(project_id=project.id, file1_id=file2_id, file2_id=file1_id)
-        
-        db.session.add(file_pair)
-        db.session.commit()
-        
         return jsonify({
             'success': True,
-            'message': f'Successfully paired {file1.original_filename} with {file2.original_filename}',
-            'pair_id': file_pair.id
+            'message': f'Updated purpose for {project_file.original_filename}'
         })
-        
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': f'Failed to pair files: {str(e)}'}), 500
-
-
-@files.route('/project/<int:project_id>/files/<int:file_id>/unpair', methods=['POST'])
-@login_required
-def unpair_file(project_id, file_id):
-    """Unpair a file from its parallel text"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-    file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
-    
-    # Find and delete the file pair
-    pair_as_file1 = FilePair.query.filter_by(project_id=project.id, file1_id=file_id).first()
-    pair_as_file2 = FilePair.query.filter_by(project_id=project.id, file2_id=file_id).first()
-    
-    pair_to_delete = pair_as_file1 or pair_as_file2
-    
-    if not pair_to_delete:
-        return jsonify({'error': f'{file.original_filename} is not paired with any file'}), 400
-    
-    try:
-        # Get the other file's name for the success message
-        other_file_id = pair_to_delete.file2_id if pair_to_delete.file1_id == file_id else pair_to_delete.file1_id
-        other_file = ProjectFile.query.get(other_file_id)
-        
-        db.session.delete(pair_to_delete)
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Successfully unpaired {file.original_filename} from {other_file.original_filename}'
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': f'Failed to unpair files: {str(e)}'}), 500
+        return jsonify({'error': f'Failed to update purpose: {str(e)}'}), 500
 
 
 @files.route('/uploads/<path:filename>')

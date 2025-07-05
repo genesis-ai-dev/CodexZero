@@ -138,8 +138,8 @@ def _get_translation_examples(project_id, source_file_id, target_file_id, query_
     print(f"DEBUG: Creating MemoryContextQuery with {len(source_lines)} source and {len(target_lines)} target lines")
     try:
         cq = MemoryContextQuery(source_lines, target_lines)
-        print(f"DEBUG: Searching for query: '{query_text}' with top_k=10")
-        results = cq.search_by_text(query_text, top_k=10)
+        print(f"DEBUG: Searching for query: '{query_text}' with coverage-based stopping (min=3, threshold=0.9)")
+        results = cq.search_by_text(query_text, top_k=10, min_examples=3, coverage_threshold=0.9)
         print(f"DEBUG: MemoryContextQuery returned {len(results)} results")
         
         for i, (verse_id, source_text, target_text, coverage) in enumerate(results[:3]):  # Show first 3
@@ -157,7 +157,7 @@ def _get_translation_examples(project_id, source_file_id, target_file_id, query_
             excluded_count += 1
             print(f"DEBUG: Excluding verse {verse_id} (0-based index {exclude_verse_index}) from examples (test mode)")
             continue
-        examples.append(f"English: {source_text.strip()}\n{target_text.strip()}")
+        examples.append(target_text.strip())
     
     status_msg = f"Found {len(examples)} examples using context query"
     if excluded_count > 0:
@@ -233,36 +233,43 @@ def translate_text(project_id: int, text: str, model: str = None, temperature: f
     }
 
 
+def _get_file_context(project_id: int, target_file_id: str = None) -> str:
+    """Get context from target file with its purpose"""
+    from models import ProjectFile
+    
+    if not target_file_id:
+        return ""
+    
+    # Extract file ID from target_file_id string
+    if target_file_id.startswith('file_'):
+        file_id = int(target_file_id.replace('file_', ''))
+        target_file = ProjectFile.query.filter_by(id=file_id, project_id=project_id).first()
+        
+        if target_file:
+            if target_file.purpose_description and target_file.purpose_description.strip():
+                return f"Target file context: {target_file.purpose_description.strip()}"
+            elif target_file.file_purpose and target_file.file_purpose.strip():
+                # Convert file_purpose to readable format
+                purpose = target_file.file_purpose.replace('_', ' ').title()
+                return f"Target file context: {purpose}"
+    
+    return ""
+
 def _get_translation_instructions(project_id: int, source_file_id: str, target_file_id: str, project) -> str:
-    """Get translation instructions - pair-specific first, then project fallback"""
+    """Get translation instructions including file context and project instructions"""
     
-    # Only look for pair instructions if we have both file IDs
-    if source_file_id and target_file_id:
-        # Extract file IDs and find the pair
-        source_id = None
-        target_id = None
-        
-        if source_file_id.startswith('file_'):
-            source_id = int(source_file_id.replace('file_', ''))
-        if target_file_id.startswith('file_'):
-            target_id = int(target_file_id.replace('file_', ''))
-        
-        # Look for pair in both directions
-        if source_id and target_id:
-            from models import FilePair
-            pair = FilePair.query.filter_by(project_id=project_id).filter(
-                ((FilePair.file1_id == source_id) & (FilePair.file2_id == target_id)) |
-                ((FilePair.file1_id == target_id) & (FilePair.file2_id == source_id))
-            ).first()
-            
-            if pair and pair.instructions and pair.instructions.strip():
-                return pair.instructions.strip()
+    instruction_parts = []
     
-    # Fallback to project instructions
+    # Add target file context only
+    file_context = _get_file_context(project_id, target_file_id)
+    if file_context:
+        instruction_parts.append(file_context)
+    
+    # Add project instructions
     if project.instructions and project.instructions.strip():
-        return project.instructions.strip()
+        instruction_parts.append(project.instructions.strip())
     
-    return None
+    return "\n\n".join(instruction_parts) if instruction_parts else None
 
 
 def _get_verse_content(project_id, file_id, verse_index):
@@ -488,17 +495,15 @@ def _calculate_translation_confidence(translation, examples):
     if not examples or not translation:
         return {'segments': [], 'overall_confidence': 0}
     
-    # Extract target text from examples (everything after the newline)
+    # Extract target text from examples (now examples are just target text)
     target_texts_with_source = []
     for example in examples:
-        if '\n' in example:
-            parts = example.split('\n', 1)
-            english_part = parts[0].replace('English: ', '').strip()
-            target_part = parts[1].strip()
+        target_text = example.strip()
+        if target_text:  # Only include non-empty examples
             target_texts_with_source.append({
-                'text': target_part.lower(),
-                'original': target_part,
-                'english': english_part
+                'text': target_text.lower(),
+                'original': target_text,
+                'english': ''  # No source text available anymore
             })
     
     if not target_texts_with_source:

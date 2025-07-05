@@ -108,13 +108,31 @@ class ContextQuery:
         covered = query_words.intersection(verse_words)
         return len(covered) / len(query_words) if query_words else 0.0
     
-    def _branching_search(self, original_query: str, top_k: int, exclude_idx: int = -1) -> List[Tuple[int, str, str, float]]:
+    def _compute_cumulative_coverage(self, original_query: str, selected_verses: List[str]) -> float:
+        """Compute cumulative coverage across all selected verses"""
+        if not selected_verses:
+            return 0.0
+        
+        query_words = set(self._normalize_text(original_query).split())
+        if not query_words:
+            return 0.0
+        
+        # Collect all words covered by any of the selected verses
+        covered_words = set()
+        for verse_text in selected_verses:
+            verse_words = set(self._normalize_text(verse_text).split())
+            covered_words.update(query_words.intersection(verse_words))
+        
+        return len(covered_words) / len(query_words)
+
+    def _branching_search(self, original_query: str, top_k: int, exclude_idx: int = -1, min_examples: int = 3, coverage_threshold: float = 0.9) -> List[Tuple[int, str, str, float]]:
         results: List[Tuple[int, str, str, float]] = []
         query_branches = [self._normalize_text(original_query)]
         used_indices = {exclude_idx} if exclude_idx >= 0 else set()
         restart_count = 0
         
         print(f"Starting branching search with query: {original_query}")
+        print(f"Target: minimum {min_examples} examples, stop at {coverage_threshold*100}% coverage")
         
         while len(results) < top_k and restart_count < 3:
             if not query_branches:
@@ -158,6 +176,10 @@ class ContextQuery:
             results.append((best_idx + 1, source_text, target_text, coverage))
             used_indices.add(best_idx)
             
+            # Check cumulative coverage after adding this result
+            selected_verses = [result[1] for result in results]  # Extract source texts
+            cumulative_coverage = self._compute_cumulative_coverage(original_query, selected_verses)
+            
             current_branch = query_branches[best_branch_idx]
             covered_substring = self._find_covered_substring(current_branch, source_text)
             
@@ -171,19 +193,26 @@ class ContextQuery:
                 print(f"  Covered substring: '{covered_substring}'")
                 print(f"  New branches: {new_branches}")
                 print(f"  Active branches: {len(query_branches)}")
-                print(f"  Coverage: {coverage:.2f}")
+                print(f"  Individual coverage: {coverage:.2f}")
+                print(f"  Cumulative coverage: {cumulative_coverage:.2f}")
             else:
                 print(f"Result {len(results)}: Selected verse {best_idx + 1} (no substring coverage)")
+                print(f"  Cumulative coverage: {cumulative_coverage:.2f}")
+            
+            # Check if we should stop early due to coverage threshold
+            if len(results) >= min_examples and cumulative_coverage >= coverage_threshold:
+                print(f"Stopping early: {len(results)} examples with {cumulative_coverage:.2f} coverage (>= {coverage_threshold})")
+                break
         
         return results
     
-    def search_by_text(self, query_text: str, top_k: int = 5) -> List[Tuple[int, str, str, float]]:
-        return self._branching_search(query_text, top_k)
+    def search_by_text(self, query_text: str, top_k: int = 5, min_examples: int = 3, coverage_threshold: float = 0.9) -> List[Tuple[int, str, str, float]]:
+        return self._branching_search(query_text, top_k, min_examples=min_examples, coverage_threshold=coverage_threshold)
     
-    def search_by_line(self, line_number: int, top_k: int = 5) -> List[Tuple[int, str, str, float]]:
+    def search_by_line(self, line_number: int, top_k: int = 5, min_examples: int = 3, coverage_threshold: float = 0.9) -> List[Tuple[int, str, str, float]]:
         query_idx = line_number - 1
         query_text = self.source_verses[query_idx].strip()
-        return self._branching_search(query_text, top_k, exclude_idx=query_idx)
+        return self._branching_search(query_text, top_k, exclude_idx=query_idx, min_examples=min_examples, coverage_threshold=coverage_threshold)
 
 class MemoryContextQuery(ContextQuery):
     """A version of ContextQuery that works with lists in memory instead of files"""

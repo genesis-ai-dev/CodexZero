@@ -63,11 +63,11 @@
                                 <i class="fas fa-check-circle mr-1"></i>
                                 {{ project.files|length }} file{{ 's' if project.files|length != 1 else '' }}
                             </span>
-                            {% set paired_count = project.files|selectattr('paired_file_id')|list|length %}
-                            {% if paired_count > 0 %}
+                            {% set files_with_purpose = project.files|selectattr('purpose_description')|list|length %}
+                            {% if files_with_purpose > 0 %}
                                 <span class="inline-flex items-center px-2 py-1 text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
-                                    <i class="fas fa-link mr-1"></i>
-                                    {{ (paired_count/2)|int }} pair{{ 's' if (paired_count/2)|int != 1 else '' }}
+                                    <i class="fas fa-tag mr-1"></i>
+                                    {{ files_with_purpose }} with purpose{{ 's' if files_with_purpose != 1 else '' }}
                                 </span>
                             {% endif %}
                         {% else %}
@@ -137,195 +137,74 @@
             </div>
             
             {% if project.files %}
-            <!-- Files List -->
+            <!-- Regular Files List -->
             <div class="space-y-4">
-                {% set paired_file_ids = [] %}
-                {% set unpaired_files = [] %}
+                {% set regular_files = project.files|rejectattr('file_type', 'equalto', 'training_data')|list %}
                 
-                {# Identify paired file IDs and unpaired files #}
-                {% for pair in file_pairs %}
-                    {% set _ = paired_file_ids.append(pair.file1.id) %}
-                    {% set _ = paired_file_ids.append(pair.file2.id) %}
-                {% endfor %}
-                
-                {% for file in project.files %}
-                    {% if file.id not in paired_file_ids %}
-                        {% set _ = unpaired_files.append(file) %}
-                    {% endif %}
-                {% endfor %}
-                
-                <!-- File Pairs -->
-                {% for pair in file_pairs %}
-                <div class="paper-cream border border-neutral-300 p-4 mb-4">
-                    <div class="flex items-center justify-between mb-3">
-                        <div class="flex items-center">
-                            <div class="w-8 h-8 paper-light border border-neutral-200 flex items-center justify-center mr-3">
-                                <i class="fas fa-link text-blue-600"></i>
+                {% for file in regular_files %}
+                <div class="paper-white border border-neutral-300 p-4">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-start min-w-0 flex-1">
+                            <div class="w-10 h-10 paper-light border border-neutral-200 flex items-center justify-center mr-3 mt-1">
+                                <i class="fas {% if file.file_type == 'ebible' %}fa-book text-blue-600{% elif file.file_type == 'text' %}fa-file-alt text-green-600{% elif file.file_type == 'usfm' %}fa-code text-purple-600{% else %}fa-file text-neutral-400{% endif %}"></i>
                             </div>
-                            <div>
-                                <h3 class="font-bold text-sm" style="color: #2d2d2d;">File Pair</h3>
-                                <p class="text-xs text-neutral-600 font-medium">Line-by-line translations</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <button class="unpair-file-btn px-3 py-1 text-xs bg-red-100 text-red-700 border border-red-300 font-bold hover:bg-red-200 transition-colors"
-                                    data-file-id="{{ pair.file1.id }}" 
-                                    data-filename="{{ pair.file1.original_filename }}">
-                                Unpair
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <!-- File 1 -->
-                        <div class="paper-white border border-neutral-200 p-3">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center min-w-0 flex-1">
-                                    <div class="w-8 h-8 paper-light border border-neutral-200 flex items-center justify-center mr-3">
-                                        <i class="fas fa-file-alt text-blue-600 text-sm"></i>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div>
+                                        <p class="font-bold text-neutral-900 truncate">{{ file.original_filename }}</p>
+                                        <div class="flex items-center space-x-3 text-sm text-neutral-600 font-medium">
+                                            <span>{{ file.get_line_count() }} lines</span>
+                                            <span>{{ file.created_at.strftime('%b %d') }}</span>
+                                        </div>
                                     </div>
-                                    <div class="min-w-0 flex-1">
-                                        <p class="text-sm font-bold text-neutral-900 truncate">{{ pair.file1.original_filename }}</p>
-                                        <p class="text-xs text-neutral-600 font-medium">{{ pair.file1.get_line_count() }} lines</p>
+                                    <div class="flex items-center space-x-3 ml-4">
+                                        {% if admin_view %}
+                                        <a href="{{ url_for('admin.download_user_project_file', encoded_user_id=encode_id(project_owner.id, 'user'), encoded_project_id=encode_id(project.id, 'project'), encoded_file_id=encode_id(file.id, 'file')) }}"
+                                           class="text-neutral-500 hover:text-neutral-700">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                        {% else %}
+                                        <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=file.id) }}"
+                                           class="text-neutral-500 hover:text-neutral-700">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                        {% endif %}
+                                        <button type="button" class="delete-file-btn text-neutral-500 hover:text-red-600"
+                                                data-file-id="{{ file.id }}" 
+                                                data-filename="{{ file.original_filename }}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                     </div>
                                 </div>
-                                <div class="flex items-center space-x-2 ml-2">
-                                    {% if admin_view %}
-                                    <a href="{{ url_for('admin.download_user_project_file', encoded_user_id=encode_id(project_owner.id, 'user'), encoded_project_id=encode_id(project.id, 'project'), encoded_file_id=encode_id(pair.file1.id, 'file')) }}"
-                                       class="text-neutral-500 hover:text-neutral-700">
-                                        <i class="fas fa-download"></i>
-                                    </a>
-                                    {% else %}
-                                    <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=pair.file1.id) }}"
-                                       class="text-neutral-500 hover:text-neutral-700">
-                                        <i class="fas fa-download"></i>
-                                    </a>
-                                    {% endif %}
-                                    <button type="button" class="delete-file-btn text-neutral-500 hover:text-red-600"
-                                            data-file-id="{{ pair.file1.id }}" 
-                                            data-filename="{{ pair.file1.original_filename }}">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- File 2 -->
-                        <div class="paper-white border border-neutral-200 p-3">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center min-w-0 flex-1">
-                                    <div class="w-8 h-8 paper-light border border-neutral-200 flex items-center justify-center mr-3">
-                                        <i class="fas fa-file-alt text-blue-600 text-sm"></i>
-                                    </div>
-                                    <div class="min-w-0 flex-1">
-                                        <p class="text-sm font-bold text-neutral-900 truncate">{{ pair.file2.original_filename }}</p>
-                                        <p class="text-xs text-neutral-600 font-medium">{{ pair.file2.get_line_count() }} lines</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center space-x-2 ml-2">
-                                    {% if admin_view %}
-                                    <a href="{{ url_for('admin.download_user_project_file', encoded_user_id=encode_id(project_owner.id, 'user'), encoded_project_id=encode_id(project.id, 'project'), encoded_file_id=encode_id(pair.file2.id, 'file')) }}"
-                                       class="text-neutral-500 hover:text-neutral-700">
-                                        <i class="fas fa-download"></i>
-                                    </a>
-                                    {% else %}
-                                    <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=pair.file2.id) }}"
-                                       class="text-neutral-500 hover:text-neutral-700">
-                                        <i class="fas fa-download"></i>
-                                    </a>
-                                    {% endif %}
-                                    <button type="button" class="delete-file-btn text-neutral-500 hover:text-red-600"
-                                            data-file-id="{{ pair.file2.id }}" 
-                                            data-filename="{{ pair.file2.original_filename }}">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Translation Instructions -->
-                    <div class="mt-4 p-3 bg-blue-50 border border-blue-200">
-                        <div class="flex items-start justify-between">
-                            <div class="flex items-center min-w-0 flex-1">
-                                <i class="fas fa-magic text-blue-600 mr-2 mt-0.5"></i>
-                                <div class="min-w-0 flex-1">
-                                    <h4 class="text-sm font-bold text-blue-900 mb-1">Translation Instructions</h4>
-                                    <div class="text-sm text-blue-800">
-                                        <textarea 
-                                            class="w-full p-2 border border-blue-300 bg-white text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                            rows="3"
-                                            maxlength="4000"
-                                            placeholder="Add specific instructions for translating between {{ pair.file1.original_filename }} and {{ pair.file2.original_filename }}..."
-                                            data-file1-id="{{ pair.file1.id }}"
-                                            data-file2-id="{{ pair.file2.id }}"
-                                            id="instructions-{{ pair.file1.id }}-{{ pair.file2.id }}"
-                                        >{{ pair.instructions or '' }}</textarea>
-                                        <div class="flex justify-between items-center mt-2">
-                                            <div class="flex items-center space-x-2">
-                                                <p class="text-xs text-blue-600">These instructions override project-wide instructions for this pair</p>
-                                                <span class="text-xs text-blue-600 char-counter">{{ (pair.instructions or '')|length }} / 4,000</span>
+                                
+                                <!-- File Purpose -->
+                                <div class="mt-3 p-3 bg-blue-50 border border-blue-200">
+                                    <div class="flex items-start">
+                                        <i class="fas fa-tag text-blue-600 mr-2 mt-0.5"></i>
+                                        <div class="min-w-0 flex-1">
+                                            <h4 class="text-sm font-bold text-blue-900 mb-2">File Purpose</h4>
+                                            <div class="space-y-2">
+                                                <input type="text" 
+                                                       class="w-full p-2 border border-blue-300 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent purpose-input"
+                                                       placeholder="e.g., Modern English reference, Formal style guide, Target language draft"
+                                                       value="{{ file.purpose_description or '' }}"
+                                                       data-file-id="{{ file.id }}"
+                                                       maxlength="1000">
+                                                <div class="flex justify-between items-center">
+                                                    <p class="text-xs text-blue-600">Describe this file's role in your translation project</p>
+                                                    <div class="flex items-center space-x-2">
+                                                        <span class="text-xs text-blue-600 char-counter">{{ (file.purpose_description or '')|length }} / 1,000</span>
+                                                        <button class="save-purpose-btn px-3 py-1 text-xs bg-blue-600 text-white border border-blue-600 font-bold hover:bg-blue-700 transition-colors"
+                                                                data-file-id="{{ file.id }}">
+                                                            <i class="fas fa-save mr-1"></i>Save
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <button 
-                                                class="px-3 py-1 text-xs bg-blue-600 text-white border border-blue-600 font-bold hover:bg-blue-700 transition-colors"
-                                                onclick="savePairInstructionsInline(document.getElementById('instructions-{{ pair.file1.id }}-{{ pair.file2.id }}'))"
-                                            >
-                                                <i class="fas fa-save mr-1"></i>Save
-                                            </button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-                
-                <!-- Individual Files -->
-                {% for file in unpaired_files %}
-                <div class="paper-white border border-neutral-300 p-4">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center min-w-0 flex-1">
-                            <div class="w-10 h-10 paper-light border border-neutral-200 flex items-center justify-center mr-3">
-                                <i class="fas {% if file.file_type == 'ebible' %}fa-book text-blue-600{% elif file.file_type == 'text' %}fa-file-alt text-green-600{% elif file.file_type == 'training_data' %}fa-brain text-purple-600{% elif file.file_type == 'usfm' %}fa-code text-purple-600{% else %}fa-file text-neutral-400{% endif %}"></i>
-                            </div>
-                            <div class="min-w-0 flex-1">
-                                <p class="font-bold text-neutral-900 truncate">{{ file.original_filename }}</p>
-                                <div class="flex items-center space-x-3 text-sm text-neutral-600 font-medium">
-                                    <span>{{ file.get_line_count() }} lines</span>
-                                    <span>{{ file.created_at.strftime('%b %d') }}</span>
-                                    {% if file.file_type == 'training_data' %}
-                                    <span class="text-purple-600">Training Data</span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-3 ml-4">
-                            {% if file.file_type != 'training_data' %}
-                            <button type="button" class="pair-file-btn text-blue-600 hover:text-blue-800 text-sm font-bold"
-                                    data-file-id="{{ file.id }}" 
-                                    data-filename="{{ file.original_filename }}"
-                                    data-line-count="{{ file.get_line_count() }}">
-                                <i class="fas fa-link mr-1"></i>
-                                Pair
-                            </button>
-                            {% endif %}
-                            {% if admin_view %}
-                            <a href="{{ url_for('admin.download_user_project_file', encoded_user_id=encode_id(project_owner.id, 'user'), encoded_project_id=encode_id(project.id, 'project'), encoded_file_id=encode_id(file.id, 'file')) }}"
-                               class="text-neutral-500 hover:text-neutral-700">
-                                <i class="fas fa-download"></i>
-                            </a>
-                            {% else %}
-                            <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=file.id) }}"
-                               class="text-neutral-500 hover:text-neutral-700">
-                                <i class="fas fa-download"></i>
-                            </a>
-                            {% endif %}
-                            <button type="button" class="delete-file-btn text-neutral-500 hover:text-red-600"
-                                    data-file-id="{{ file.id }}" 
-                                    data-filename="{{ file.original_filename }}">
-                                <i class="fas fa-trash"></i>
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -366,14 +245,7 @@
                 <p class="text-neutral-600 font-medium">Train custom AI models with your parallel texts for more accurate translations.</p>
             </div>
             
-            {% set paired_files = [] %}
-            {% for file in project.files %}
-                {% if file.is_paired() %}
-                    {% set _ = paired_files.append(file) %}
-                {% endif %}
-            {% endfor %}
-            
-            {% if paired_files %}
+            {% if project.files|length >= 2 %}
             <!-- Configuration and Controls -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Configuration Panel -->
@@ -385,12 +257,15 @@
                             <div>
                                 <label class="block text-sm font-bold text-neutral-700 mb-2">Source-Target Pair</label>
                                 <select id="file-pair-select" class="w-full p-3 border border-neutral-200 paper-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                    <option value="">Select a paired file...</option>
-                                    {% for file in paired_files %}
-                                        {% set parallel_file = file.get_parallel_file() %}
-                                        <option value="{{ file.id }},{{ parallel_file.id }}">
-                                            {{ file.original_filename }} → {{ parallel_file.original_filename }}
-                                        </option>
+                                    <option value="">Select files for training...</option>
+                                    {% for file1 in project.files %}
+                                        {% for file2 in project.files %}
+                                            {% if file1.id != file2.id and file1.get_line_count() == file2.get_line_count() and file1.get_line_count() > 0 %}
+                                                <option value="{{ file1.id }},{{ file2.id }}">
+                                                    {{ file1.original_filename }} → {{ file2.original_filename }}
+                                                </option>
+                                            {% endif %}
+                                        {% endfor %}
                                     {% endfor %}
                                 </select>
                             </div>
@@ -418,6 +293,64 @@
                             </p>
                         </div>
                     </div>
+                    
+                    <!-- Training Data Files -->
+                    {% set training_files = project.files|selectattr('file_type', 'equalto', 'training_data')|list %}
+                    {% if training_files %}
+                    <div class="paper-cream border border-neutral-300">
+                        <button class="w-full p-4 text-left flex items-center justify-between hover:bg-neutral-50 transition-colors" 
+                                onclick="toggleTrainingFiles()">
+                            <div class="flex items-center">
+                                <i class="fas fa-brain text-purple-600 mr-3"></i>
+                                <div>
+                                    <h3 class="font-bold text-neutral-900">Training Data Files</h3>
+                                    <p class="text-sm text-neutral-600 font-medium">{{ training_files|length }} generated file{{ 's' if training_files|length != 1 else '' }} • Used for fine-tuning</p>
+                                </div>
+                            </div>
+                            <i id="training-files-chevron" class="fas fa-chevron-down text-neutral-500 transition-transform"></i>
+                        </button>
+                        
+                        <div id="training-files-list" class="hidden border-t border-neutral-200">
+                            {% for file in training_files %}
+                            <div class="p-4 border-b border-neutral-200 last:border-b-0">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center min-w-0 flex-1">
+                                        <div class="w-8 h-8 paper-light border border-neutral-200 flex items-center justify-center mr-3">
+                                            <i class="fas fa-brain text-purple-600 text-sm"></i>
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-sm font-bold text-neutral-900 truncate">{{ file.original_filename }}</p>
+                                            <div class="flex items-center space-x-3 text-xs text-neutral-600 font-medium">
+                                                <span>{{ file.get_line_count() }} lines</span>
+                                                <span>{{ file.created_at.strftime('%b %d') }}</span>
+                                                <span class="text-purple-600">Training Data</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-2 ml-4">
+                                        {% if admin_view %}
+                                        <a href="{{ url_for('admin.download_user_project_file', encoded_user_id=encode_id(project_owner.id, 'user'), encoded_project_id=encode_id(project.id, 'project'), encoded_file_id=encode_id(file.id, 'file')) }}"
+                                           class="text-neutral-500 hover:text-neutral-700 text-sm">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                        {% else %}
+                                        <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=file.id) }}"
+                                           class="text-neutral-500 hover:text-neutral-700 text-sm">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                        {% endif %}
+                                        <button type="button" class="delete-file-btn text-neutral-500 hover:text-red-600 text-sm"
+                                                data-file-id="{{ file.id }}" 
+                                                data-filename="{{ file.original_filename }}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
                     
                     <!-- Fine-tuning Estimate -->
                     <div id="fine-tuning-estimate" class="hidden p-4 bg-blue-50 border border-blue-200">
@@ -479,15 +412,15 @@
             {% else %}
             <div class="text-center py-12 paper-cream border border-neutral-300">
                 <div class="w-16 h-16 paper-light border border-neutral-200 flex items-center justify-center mx-auto mb-4">
-                    <i class="fas fa-link text-neutral-600 text-2xl"></i>
+                    <i class="fas fa-upload text-neutral-600 text-2xl"></i>
                 </div>
-                <h3 class="text-lg font-bold mb-2" style="color: #2d2d2d;">Pair Files to Enable Fine-Tuning</h3>
-                <p class="text-neutral-600 mb-6 font-medium">Fine-tuning requires parallel text files (source and target translations)</p>
+                <h3 class="text-lg font-bold mb-2" style="color: #2d2d2d;">Upload Files to Enable Fine-Tuning</h3>
+                <p class="text-neutral-600 mb-6 font-medium">Fine-tuning requires at least 2 files with matching line counts</p>
                 <div class="px-8 py-3 paper-light text-neutral-500 border border-neutral-200 font-bold text-sm inline-block">
                     <i class="fas fa-rocket mr-2"></i>
                     Start Fine-Tuning
                 </div>
-                <p class="text-xs text-neutral-600 font-medium mt-4">Upload files and pair them using the "Pair" button to get started</p>
+                <p class="text-xs text-neutral-600 font-medium mt-4">Upload parallel text files to get started</p>
             </div>
             {% endif %}
         </div>
@@ -687,60 +620,7 @@
 
 
 
-<!-- Pairing Modal -->
-<div id="file-pairing-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
-    <div class="paper-white border border-neutral-300 shadow-xl max-w-lg w-full mx-4">
-        <div class="px-6 py-4 paper-cream border-b border-neutral-200">
-            <h3 class="text-lg font-bold" style="color: #2d2d2d;">Pair Files</h3>
-        </div>
-        
-        <div class="px-6 py-4">
-            <div class="mb-4 p-3 bg-blue-50 border border-blue-200">
-                <div class="text-sm text-blue-700 font-medium">
-                    Select two files that are line-for-line translations of each other
-                </div>
-            </div>
-            
-            <div class="mb-4">
-                <label class="block text-sm font-bold text-neutral-700 mb-2">First File</label>
-                <div class="p-3 paper-light border border-neutral-200">
-                    <span id="first-file-name" class="text-sm font-bold text-neutral-900"></span>
-                </div>
-            </div>
-            
-            <div class="mb-4">
-                <label class="block text-sm font-bold text-neutral-700 mb-2">Second File</label>
-                <select id="second-file-select" class="w-full p-3 border border-neutral-200 paper-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option value="">Choose a file...</option>
-                </select>
-            </div>
-            
-            <div class="mb-4">
-                <label class="block text-sm font-bold text-neutral-700 mb-2">Translation Instructions for This Pair</label>
-                <textarea 
-                    id="pair-instructions" 
-                    maxlength="4000"
-                    rows="4"
-                    class="w-full p-3 border border-neutral-200 paper-white text-sm font-medium resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Optional: Specific guidance for translating between these files (e.g., 'Use formal tone for liturgical passages', 'Prioritize literal accuracy over readability')..."
-                ></textarea>
-                <div class="flex justify-between items-center mt-2">
-                    <p class="text-xs text-neutral-600 font-medium">These instructions will override project-wide instructions for this file pair</p>
-                    <span id="pair-char-count" class="text-xs text-neutral-600 font-medium">0 / 4,000</span>
-                </div>
-            </div>
-        </div>
-        
-        <div class="px-6 py-4 paper-cream border-t border-neutral-200 flex justify-end space-x-3">
-            <button id="cancel-pairing-btn" class="px-4 py-2 text-neutral-600 hover:text-neutral-800 font-bold">
-                Cancel
-            </button>
-            <button id="confirm-pairing-btn" class="px-4 py-2 bg-blue-600 text-white border border-blue-600 font-bold hover:bg-blue-700" disabled>
-                Pair Files
-            </button>
-        </div>
-    </div>
-</div>
+
 {% endblock %}
 
 {% block scripts %}

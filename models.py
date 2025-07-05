@@ -45,7 +45,6 @@ class Project(db.Model):
     files = db.relationship('ProjectFile', backref='project', lazy=True, cascade='all, delete-orphan')
     language_rules = db.relationship('LanguageRule', backref='project', lazy=True, cascade='all, delete-orphan')
     translations = db.relationship('Translation', backref='project', lazy=True, cascade='all, delete-orphan')
-    file_pairs = db.relationship('FilePair', backref='project', lazy=True, cascade='all, delete-orphan')
     fine_tuning_jobs = db.relationship('FineTuningJob', backref='project', lazy=True, cascade='all, delete-orphan')
     
     def get_available_translation_models(self):
@@ -92,66 +91,34 @@ class ProjectFile(db.Model):
     file_size = db.Column(db.BigInteger, nullable=False)
     line_count = db.Column(db.Integer, nullable=False, default=0)
     
-    # Pairing relationship for back translations (legacy - keeping for compatibility)
+    # File purpose system (replaces pairing)
+    purpose_description = db.Column(db.Text, nullable=True)  # e.g., "Modern English reference translation"
+    file_purpose = db.Column(db.String(100), nullable=True)  # e.g., "reference", "target", "style_guide"
+    
+    # Legacy pairing relationship for back translations (deprecated)
     paired_with_id = db.Column(db.Integer, db.ForeignKey('project_files.id'), nullable=True)
     paired_with = db.relationship('ProjectFile', remote_side=[id], backref='back_translations')
     
     # File metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    def get_parallel_file(self):
-        """Get the file this one is paired with as parallel text"""
-        pair_as_file1 = FilePair.query.filter_by(project_id=self.project_id, file1_id=self.id).first()
-        if pair_as_file1:
-            return ProjectFile.query.get(pair_as_file1.file2_id)
-        
-        pair_as_file2 = FilePair.query.filter_by(project_id=self.project_id, file2_id=self.id).first()
-        if pair_as_file2:
-            return ProjectFile.query.get(pair_as_file2.file1_id)
-        
-        return None
-    
-    def is_paired(self):
-        """Check if this file is paired with another file as parallel text"""
-        return self.get_parallel_file() is not None
-    
     def get_line_count(self):
         """Get the cached line count from database"""
         return self.line_count
     
+    def get_purpose_display(self):
+        """Get a display-friendly purpose description"""
+        if self.purpose_description:
+            return self.purpose_description
+        elif self.file_purpose:
+            return self.file_purpose.replace('_', ' ').title()
+        else:
+            return "Reference text"
+    
     def __repr__(self):
         return f'<ProjectFile {self.original_filename}>'
 
-class FilePair(db.Model):
-    __tablename__ = 'file_pairs'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
-    
-    # The two files that are parallel texts (line-by-line translations)
-    file1_id = db.Column(db.Integer, db.ForeignKey('project_files.id'), nullable=False)
-    file2_id = db.Column(db.Integer, db.ForeignKey('project_files.id'), nullable=False)
-    
-    # Optional metadata about the pair
-    description = db.Column(db.String(500), nullable=True)  # e.g., "English-Spanish parallel Bible"
-    
-    # Pair-specific translation instructions
-    instructions = db.Column(db.Text, nullable=True)  # Up to 4000 chars like project instructions
-    
-    # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relationships
-    file1 = db.relationship('ProjectFile', foreign_keys=[file1_id], backref='pairs_as_file1')
-    file2 = db.relationship('ProjectFile', foreign_keys=[file2_id], backref='pairs_as_file2')
-    
-    # Ensure we don't have duplicate pairs
-    __table_args__ = (
-        db.UniqueConstraint('project_id', 'file1_id', 'file2_id', name='unique_file_pair'),
-    )
-    
-    def __repr__(self):
-        return f'<FilePair {self.file1_id}-{self.file2_id}>'
+
 
 class LanguageRule(db.Model):
     __tablename__ = 'language_rules'
