@@ -19,7 +19,7 @@
             {% else %}
                 <a href="{{ url_for('auth.login') }}" class="btn-marker text-lg inline-block">
                     <i class="fab fa-google mr-2"></i>
-                    Get Started
+                    Start Translating
                 </a>
             {% endif %}
         </div>
@@ -36,7 +36,7 @@
                 <h3 class="text-xl font-bold mb-4" style="color: #2d2d2d;">Superior First Drafts</h3>
                 <p class="text-neutral-700 font-medium leading-relaxed">While zero drafts require extensive human refinement and post-editing, they often outperform human first drafts significantly</p>
             </div>
-                          <div class="text-center">
+            <div class="text-center">
                 <div class="w-16 h-16 paper-light marker-border rounded-lg mb-6 flex items-center justify-center mx-auto">
                     <i class="fas fa-comments text-2xl" style="color: #2d2d2d;"></i>
                 </div>
@@ -51,6 +51,103 @@
                 <p class="text-neutral-700 font-medium leading-relaxed">CodexZero can leverage your past work to fill in the blanks and breathe new life into stalled translation projects</p>
             </div>
         </div>
+    </div>
+</section>
+
+<section class="py-24 px-6">
+    <div class="max-w-4xl mx-auto text-center">
+        <h2 class="text-3xl font-bold mb-8" style="color: #2d2d2d;">Simple. Powerful. Free.</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
+            <div class="p-6 paper-light marker-border rounded-lg">
+                <h3 class="text-lg font-semibold mb-3" style="color: #2d2d2d;">
+                    <i class="fas fa-clock mr-2"></i>
+                    Minutes to Get Started
+                </h3>
+                <p class="text-neutral-700 leading-relaxed">Upload your existing translation files, add simple instructions, and start generating high-quality drafts immediately.</p>
+            </div>
+            <div class="p-6 paper-light marker-border rounded-lg">
+                <h3 class="text-lg font-semibold mb-3" style="color: #2d2d2d;">
+                    <i class="fas fa-sync-alt mr-2"></i>
+                    Grows with Your Project
+                </h3>
+                <p class="text-neutral-700 leading-relaxed">The AI learns from your corrections and preferences, becoming more accurate and aligned with your translation style over time.</p>
+            </div>
+            <div class="p-6 paper-light marker-border rounded-lg">
+                <h3 class="text-lg font-semibold mb-3" style="color: #2d2d2d;">
+                    <i class="fas fa-exchange-alt mr-2"></i>
+                    Seamless Workflow
+                </h3>
+                <p class="text-neutral-700 leading-relaxed">Import from Paratext, generate drafts, and export back to your preferred translation environment without disrupting your process.</p>
+            </div>
+            <div class="p-6 paper-light marker-border rounded-lg">
+                <h3 class="text-lg font-semibold mb-3" style="color: #2d2d2d;">
+                    <i class="fas fa-heart mr-2"></i>
+                    Completely Free
+                </h3>
+                <p class="text-neutral-700 leading-relaxed">No hidden costs, no subscription fees. Professional-grade AI translation tools available to every translation team worldwide.</p>
+            </div>
+        </div>
+        
+        <div class="mt-12 mb-8">
+            <img src="{{ url_for('static', filename='image.png') }}" alt="Codex Zero Interface" class="mx-auto rounded-xl shadow-lg max-w-full h-auto transition-transform duration-300 hover:scale-105 cursor-pointer">
+        </div>
+        
+        <div class="max-w-3xl mx-auto text-left space-y-4 mb-12">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h4 class="font-semibold text-neutral-800 mb-2">
+                        <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                        Accept/Reject Drafts
+                    </h4>
+                    <p class="text-sm text-neutral-600">AI generates a draft for each verse. Accept, reject, or directly edit each translation as needed.</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-neutral-800 mb-2">
+                        <i class="fas fa-palette text-blue-600 mr-2"></i>
+                        Quality Indicators
+                    </h4>
+                    <p class="text-sm text-neutral-600">Green words appear in similar examples elsewhere. Red words are completely new, helping you focus on quality.</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-neutral-800 mb-2">
+                        <i class="fas fa-compass text-purple-600 mr-2"></i>
+                        Simple Navigation
+                    </h4>
+                    <p class="text-sm text-neutral-600">Intuitive interface lets you move through chapters and verses without complexity.</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-neutral-800 mb-2">
+                        <i class="fas fa-graduation-cap text-orange-600 mr-2"></i>
+                        Custom Models
+                    </h4>
+                    <p class="text-sm text-neutral-600">As your project grows, train custom fine-tuned models specific to your language for even higher quality.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-12">
+            {% if not current_user.is_authenticated %}
+                <a href="{{ url_for('auth.login') }}" class="btn-marker text-lg inline-block">
+                    <i class="fab fa-google mr-2"></i>
+                    Try CodexZero Now
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<section class="py-16 px-6 bg-neutral-100">
+    <div class="max-w-6xl mx-auto text-center">
+        <h2 class="text-2xl font-bold mb-4" style="color: #2d2d2d;">Need a fully fledged modern translation app?</h2>
+        <p class="text-lg text-neutral-600 mb-2">Start with Codex Zero, graduate to Codex</p>
+        <p class="text-neutral-500 mb-8">Free, open source, and cross-platform</p>
+        
+
+        
+        <a href="https://codexeditor.app" target="_blank" class="btn-marker text-lg inline-block">
+            <i class="fas fa-external-link-alt mr-2"></i>
+            Explore Codex Editor
+        </a>
     </div>
 </section>
 

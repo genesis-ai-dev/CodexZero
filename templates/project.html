@@ -115,10 +115,6 @@
                     <i class="fas fa-file-alt mr-2"></i>
                     Files
                 </button>
-                <button class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-neutral-500 hover:text-neutral-700 hover:border-neutral-300" data-tab="instructions">
-                    <i class="fas fa-magic mr-2"></i>
-                    Instructions
-                </button>
                 <button class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-neutral-500 hover:text-neutral-700 hover:border-neutral-300" data-tab="fine-tuning">
                     <i class="fas fa-brain mr-2"></i>
                     Fine-Tuning
@@ -144,36 +140,40 @@
             <!-- Files List -->
             <div class="space-y-4">
                 {% set paired_file_ids = [] %}
-                {% set file_pairs = [] %}
                 {% set unpaired_files = [] %}
                 
-                {# Identify file pairs and unpaired files #}
+                {# Identify paired file IDs and unpaired files #}
+                {% for pair in file_pairs %}
+                    {% set _ = paired_file_ids.append(pair.file1.id) %}
+                    {% set _ = paired_file_ids.append(pair.file2.id) %}
+                {% endfor %}
+                
                 {% for file in project.files %}
-                    {% if file.is_paired() and file.id not in paired_file_ids %}
-                        {% set parallel_file = file.get_parallel_file() %}
-                        {% set pair_info = {'file1': file, 'file2': parallel_file} %}
-                        {% set _ = file_pairs.append(pair_info) %}
-                        {% set _ = paired_file_ids.append(file.id) %}
-                        {% set _ = paired_file_ids.append(parallel_file.id) %}
-                    {% elif not file.is_paired() %}
+                    {% if file.id not in paired_file_ids %}
                         {% set _ = unpaired_files.append(file) %}
                     {% endif %}
                 {% endfor %}
                 
                 <!-- File Pairs -->
                 {% for pair in file_pairs %}
-                <div class="paper-cream border border-neutral-300 p-4">
+                <div class="paper-cream border border-neutral-300 p-4 mb-4">
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center">
-                            <i class="fas fa-link text-blue-600 mr-2"></i>
-                            <span class="text-sm font-bold text-neutral-800">Parallel Texts</span>
+                            <div class="w-8 h-8 paper-light border border-neutral-200 flex items-center justify-center mr-3">
+                                <i class="fas fa-link text-blue-600"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-sm" style="color: #2d2d2d;">File Pair</h3>
+                                <p class="text-xs text-neutral-600 font-medium">Line-by-line translations</p>
+                            </div>
                         </div>
-                        <button type="button" class="unpair-file-btn text-blue-600 hover:text-blue-800 text-sm font-bold"
-                                data-file-id="{{ pair.file1.id }}" 
-                                data-filename="{{ pair.file1.original_filename }}">
-                            <i class="fas fa-unlink mr-1"></i>
-                            Unpair
-                        </button>
+                        <div class="flex items-center space-x-2">
+                            <button class="unpair-file-btn px-3 py-1 text-xs bg-red-100 text-red-700 border border-red-300 font-bold hover:bg-red-200 transition-colors"
+                                    data-file-id="{{ pair.file1.id }}" 
+                                    data-filename="{{ pair.file1.original_filename }}">
+                                Unpair
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -239,6 +239,41 @@
                                             data-filename="{{ pair.file2.original_filename }}">
                                         <i class="fas fa-trash"></i>
                                     </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Translation Instructions -->
+                    <div class="mt-4 p-3 bg-blue-50 border border-blue-200">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center min-w-0 flex-1">
+                                <i class="fas fa-magic text-blue-600 mr-2 mt-0.5"></i>
+                                <div class="min-w-0 flex-1">
+                                    <h4 class="text-sm font-bold text-blue-900 mb-1">Translation Instructions</h4>
+                                    <div class="text-sm text-blue-800">
+                                        <textarea 
+                                            class="w-full p-2 border border-blue-300 bg-white text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            rows="3"
+                                            maxlength="4000"
+                                            placeholder="Add specific instructions for translating between {{ pair.file1.original_filename }} and {{ pair.file2.original_filename }}..."
+                                            data-file1-id="{{ pair.file1.id }}"
+                                            data-file2-id="{{ pair.file2.id }}"
+                                            id="instructions-{{ pair.file1.id }}-{{ pair.file2.id }}"
+                                        >{{ pair.instructions or '' }}</textarea>
+                                        <div class="flex justify-between items-center mt-2">
+                                            <div class="flex items-center space-x-2">
+                                                <p class="text-xs text-blue-600">These instructions override project-wide instructions for this pair</p>
+                                                <span class="text-xs text-blue-600 char-counter">{{ (pair.instructions or '')|length }} / 4,000</span>
+                                            </div>
+                                            <button 
+                                                class="px-3 py-1 text-xs bg-blue-600 text-white border border-blue-600 font-bold hover:bg-blue-700 transition-colors"
+                                                onclick="savePairInstructionsInline(document.getElementById('instructions-{{ pair.file1.id }}-{{ pair.file2.id }}'))"
+                                            >
+                                                <i class="fas fa-save mr-1"></i>Save
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -322,80 +357,7 @@
             {% endif %}
         </div>
 
-        <!-- Instructions Tab -->
-        <div id="instructions-tab" class="tab-content hidden">
-            <div class="max-w-3xl">
-                <div class="mb-6">
-                    <h2 class="text-xl font-bold mb-2" style="color: #2d2d2d;">Translation Instructions</h2>
-                    <p class="text-neutral-600 font-medium">Provide specific guidance to help the AI understand your translation goals and style preferences.</p>
-                </div>
-                
-                <div class="paper-cream border border-neutral-300 p-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="flex items-center">
-                            <div class="w-8 h-8 paper-light border border-neutral-200 flex items-center justify-center mr-3">
-                                <i class="fas fa-magic text-green-600"></i>
-                            </div>
-                            <div>
-                                <h3 class="font-bold" style="color: #2d2d2d;">Custom Instructions</h3>
-                                <p class="text-sm text-neutral-600 font-medium">Guide the AI translation process</p>
-                            </div>
-                        </div>
-                        {% if project.instructions and project.instructions|trim %}
-                        <span class="inline-flex items-center px-2 py-1 text-xs font-bold border border-green-600 paper-light text-green-800">
-                            Active
-                        </span>
-                        {% endif %}
-                    </div>
-                    
-                    <form id="instructions-form">
-                        <textarea 
-                            id="translation-instructions" 
-                            name="instructions"
-                            maxlength="4000"
-                            rows="8"
-                            class="w-full p-3 border border-neutral-200 paper-white text-sm font-medium resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                            placeholder="Example: Use simple vocabulary for young adults. Keep cultural references modern and accessible. Maintain a conversational tone while preserving theological accuracy..."
-                        >{{ project.instructions or '' }}</textarea>
-                        <div class="flex justify-between items-center mt-3">
-                            <span id="char-count" class="text-xs text-neutral-600 font-medium">{{ (project.instructions or '')|length }} / 4,000</span>
-                            <button type="button" id="save-instructions-btn" class="px-4 py-2 bg-green-600 text-white border border-green-600 text-sm font-bold hover:bg-green-700 transition-colors">
-                                Save Instructions
-                            </button>
-                        </div>
-                    </form>
-                </div>
-                
-                <!-- Examples and Tips -->
-                <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="p-4 bg-green-50 border border-green-200">
-                        <h4 class="font-bold text-green-800 mb-2">
-                            <i class="fas fa-check-circle mr-2"></i>
-                            Good Examples
-                        </h4>
-                        <ul class="text-sm text-green-700 space-y-1">
-                            <li>• Use simple, everyday language</li>
-                            <li>• Maintain a respectful tone</li>
-                            <li>• Keep sentences short and clear</li>
-                            <li>• Preserve theological concepts</li>
-                        </ul>
-                    </div>
-                    
-                    <div class="p-4 bg-blue-50 border border-blue-200">
-                        <h4 class="font-bold text-blue-800 mb-2">
-                            <i class="fas fa-lightbulb mr-2"></i>
-                            Tips
-                        </h4>
-                        <ul class="text-sm text-blue-700 space-y-1">
-                            <li>• Be specific about your audience</li>
-                            <li>• Mention cultural considerations</li>
-                            <li>• Include style preferences</li>
-                            <li>• Note any terms to avoid</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
+
 
         <!-- Fine-Tuning Tab -->
         <div id="fine-tuning-tab" class="tab-content hidden">
@@ -723,6 +685,8 @@
     </div>
 </div>
 
+
+
 <!-- Pairing Modal -->
 <div id="file-pairing-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
     <div class="paper-white border border-neutral-300 shadow-xl max-w-lg w-full mx-4">
@@ -750,13 +714,28 @@
                     <option value="">Choose a file...</option>
                 </select>
             </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-bold text-neutral-700 mb-2">Translation Instructions for This Pair</label>
+                <textarea 
+                    id="pair-instructions" 
+                    maxlength="4000"
+                    rows="4"
+                    class="w-full p-3 border border-neutral-200 paper-white text-sm font-medium resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Optional: Specific guidance for translating between these files (e.g., 'Use formal tone for liturgical passages', 'Prioritize literal accuracy over readability')..."
+                ></textarea>
+                <div class="flex justify-between items-center mt-2">
+                    <p class="text-xs text-neutral-600 font-medium">These instructions will override project-wide instructions for this file pair</p>
+                    <span id="pair-char-count" class="text-xs text-neutral-600 font-medium">0 / 4,000</span>
+                </div>
+            </div>
         </div>
         
         <div class="px-6 py-4 paper-cream border-t border-neutral-200 flex justify-end space-x-3">
-            <button id="close-pairing-modal-btn" class="px-4 py-2 text-neutral-600 hover:text-neutral-800 font-bold">
+            <button id="cancel-pairing-btn" class="px-4 py-2 text-neutral-600 hover:text-neutral-800 font-bold">
                 Cancel
             </button>
-            <button id="confirm-pairing-btn" class="btn-marker" disabled>
+            <button id="confirm-pairing-btn" class="px-4 py-2 bg-blue-600 text-white border border-blue-600 font-bold hover:bg-blue-700" disabled>
                 Pair Files
             </button>
         </div>

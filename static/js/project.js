@@ -52,6 +52,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmPairingBtn = document.getElementById('confirm-pairing-btn');
     const firstFileName = document.getElementById('first-file-name');
     const secondFileSelect = document.getElementById('second-file-select');
+    const pairInstructions = document.getElementById('pair-instructions');
+    const pairCharCount = document.getElementById('pair-char-count');
+    
+
     
     // Import modal sections
     const uploadSection = document.getElementById('upload-section');
@@ -158,6 +162,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+
     
     // Close import modal when clicking outside
     if (importModal) {
@@ -211,21 +217,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Instructions form handlers
-    const instructionsForm = document.getElementById('instructions-form');
-    const saveInstructionsBtn = document.getElementById('save-instructions-btn');
-    const translationInstructions = document.getElementById('translation-instructions');
-    const charCount = document.getElementById('char-count');
-    
-    if (translationInstructions && charCount) {
-        translationInstructions.addEventListener('input', function() {
+    // Character counting for pair instructions
+    if (pairInstructions && pairCharCount) {
+        pairInstructions.addEventListener('input', function() {
             const length = this.value.length;
-            charCount.textContent = `${length} / 4,000`;
+            pairCharCount.textContent = `${length} / 4,000`;
+            
+            if (length > 4000) {
+                pairCharCount.style.color = '#dc2626';
+            } else {
+                pairCharCount.style.color = '#6b7280';
+            }
         });
-    }
-    
-    if (saveInstructionsBtn) {
-        saveInstructionsBtn.addEventListener('click', saveInstructions);
     }
 
     // Fine-tuning functionality
@@ -695,54 +698,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Instructions functionality
-    function saveInstructions() {
-        const instructionsTextarea = document.getElementById('translation-instructions');
-        if (!instructionsTextarea) return;
-        
-        const instructions = instructionsTextarea.value.trim();
-        
-        if (instructions.length > 4000) {
-            alert('Instructions must be 4000 characters or less');
-            return;
-        }
-        
-        const saveBtn = document.getElementById('save-instructions-btn');
-        if (saveBtn) {
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Saving...';
-        }
-        
-        fetch(`/project/${projectId}/update-instructions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ instructions })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                if (saveBtn) {
-                    saveBtn.textContent = 'Saved!';
-                    setTimeout(() => {
-                        saveBtn.textContent = 'Save Instructions';
-                        saveBtn.disabled = false;
-                    }, 2000);
-                }
-            } else {
-                throw new Error(data.error || 'Failed to save');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Failed to save instructions');
-            if (saveBtn) {
-                saveBtn.textContent = 'Save Instructions';
-                saveBtn.disabled = false;
-            }
-        });
-    }
+
 
     // Fine-tuning functionality
     function loadFineTuningModels() {
@@ -1184,6 +1140,13 @@ document.addEventListener('DOMContentLoaded', function() {
         filePairingModal.classList.add('hidden');
         currentFileForPairing = null;
         secondFileSelect.innerHTML = '<option value="">Choose a file to pair with...</option>';
+        if (pairInstructions) {
+            pairInstructions.value = '';
+        }
+        if (pairCharCount) {
+            pairCharCount.textContent = '0 / 4,000';
+            pairCharCount.style.color = '#6b7280';
+        }
         confirmPairingBtn.disabled = true;
         confirmPairingBtn.classList.add('opacity-50', 'cursor-not-allowed');
     }
@@ -1226,15 +1189,22 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function confirmFilePairing() {
         const secondFileId = secondFileSelect.value;
+        const instructions = pairInstructions ? pairInstructions.value.trim() : '';
         
         if (!secondFileId || !currentFileForPairing) {
             alert('Please select a file to pair with');
+            return;
+        }
+
+        if (instructions.length > 4000) {
+            alert('Instructions must be 4000 characters or less');
             return;
         }
         
         confirmPairingBtn.disabled = true;
         confirmPairingBtn.textContent = 'Pairing...';
         
+        // First create the pair
         fetch(`/project/${projectId}/files/${currentFileForPairing.id}/pair/${secondFileId}`, {
             method: 'POST',
             headers: {
@@ -1244,12 +1214,37 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                // If pairing succeeded and we have instructions, save them
+                if (instructions) {
+                    return fetch(`/project/${projectId}/files/${currentFileForPairing.id}/pair/${secondFileId}/instructions`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ instructions: instructions })
+                    });
+                } else {
+                    return Promise.resolve({ json: () => ({ success: true }) });
+                }
+            } else {
+                throw new Error(data.error || 'Pairing failed');
+            }
+        })
+        .then(response => {
+            if (response.json) {
+                return response.json();
+            }
+            return response;
+        })
+        .then(data => {
+            if (data.success) {
                 closePairingModal();
-                alert(data.message);
+                alert('Files paired successfully' + (instructions ? ' with custom instructions' : ''));
                 // Refresh the page to show the pairing
                 window.location.reload();
             } else {
-                alert(data.error || 'Pairing failed');
+                alert('Pairing succeeded but failed to save instructions: ' + (data.error || 'Unknown error'));
+                window.location.reload();
             }
         })
         .catch(error => {
@@ -1288,6 +1283,76 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Unpair failed: ' + error.message);
         });
     }
+
+
+    
+    // Global function for inline pair instructions saving
+    window.savePairInstructionsInline = function(textarea) {
+        const file1Id = textarea.dataset.file1Id;
+        const file2Id = textarea.dataset.file2Id;
+        const instructions = textarea.value.trim();
+        
+        if (instructions.length > 4000) {
+            alert('Instructions must be 4000 characters or less');
+            return;
+        }
+        
+        // Find the save button
+        const saveButton = textarea.parentElement.querySelector('button');
+        
+        // Visual feedback
+        textarea.style.opacity = '0.6';
+        textarea.disabled = true;
+        
+        if (saveButton) {
+            saveButton.disabled = true;
+            saveButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
+        }
+        
+        fetch(`/project/${projectId}/files/${file1Id}/pair/${file2Id}/instructions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ instructions: instructions })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success feedback
+                textarea.style.borderColor = '#10b981';
+                if (saveButton) {
+                    saveButton.innerHTML = '<i class="fas fa-check mr-1"></i>Saved!';
+                    saveButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                    saveButton.classList.add('bg-green-600');
+                }
+                setTimeout(() => {
+                    textarea.style.borderColor = '#93c5fd';
+                    if (saveButton) {
+                        saveButton.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+                        saveButton.classList.remove('bg-green-600');
+                        saveButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                    }
+                }, 2000);
+            } else {
+                alert('Failed to save instructions: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error saving instructions:', error);
+            alert('Failed to save instructions');
+        })
+        .finally(() => {
+            textarea.style.opacity = '1';
+            textarea.disabled = false;
+            if (saveButton) {
+                saveButton.disabled = false;
+                if (saveButton.innerHTML.includes('Saving...')) {
+                    saveButton.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+                }
+            }
+        });
+    };
     
     // Close pairing modal when clicking outside
     if (filePairingModal) {
@@ -1297,6 +1362,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+
 
     // Tab switching for fine-tuning types
     function setupFineTuningTabs() {
@@ -1715,6 +1782,28 @@ document.addEventListener('DOMContentLoaded', function() {
         
         checkProgress();
     }
+
+
+    
+    // Character counting for inline pair instructions
+    document.addEventListener('input', function(e) {
+        if (e.target.matches('textarea[data-file1-id]')) {
+            const textarea = e.target;
+            const charCounter = textarea.parentElement.querySelector('.char-counter');
+            if (charCounter) {
+                const length = textarea.value.length;
+                charCounter.textContent = `${length} / 4,000`;
+                
+                if (length > 4000) {
+                    charCounter.style.color = '#dc2626';
+                    textarea.style.borderColor = '#dc2626';
+                } else {
+                    charCounter.style.color = '#2563eb';
+                    textarea.style.borderColor = '#93c5fd';
+                }
+            }
+        }
+    });
 
     // Add this near the top of the file, with other DOM element selections
     const toggleSectionBtns = document.querySelectorAll('.toggle-section-btn');

@@ -603,6 +603,54 @@ def download_project_file(project_id, file_id):
         return jsonify({'error': f'File download failed: {str(e)}'}), 500
 
 
+@files.route('/project/<int:project_id>/files/<int:file1_id>/pair/<int:file2_id>/instructions', methods=['GET'])
+@login_required
+def get_pair_instructions(project_id, file1_id, file2_id):
+    """Get instructions for a specific file pair"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    # Find the file pair
+    pair = FilePair.query.filter_by(project_id=project_id).filter(
+        ((FilePair.file1_id == file1_id) & (FilePair.file2_id == file2_id)) |
+        ((FilePair.file1_id == file2_id) & (FilePair.file2_id == file1_id))
+    ).first_or_404()
+    
+    return jsonify({
+        'success': True,
+        'instructions': pair.instructions or '',
+        'file1_name': pair.file1.original_filename,
+        'file2_name': pair.file2.original_filename
+    })
+
+
+@files.route('/project/<int:project_id>/files/<int:file1_id>/pair/<int:file2_id>/instructions', methods=['POST'])
+@login_required
+def update_pair_instructions(project_id, file1_id, file2_id):
+    """Update instructions for a specific file pair"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    # Find the file pair
+    pair = FilePair.query.filter_by(project_id=project_id).filter(
+        ((FilePair.file1_id == file1_id) & (FilePair.file2_id == file2_id)) |
+        ((FilePair.file1_id == file2_id) & (FilePair.file2_id == file1_id))
+    ).first_or_404()
+    
+    data = request.get_json()
+    instructions = data.get('instructions', '').strip()
+    
+    if len(instructions) > 4000:
+        return jsonify({'error': 'Instructions must be 4000 characters or less'}), 400
+    
+    pair.instructions = instructions if instructions else None
+    
+    try:
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to update instructions: {str(e)}'}), 500
+
+
 @files.route('/project/<int:project_id>/files/<int:file1_id>/pair/<int:file2_id>', methods=['POST'])
 @login_required
 def pair_files(project_id, file1_id, file2_id):

@@ -283,8 +283,14 @@ class FineTuningService:
         # Generate JSONL training examples
         training_examples = []
         
+        # Get instructions - pair-specific first, then project fallback
+        instructions = self._get_training_instructions(project_id, source_file_id, target_file_id, project)
+        
         # Create project-specific system prompt
         system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+        
+        if instructions:
+            system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
         
         for source_line, target_line in zip(source_lines, target_lines):
             # Only include if BOTH lines are substantial (maintain alignment)
@@ -531,6 +537,25 @@ class FineTuningService:
         estimated_cost = (total_tokens / 1000) * cost_per_1k_tokens
         return round(estimated_cost, 4)
     
+    def _get_training_instructions(self, project_id: int, source_file_id: int, target_file_id: int, project) -> str:
+        """Get training instructions - pair-specific first, then project fallback"""
+        
+        # Look for pair instructions
+        from models import FilePair
+        pair = FilePair.query.filter_by(project_id=project_id).filter(
+            ((FilePair.file1_id == source_file_id) & (FilePair.file2_id == target_file_id)) |
+            ((FilePair.file1_id == target_file_id) & (FilePair.file2_id == source_file_id))
+        ).first()
+        
+        if pair and pair.instructions and pair.instructions.strip():
+            return pair.instructions.strip()
+        
+        # Fallback to project instructions
+        if project.instructions and project.instructions.strip():
+            return project.instructions.strip()
+        
+        return None
+    
     def get_instruction_tuning_preview(self, source_file_id: int, target_file_id: int, project_id: int, max_examples: int = 100) -> Dict:
         """
         Get a preview of what instruction fine-tuning examples will look like.
@@ -588,8 +613,14 @@ class FineTuningService:
         # Get the first example for preview display
         preview_pair = selected_pairs[0]
         
+        # Get instructions - pair-specific first, then project fallback
+        instructions = self._get_training_instructions(project_id, source_file_id, target_file_id, project)
+        
         # Create project-specific system prompt
         system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+        
+        if instructions:
+            system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
         
         # Use source text as query to find context examples (limit to 5 for cleaner display)
         source_file_id_str = f"file_{source_file_id}"
@@ -711,8 +742,14 @@ class FineTuningService:
         else:
             selected_pairs = valid_pairs
         
+        # Get instructions - pair-specific first, then project fallback
+        instructions = self._get_training_instructions(project_id, source_file_id, target_file_id, project)
+        
         # Create instruction fine-tuning examples
         system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+        
+        if instructions:
+            system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
         
         source_file_id_str = f"file_{source_file_id}"
         target_file_id_str = f"file_{target_file_id}"
@@ -961,8 +998,14 @@ class FineTuningService:
         else:
             selected_pairs = valid_pairs
         
+        # Get instructions - pair-specific first, then project fallback
+        instructions = self._get_training_instructions(project_id, source_file_id, target_file_id, project)
+        
         # Create instruction fine-tuning examples
         system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+        
+        if instructions:
+            system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
         
         source_file_id_str = f"file_{source_file_id}"
         target_file_id_str = f"file_{target_file_id}"
@@ -1010,7 +1053,13 @@ class FineTuningService:
         """Process training pairs with context examples - helper method to reduce duplication"""
         from translation import _get_translation_examples
         
+        # Get instructions - pair-specific first, then project fallback
+        instructions = self._get_training_instructions(project_id, source_file_id, target_file_id, project)
+        
         system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+        
+        if instructions:
+            system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
         
         source_file_id_str = f"file_{source_file_id}"
         target_file_id_str = f"file_{target_file_id}"
@@ -1113,8 +1162,14 @@ class FineTuningService:
         else:
             selected_pairs = valid_pairs
         
+        # Get instructions - pair-specific first, then project fallback
+        instructions = self._get_training_instructions(project_id, source_file_id, target_file_id, project)
+        
         # Create context-aware instruction fine-tuning examples
         system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+        
+        if instructions:
+            system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
         
         source_file_id_str = f"file_{source_file_id}"
         target_file_id_str = f"file_{target_file_id}"

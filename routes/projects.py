@@ -158,10 +158,15 @@ def view_project(project_id):
             
             text_files.append(file_data)
     
+    # Get file pairs with instructions
+    from models import FilePair
+    file_pairs = FilePair.query.filter_by(project_id=project_id).all()
+    
     return render_template('project.html', 
                          project=project, 
                          total_available_lines=total_available_lines, 
-                         text_files=text_files)
+                         text_files=text_files,
+                         file_pairs=file_pairs)
 
 
 @projects.route('/project/<int:project_id>/edit')

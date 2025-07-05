@@ -135,6 +135,9 @@ class FilePair(db.Model):
     # Optional metadata about the pair
     description = db.Column(db.String(500), nullable=True)  # e.g., "English-Spanish parallel Bible"
     
+    # Pair-specific translation instructions
+    instructions = db.Column(db.Text, nullable=True)  # Up to 4000 chars like project instructions
+    
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     

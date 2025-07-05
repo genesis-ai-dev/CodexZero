@@ -193,8 +193,14 @@ def translate_text(project_id: int, text: str, model: str = None, temperature: f
                 project_id, source_file_id, target_file_id, text
             )
     
-    # Create system prompt
+    # Get instructions - pair-specific first, then project fallback
+    instructions = _get_translation_instructions(project_id, source_file_id, target_file_id, project)
+    
+    # Create system prompt with instructions
     system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+    
+    if instructions:
+        system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
     
     # Create user prompt with examples if available
     if examples:
@@ -222,8 +228,41 @@ def translate_text(project_id: int, text: str, model: str = None, temperature: f
         'status_msg': status_msg,
         'examples_used': len(examples),
         'temperature': temperature,
-        'project_id': project_id
+        'project_id': project_id,
+        'instructions_used': instructions is not None
     }
+
+
+def _get_translation_instructions(project_id: int, source_file_id: str, target_file_id: str, project) -> str:
+    """Get translation instructions - pair-specific first, then project fallback"""
+    
+    # Only look for pair instructions if we have both file IDs
+    if source_file_id and target_file_id:
+        # Extract file IDs and find the pair
+        source_id = None
+        target_id = None
+        
+        if source_file_id.startswith('file_'):
+            source_id = int(source_file_id.replace('file_', ''))
+        if target_file_id.startswith('file_'):
+            target_id = int(target_file_id.replace('file_', ''))
+        
+        # Look for pair in both directions
+        if source_id and target_id:
+            from models import FilePair
+            pair = FilePair.query.filter_by(project_id=project_id).filter(
+                ((FilePair.file1_id == source_id) & (FilePair.file2_id == target_id)) |
+                ((FilePair.file1_id == target_id) & (FilePair.file2_id == source_id))
+            ).first()
+            
+            if pair and pair.instructions and pair.instructions.strip():
+                return pair.instructions.strip()
+    
+    # Fallback to project instructions
+    if project.instructions and project.instructions.strip():
+        return project.instructions.strip()
+    
+    return None
 
 
 def _get_verse_content(project_id, file_id, verse_index):
@@ -628,8 +667,18 @@ def _generate_translation_with_examples(text, target_language, examples, source_
     project = Project.query.get(project_id) if project_id else None
     
     if project:
+        # Get source and target file IDs for instruction lookup
+        source_file_id = request.json.get('source_file_id') if request and request.json else None
+        target_file_id = request.json.get('target_file_id') if request and request.json else None
+        
+        # Get instructions - pair-specific first, then project fallback
+        instructions = _get_translation_instructions(project_id, source_file_id, target_file_id, project)
+        
         # Use exact same system prompt structure as fine-tuning
         system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+        
+        if instructions:
+            system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
     else:
         # Fallback system prompt if project not available
         system_prompt = f"You are an expert Bible translator specializing in {target_language} translation. Translate biblical text accurately while maintaining the meaning and tone of the original text."
