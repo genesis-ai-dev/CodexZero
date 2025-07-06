@@ -1,11 +1,12 @@
 import os
 import json
 import random
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, send_file, redirect
 from flask_login import login_required, current_user
 from thefuzz import fuzz
 from datetime import datetime
 import threading
+import io
 
 from models import Project, Translation, ProjectFile, db
 from ai.bot import Chatbot, extract_translation_from_xml
@@ -719,6 +720,87 @@ def _generate_translation_with_examples(text, target_language, examples, source_
 
 # ===== NEW TRANSLATION EDITOR ENDPOINTS =====
 
+@translation.route('/project/<int:project_id>/translations/<int:translation_id>/download')
+@login_required
+def download_translation(project_id, translation_id):
+    """Download a translation file"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
+    
+    storage = get_storage()
+    
+    try:
+        # Get translation file content
+        file_content = storage.get_file(translation.storage_path)
+        
+        # Create a safe filename
+        safe_name = "".join(c for c in translation.name if c.isalnum() or c in (' ', '-', '_')).strip()
+        safe_name = safe_name.replace(' ', '_')
+        filename = f"{safe_name}.txt"
+        
+        # For local storage, serve file directly with download headers
+        if hasattr(storage, 'base_path'):  # LocalStorage
+            return send_file(
+                io.BytesIO(file_content), 
+                as_attachment=True, 
+                download_name=filename,
+                mimetype='text/plain'
+            )
+        else:  # Cloud storage
+            # For cloud storage, redirect to a signed URL for download
+            return redirect(storage.get_file_url(translation.storage_path))
+    except Exception as e:
+        return jsonify({'error': f'Translation download failed: {str(e)}'}), 500
+
+@translation.route('/project/<int:project_id>/translations/<int:translation_id>/purpose', methods=['POST'])
+@login_required
+def update_translation_purpose(project_id, translation_id):
+    """Update the purpose description for a translation"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
+    
+    data = request.get_json()
+    description = data.get('description', '').strip()
+    
+    # Validate description length
+    if len(description) > 1000:
+        return jsonify({'error': 'Purpose description must be 1000 characters or less'}), 400
+    
+    # Update the translation description
+    translation.description = description if description else None
+    
+    try:
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': f'Updated purpose for {translation.name}'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to update purpose: {str(e)}'}), 500
+
+@translation.route('/project/<int:project_id>/translations/<int:translation_id>', methods=['DELETE'])
+@login_required
+def delete_translation(project_id, translation_id):
+    """Delete a translation"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
+    
+    # Delete from storage (if file exists)
+    storage = get_storage()
+    try:
+        storage.delete_file(translation.storage_path)
+    except Exception as e:
+        # Log the error but continue with database deletion
+        print(f"Warning: Could not delete translation from storage: {e}")
+        # This is not a fatal error - the file might already be deleted
+    
+    # Delete translation from database
+    db.session.delete(translation)
+    db.session.commit()
+    
+    return '', 204  # No content response
+
 @translation.route('/project/<int:project_id>/texts')
 @login_required
 def list_all_texts(project_id):
@@ -825,7 +907,8 @@ def create_translation(project_id):
         )
         
         db.session.add(translation)
-        db.session.commit()
+        db.session.flush()  # Ensure ID and default values are populated
+        db.session.commit()  # Save to database
         
         return jsonify({
             'success': True,
@@ -869,8 +952,9 @@ def get_chapter_verses(project_id, target_id, book, chapter):
         if not chapter_verses:
             return jsonify({'error': 'Chapter not found'}), 404
         
-        # Get target text - handle both translation IDs and file IDs
+        # Get target text and purpose information - handle both translation IDs and file IDs
         target_texts = []
+        target_purpose = ''
         if target_id.startswith('file_'):
             # Target is a file (eBible or back translation)
             file_id = int(target_id.replace('file_', ''))
@@ -878,6 +962,9 @@ def get_chapter_verses(project_id, target_id, book, chapter):
                 id=file_id,
                 project_id=project_id
             ).first_or_404()
+            
+            # Get purpose description from file
+            target_purpose = target_file.purpose_description or ''
             
             storage = get_storage()
             target_file_content = storage.get_file(target_file.storage_path)
@@ -892,6 +979,9 @@ def get_chapter_verses(project_id, target_id, book, chapter):
             translation_id = int(target_id.replace('translation_', ''))
             translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
             
+            # Get description from translation
+            target_purpose = translation.description or ''
+            
             translation_manager = TranslationFileManager(translation.storage_path)
             verse_indices = [v['index'] for v in chapter_verses]
             target_texts = translation_manager.get_chapter_verses(verse_indices)
@@ -901,6 +991,9 @@ def get_chapter_verses(project_id, target_id, book, chapter):
             try:
                 translation_id = int(target_id)
                 translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
+                
+                # Get description from translation
+                target_purpose = translation.description or ''
                 
                 translation_manager = TranslationFileManager(translation.storage_path)
                 verse_indices = [v['index'] for v in chapter_verses]
@@ -956,7 +1049,9 @@ def get_chapter_verses(project_id, target_id, book, chapter):
             'chapter': chapter,
             'verses': verses_data,
             'source_id': source_id,
-            'target_id': target_id
+            'target_id': target_id,
+            'purpose_description': target_purpose,
+            'description': target_purpose  # Include both for compatibility
         })
         
     except Exception as e:

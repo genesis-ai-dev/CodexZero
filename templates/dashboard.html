@@ -54,10 +54,12 @@
                             <i class="fas fa-calendar w-4 mr-3 text-neutral-500"></i>
                             <span class="font-medium">{{ project.updated_at.strftime('%b %d, %Y') }}</span>
                         </div>
-                        {% if project.files %}
+                        {% set regular_files = project.files|rejectattr('file_type', 'equalto', 'training_data')|list %}
+                        {% set total_files = (regular_files|length) + (project.translations|length) %}
+                        {% if total_files > 0 %}
                         <div class="flex items-center text-sm text-neutral-700">
                             <i class="fas fa-file-alt w-4 mr-3 text-neutral-500"></i>
-                            <span class="font-medium">{{ project.files|length }} file{{ 's' if project.files|length != 1 else '' }}</span>
+                            <span class="font-medium">{{ total_files }} file{{ 's' if total_files != 1 else '' }}</span>
                         </div>
                         {% endif %}
                     </div>

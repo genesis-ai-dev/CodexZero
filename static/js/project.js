@@ -36,6 +36,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
     const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
     const downloadOriginalBtn = document.getElementById('download-original-btn');
+    
+    // Translation management modal elements
+    const deleteTranslationModal = document.getElementById('delete-translation-modal');
+    const closeDeleteTranslationModalBtn = document.getElementById('close-delete-translation-modal-btn');
+    const cancelDeleteTranslationBtn = document.getElementById('cancel-delete-translation-btn');
+    const confirmDeleteTranslationBtn = document.getElementById('confirm-delete-translation-btn');
 
     // Combined import modal elements
     const openImportModalBtn = document.getElementById('open-import-modal-btn');
@@ -70,6 +76,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const corpusNoResults = document.getElementById('corpus-no-results');
     
     let currentFileToDelete = null;
+    let currentTranslationToDelete = null;
     let originalDownloaded = false;
     let currentFileForPairing = null;
     let selectedCorpusFile = null;
@@ -85,12 +92,24 @@ document.addEventListener('DOMContentLoaded', function() {
             const fileId = btn.getAttribute('data-file-id');
             const filename = btn.getAttribute('data-filename');
             openDeleteFileModal(fileId, filename);
+        } else if (e.target.closest('.delete-translation-btn')) {
+            const btn = e.target.closest('.delete-translation-btn');
+            const translationId = btn.getAttribute('data-translation-id');
+            const translationName = btn.getAttribute('data-translation-name');
+            openDeleteTranslationModal(translationId, translationName);
         } else if (e.target.closest('.save-purpose-btn')) {
             const btn = e.target.closest('.save-purpose-btn');
             const fileId = btn.getAttribute('data-file-id');
             const purposeInput = document.querySelector(`.purpose-input[data-file-id="${fileId}"]`);
             if (purposeInput) {
                 saveFilePurpose(fileId, purposeInput, btn);
+            }
+        } else if (e.target.closest('.save-translation-purpose-btn')) {
+            const btn = e.target.closest('.save-translation-purpose-btn');
+            const translationId = btn.getAttribute('data-translation-id');
+            const purposeInput = document.querySelector(`.translation-purpose-input[data-translation-id="${translationId}"]`);
+            if (purposeInput) {
+                saveTranslationPurpose(translationId, purposeInput, btn);
             }
         }
     });
@@ -99,6 +118,20 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('input', function(e) {
         if (e.target.classList.contains('purpose-input')) {
             const charCounter = e.target.parentElement.querySelector('.char-counter');
+            if (charCounter) {
+                const length = e.target.value.length;
+                charCounter.textContent = `${length} / 1,000`;
+                
+                if (length > 1000) {
+                    charCounter.style.color = '#dc2626';
+                    e.target.style.borderColor = '#dc2626';
+                } else {
+                    charCounter.style.color = '#6b7280';
+                    e.target.style.borderColor = '';
+                }
+            }
+        } else if (e.target.classList.contains('translation-purpose-input')) {
+            const charCounter = e.target.parentElement.querySelector('.translation-char-counter');
             if (charCounter) {
                 const length = e.target.value.length;
                 charCounter.textContent = `${length} / 1,000`;
@@ -131,6 +164,19 @@ document.addEventListener('DOMContentLoaded', function() {
             originalDownloaded = true;
             updateDeleteButtonState();
         });
+    }
+    
+    // Translation delete modal event listeners
+    if (closeDeleteTranslationModalBtn) {
+        closeDeleteTranslationModalBtn.addEventListener('click', closeDeleteTranslationModal);
+    }
+    
+    if (cancelDeleteTranslationBtn) {
+        cancelDeleteTranslationBtn.addEventListener('click', closeDeleteTranslationModal);
+    }
+    
+    if (confirmDeleteTranslationBtn) {
+        confirmDeleteTranslationBtn.addEventListener('click', deleteTranslation);
     }
 
     // Combined import modal event listeners
@@ -397,6 +443,41 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Error:', error);
             alert('Error deleting file');
+        });
+    }
+    
+    function openDeleteTranslationModal(translationId, translationName) {
+        currentTranslationToDelete = translationId;
+        document.getElementById('delete-translation-filename').textContent = translationName;
+        deleteTranslationModal.classList.remove('hidden');
+    }
+    
+    function closeDeleteTranslationModal() {
+        currentTranslationToDelete = null;
+        deleteTranslationModal.classList.add('hidden');
+    }
+    
+    function deleteTranslation() {
+        if (!currentTranslationToDelete) return;
+        
+        fetch(`/project/${projectId}/translations/${currentTranslationToDelete}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                return response.json().then(data => {
+                    throw new Error(data.error || 'Failed to delete translation');
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting translation');
         });
     }
     
@@ -1127,6 +1208,60 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify({ 
                 purpose_description: purposeDescription,
                 file_purpose: purposeDescription ? 'custom' : null
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success feedback
+                purposeInput.style.borderColor = '#10b981';
+                button.innerHTML = '<i class="fas fa-check mr-1"></i>Saved!';
+                
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    purposeInput.style.borderColor = '';
+                    button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+                }, 2000);
+            } else {
+                alert('Failed to save purpose: ' + (data.error || 'Unknown error'));
+                purposeInput.style.borderColor = '#ef4444';
+                button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+            }
+        })
+        .catch(error => {
+            console.error('Save error:', error);
+            alert('Failed to save purpose: ' + error.message);
+            purposeInput.style.borderColor = '#ef4444';
+            button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+        })
+        .finally(() => {
+            purposeInput.style.opacity = '1';
+            purposeInput.disabled = false;
+            button.disabled = false;
+        });
+    }
+    
+    function saveTranslationPurpose(translationId, purposeInput, button) {
+        const purposeDescription = purposeInput.value.trim();
+        
+        if (purposeDescription.length > 1000) {
+            alert('Purpose description must be 1000 characters or less');
+            return;
+        }
+        
+        // Visual feedback
+        purposeInput.style.opacity = '0.6';
+        purposeInput.disabled = true;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
+        
+        fetch(`/project/${projectId}/translations/${translationId}/purpose`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                description: purposeDescription
             })
         })
         .then(response => response.json())

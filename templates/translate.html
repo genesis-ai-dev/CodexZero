@@ -407,13 +407,38 @@ class TranslationEditor {
             
             this.showLoadingFeedback(isTranslation);
             
+            // For translations, we need to find a source text to compare against
+            let sourceId = textId;
+            if (isTranslation) {
+                // Find the first available non-translation text as source
+                let foundSource = null;
+                for (const [id, metadata] of this.textMetadata) {
+                    if (metadata.type !== 'Translation' && !id.includes('translation_')) {
+                        foundSource = id;
+                        break;
+                    }
+                }
+                
+                if (!foundSource) {
+                    // No source texts available - show helpful message
+                    console.warn('No source texts available for translation');
+                    alert('Please upload a source text (like an eBible file) before creating translations. You can upload files from the project dashboard.');
+                    return;
+                }
+                
+                sourceId = foundSource;
+            }
+            
             const response = await fetch(
-                `/project/${this.projectId}/translation/${textId}/chapter/${this.currentBook}/${this.currentChapter}?source_id=${textId}`
+                `/project/${this.projectId}/translation/${textId}/chapter/${this.currentBook}/${this.currentChapter}?source_id=${sourceId}`
             );
             const data = await response.json();
             
             if (!data.verses) {
                 console.error('Error loading text:', data.error);
+                if (data.error) {
+                    alert('Error loading text: ' + data.error);
+                }
                 return;
             }
             
@@ -437,6 +462,7 @@ class TranslationEditor {
         } catch (error) {
             console.error('Error loading text:', error);
             this.showErrorFeedback();
+            alert('Failed to load text. Please try again.');
         }
     }
     

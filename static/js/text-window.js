@@ -71,7 +71,181 @@ class TextWindow {
         // Add drop listeners to the entire window element
         this.addWindowDropListeners(textWindow);
         
+        // Add purpose functionality event listeners
+        this.addPurposeEventListeners();
+        
         return textWindow;
+    }
+    
+    addPurposeEventListeners() {
+        if (!this.element) return;
+        
+        // Add click listener for save buttons
+        this.element.addEventListener('click', (e) => {
+            if (e.target.closest('.save-purpose-btn')) {
+                const btn = e.target.closest('.save-purpose-btn');
+                const fileId = btn.getAttribute('data-file-id');
+                const purposeInput = this.element.querySelector(`.purpose-input[data-file-id="${fileId}"]`);
+                if (purposeInput) {
+                    this.saveFilePurpose(fileId, purposeInput, btn);
+                }
+            } else if (e.target.closest('.save-translation-purpose-btn')) {
+                const btn = e.target.closest('.save-translation-purpose-btn');
+                const translationId = btn.getAttribute('data-translation-id');
+                const purposeInput = this.element.querySelector(`.translation-purpose-input[data-translation-id="${translationId}"]`);
+                if (purposeInput) {
+                    this.saveTranslationPurpose(translationId, purposeInput, btn);
+                }
+            }
+        });
+        
+        // Add input listener for character counting
+        this.element.addEventListener('input', (e) => {
+            if (e.target.classList.contains('purpose-input')) {
+                const charCounter = e.target.parentElement.querySelector('.char-counter');
+                if (charCounter) {
+                    const length = e.target.value.length;
+                    charCounter.textContent = `${length}/1,000`;
+                    
+                    if (length > 1000) {
+                        charCounter.style.color = '#dc2626';
+                        e.target.style.borderColor = '#dc2626';
+                    } else {
+                        charCounter.style.color = '#6b7280';
+                        e.target.style.borderColor = '';
+                    }
+                }
+            } else if (e.target.classList.contains('translation-purpose-input')) {
+                const charCounter = e.target.parentElement.querySelector('.translation-char-counter');
+                if (charCounter) {
+                    const length = e.target.value.length;
+                    charCounter.textContent = `${length}/1,000`;
+                    
+                    if (length > 1000) {
+                        charCounter.style.color = '#dc2626';
+                        e.target.style.borderColor = '#dc2626';
+                    } else {
+                        charCounter.style.color = '#6b7280';
+                        e.target.style.borderColor = '';
+                    }
+                }
+            }
+        });
+    }
+    
+    saveFilePurpose(fileId, purposeInput, button) {
+        const purposeDescription = purposeInput.value.trim();
+        
+        if (purposeDescription.length > 1000) {
+            alert('Purpose description must be 1000 characters or less');
+            return;
+        }
+        
+        // Get project ID from URL
+        const projectId = window.location.pathname.split('/')[2];
+        
+        // Visual feedback
+        purposeInput.style.opacity = '0.6';
+        purposeInput.disabled = true;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
+        
+        fetch(`/project/${projectId}/files/${fileId}/purpose`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                purpose_description: purposeDescription,
+                file_purpose: purposeDescription ? 'custom' : null
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success feedback
+                purposeInput.style.borderColor = '#10b981';
+                button.innerHTML = '<i class="fas fa-check mr-1"></i>Saved!';
+                
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    purposeInput.style.borderColor = '';
+                    button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+                }, 2000);
+            } else {
+                alert('Failed to save purpose: ' + (data.error || 'Unknown error'));
+                purposeInput.style.borderColor = '#ef4444';
+                button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+            }
+        })
+        .catch(error => {
+            console.error('Save error:', error);
+            alert('Failed to save purpose: ' + error.message);
+            purposeInput.style.borderColor = '#ef4444';
+            button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+        })
+        .finally(() => {
+            purposeInput.style.opacity = '1';
+            purposeInput.disabled = false;
+            button.disabled = false;
+        });
+    }
+    
+    saveTranslationPurpose(translationId, purposeInput, button) {
+        const purposeDescription = purposeInput.value.trim();
+        
+        if (purposeDescription.length > 1000) {
+            alert('Purpose description must be 1000 characters or less');
+            return;
+        }
+        
+        // Get project ID from URL
+        const projectId = window.location.pathname.split('/')[2];
+        
+        // Visual feedback
+        purposeInput.style.opacity = '0.6';
+        purposeInput.disabled = true;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
+        
+        fetch(`/project/${projectId}/translations/${translationId}/purpose`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                description: purposeDescription
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success feedback
+                purposeInput.style.borderColor = '#10b981';
+                button.innerHTML = '<i class="fas fa-check mr-1"></i>Saved!';
+                
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    purposeInput.style.borderColor = '';
+                    button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+                }, 2000);
+            } else {
+                alert('Failed to save purpose: ' + (data.error || 'Unknown error'));
+                purposeInput.style.borderColor = '#ef4444';
+                button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+            }
+        })
+        .catch(error => {
+            console.error('Save error:', error);
+            alert('Failed to save purpose: ' + error.message);
+            purposeInput.style.borderColor = '#ef4444';
+            button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+        })
+        .finally(() => {
+            purposeInput.style.opacity = '1';
+            purposeInput.disabled = false;
+            button.disabled = false;
+        });
     }
     
     getThemeClasses() {
@@ -440,6 +614,32 @@ class TextWindow {
             return content;
         }
         
+        // Add simple purpose section at the top
+        const purposeSection = document.createElement('div');
+        purposeSection.className = 'mb-4 p-3 bg-gray-50 border border-gray-200 rounded-sm';
+        
+
+        
+        const currentPurpose = this.data?.purpose_description || this.data?.description || '';
+        const isTranslation = this.id.includes('translation_');
+        
+        purposeSection.innerHTML = `
+            <label class="block text-xs font-semibold text-gray-700 mb-1">${isTranslation ? 'Translation Purpose' : 'File Purpose'}</label>
+            <textarea class="w-full px-2 py-1 border border-gray-300 bg-white text-xs resize-none ${isTranslation ? 'translation-purpose-input' : 'purpose-input'}" 
+                      rows="2" 
+                      placeholder="e.g., This is a back translation, This is a translation into Spanish..."
+                      data-${isTranslation ? 'translation-id' : 'file-id'}="${this.id.replace(isTranslation ? 'translation_' : 'file_', '')}"
+                      maxlength="1000">${currentPurpose}</textarea>
+            <div class="flex justify-between items-center mt-1">
+                <span class="text-xs text-gray-500 char-counter">${currentPurpose.length}/1,000</span>
+                <button class="${isTranslation ? 'save-translation-purpose-btn' : 'save-purpose-btn'} inline-flex items-center px-2 py-1 text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors rounded-sm"
+                        data-${isTranslation ? 'translation-id' : 'file-id'}="${this.id.replace(isTranslation ? 'translation_' : 'file_', '')}">
+                    <i class="fas fa-save mr-1"></i>Save
+                </button>
+            </div>
+        `;
+        content.appendChild(purposeSection);
+        
         this.data.verses.forEach(verseData => {
             const verseWrapper = this.createVerseElement(verseData);
             content.appendChild(verseWrapper);
@@ -447,6 +647,9 @@ class TextWindow {
         
         return content;
     }
+    
+
+
     
     createVerseElement(verseData) {
         const verseWrapper = document.createElement('div');
