@@ -42,19 +42,36 @@ class TranslationSave {
     
     updateSaveButtonState() {
         const saveBtn = document.getElementById('save-changes-btn');
-        if (!saveBtn) return;
+        const mobileSaveBtn = document.getElementById('mobile-save-button');
+        
+        if (!saveBtn && !mobileSaveBtn) return;
         
         const changeCount = this.editor.unsavedChanges.size;
         const hasChanges = this.editor.hasUnsavedChanges && changeCount > 0;
         
-        saveBtn.disabled = !hasChanges;
-        saveBtn.textContent = hasChanges ? `SAVE CHANGES (${changeCount})` : 'NO CHANGES TO SAVE';
-        
-        const styles = hasChanges ? 
-            { background: '#dcfce7', color: '#166534', borderColor: '#166534' } :
-            { background: '#e5e5e5', color: '#2d2d2d', borderColor: '#2d2d2d' };
+        // Update desktop save button
+        if (saveBtn) {
+            saveBtn.disabled = !hasChanges;
+            saveBtn.textContent = hasChanges ? `SAVE CHANGES (${changeCount})` : 'NO CHANGES TO SAVE';
             
-        Object.assign(saveBtn.style, styles);
+            const styles = hasChanges ? 
+                { background: '#dcfce7', color: '#166534', borderColor: '#166534' } :
+                { background: '#e5e5e5', color: '#2d2d2d', borderColor: '#2d2d2d' };
+                
+            Object.assign(saveBtn.style, styles);
+        }
+        
+        // Update mobile save button
+        if (mobileSaveBtn) {
+            mobileSaveBtn.disabled = !hasChanges;
+            if (hasChanges) {
+                mobileSaveBtn.classList.add('has-changes');
+                mobileSaveBtn.innerHTML = `<i class="fas fa-save mr-2"></i> Save (${changeCount})`;
+            } else {
+                mobileSaveBtn.classList.remove('has-changes');
+                mobileSaveBtn.innerHTML = '<i class="fas fa-save mr-2"></i> Save';
+            }
+        }
     }
     
     async saveAllChanges() {
@@ -67,9 +84,15 @@ class TranslationSave {
         }
         
         const saveBtn = document.getElementById('save-changes-btn');
+        const mobileSaveBtn = document.getElementById('mobile-save-button');
+        
         if (saveBtn) {
             saveBtn.disabled = true;
             saveBtn.textContent = 'Saving...';
+        }
+        if (mobileSaveBtn) {
+            mobileSaveBtn.disabled = true;
+            mobileSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...';
         }
         
         try {
@@ -94,11 +117,19 @@ class TranslationSave {
                 saveBtn.textContent = 'Saved!';
                 setTimeout(() => this.updateSaveButtonState(), 2000);
             }
+            if (mobileSaveBtn) {
+                mobileSaveBtn.innerHTML = '<i class="fas fa-check mr-2"></i> Saved!';
+                setTimeout(() => this.updateSaveButtonState(), 2000);
+            }
         } catch (error) {
             console.error('Error saving changes:', error);
             if (saveBtn) {
                 saveBtn.textContent = 'Save Failed - Retry';
                 saveBtn.disabled = false;
+            }
+            if (mobileSaveBtn) {
+                mobileSaveBtn.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i> Retry';
+                mobileSaveBtn.disabled = false;
             }
         }
     }

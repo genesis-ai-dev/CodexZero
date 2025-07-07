@@ -89,7 +89,16 @@
         </div>
         
         <div class="mt-12 mb-8">
-            <img src="{{ url_for('static', filename='image.png') }}" alt="Codex Zero Interface" class="mx-auto rounded-xl shadow-lg max-w-full h-auto transition-transform duration-300 hover:scale-105 cursor-pointer">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                <div class="text-center">
+                    <h4 class="text-lg font-semibold mb-4 text-neutral-800">Desktop Experience</h4>
+                    <img src="{{ url_for('static', filename='desktoplayout.png') }}" alt="Codex Zero Desktop Interface" class="mx-auto rounded-xl shadow-lg h-80 w-auto transition-transform duration-300 hover:scale-105 cursor-pointer">
+                </div>
+                <div class="text-center">
+                    <h4 class="text-lg font-semibold mb-4 text-neutral-800">Mobile Ready</h4>
+                    <img src="{{ url_for('static', filename='mobile.png') }}" alt="Codex Zero Mobile Interface" class="mx-auto rounded-xl shadow-lg h-80 w-auto transition-transform duration-300 hover:scale-105 cursor-pointer">
+                </div>
+            </div>
         </div>
         
         <div class="max-w-3xl mx-auto text-left space-y-4 mb-12">
