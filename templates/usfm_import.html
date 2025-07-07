@@ -50,7 +50,7 @@
                     </div>
                     <div class="text-neutral-400 text-2xl font-bold">of</div>
                     <div>
-                        <div class="text-3xl font-bold text-neutral-700" id="total-verses">31,170</div>
+                        <div class="text-3xl font-bold text-neutral-700" id="total-verses">0</div>
                         <div class="text-sm text-neutral-600 font-medium">Total Verses</div>
                     </div>
                 </div>
@@ -75,7 +75,7 @@
                     <div class="paper-white p-4 marker-border-thin">
                         <input type="file" 
                                id="usfm-files" 
-                               accept=".usfm,.sfm,.txt" 
+                               accept=".usfm,.sfm" 
                                multiple 
                                class="block w-full text-sm text-neutral-500 file:mr-4 file:py-2 file:px-4 file:marker-border-thin file:paper-light file:text-sm file:font-medium file:text-purple-600 hover:file:bg-purple-50 transition-colors">
                     </div>
@@ -86,7 +86,7 @@
                     </button>
                     
                     <div class="text-xs text-neutral-500 text-center font-medium">
-                        Supports .usfm, .sfm, and .txt files • Upload books individually or all at once
+                        Supports .usfm and .sfm files • Upload books individually or all at once
                     </div>
                 </div>
             </div>
@@ -142,12 +142,7 @@
 <script>
     const projectId = {{ project.id }};
     let uploadedFiles = [];
-    let currentStats = {
-        total_verses: 31170,
-        filled_verses: 0,
-        missing_verses: 31170,
-        completion_percentage: 0
-    };
+    let currentStats = { total_verses: 0, filled_verses: 0, missing_verses: 0, completion_percentage: 0 };
 
     // DOM Elements
     const uploadBtn = document.getElementById('upload-btn');
@@ -160,6 +155,7 @@
     const progressBar = document.getElementById('progress-bar');
     const completionPercentage = document.getElementById('completion-percentage');
     const filledVerses = document.getElementById('filled-verses');
+    const totalVerses = document.getElementById('total-verses');
 
     // Upload button handler
     uploadBtn.addEventListener('click', function() {
@@ -201,19 +197,13 @@
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Add uploaded files to list
-                data.uploaded_files.forEach(file => {
-                    addUploadedFile(file);
-                });
-                
-                // Update progress
-                updateProgress(data.stats);
-                
-                // Clear file input
-                fileInput.value = '';
-                
-                // Show success message
+                // Show success message and redirect
                 showMessage(data.message, 'success');
+                
+                // Redirect to project page after success
+                setTimeout(() => {
+                    window.location.href = `/project/${projectId}`;
+                }, 1500);
                 
             } else {
                 showMessage(data.error || 'Upload failed', 'error');
@@ -232,25 +222,22 @@
 
     function addUploadedFile(file) {
         // Hide no files message
-        noFilesMessage.classList.add('hidden');
+        if (noFilesMessage) {
+            noFilesMessage.remove();
+        }
         
         // Create file element
         const fileElement = document.createElement('div');
-        fileElement.className = 'flex items-center justify-between p-4 paper-white marker-border-thin hover:paper-light transition-colors';
+        fileElement.className = 'paper-white p-4 marker-border-thin flex items-center justify-between';
         fileElement.innerHTML = `
-            <div class="flex items-center space-x-3">
-                <i class="fas fa-check-circle text-green-600"></i>
+            <div class="flex items-center">
+                <i class="fas fa-file-code text-green-600 mr-3"></i>
                 <div>
-                    <div class="font-bold text-sm" style="color: #2d2d2d;">${file.filename}</div>
-                    <div class="text-xs text-neutral-600 font-medium">
-                        ${file.verses_count} verses • ${file.books.join(', ')}
-                    </div>
+                    <div class="font-medium text-sm">${file.filename}</div>
+                    <div class="text-xs text-neutral-600">${file.verses_count} verses • ${file.books.join(', ')}</div>
                 </div>
             </div>
-            <div class="text-xs text-green-600 font-bold">
-                <i class="fas fa-check mr-1"></i>
-                Uploaded
-            </div>
+            <div class="text-xs text-green-600 font-medium">Added</div>
         `;
         
         uploadedFilesList.appendChild(fileElement);
@@ -272,6 +259,7 @@
         // Update text values
         completionPercentage.textContent = `${stats.completion_percentage.toFixed(1)}%`;
         filledVerses.textContent = stats.filled_verses.toLocaleString();
+        totalVerses.textContent = stats.total_verses.toLocaleString();
     }
 
     function completeImport() {

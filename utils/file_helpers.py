@@ -3,6 +3,7 @@ import uuid
 import io
 import json
 import re
+import chardet
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
@@ -10,16 +11,23 @@ from models import db, ProjectFile, LanguageRule
 from storage import get_storage
 
 
-def detect_usfm_content(file_content: str) -> bool:
+def detect_usfm_content(file_content: str, filename: str = "") -> bool:
     """
     Detect if file content contains USFM markers.
     
     Args:
         file_content: The file content as a string
+        filename: The filename to check extension
         
     Returns:
         bool: True if USFM markers are detected, False otherwise
     """
+    # Check file extension first
+    if filename:
+        ext = filename.lower()
+        if not (ext.endswith('.usfm') or ext.endswith('.sfm')):
+            return False
+    
     # Common USFM markers that indicate structured biblical text
     usfm_markers = [
         r'\\id\s+',      # Book identification
@@ -124,5 +132,7 @@ def save_project_file(project_id: int, file_data, filename: str, file_type: str,
 
 
 def safe_decode_content(file_content):
-    """Simple UTF-8 decode that ignores problematic bytes"""
-    return file_content.decode('utf-8', errors='ignore') 
+    """Auto-detect encoding to preserve all characters with zero information loss"""
+    detected = chardet.detect(file_content)
+    encoding = detected['encoding'] if detected and detected['encoding'] else 'utf-8'
+    return file_content.decode(encoding) 

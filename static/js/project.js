@@ -43,13 +43,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const cancelDeleteTranslationBtn = document.getElementById('cancel-delete-translation-btn');
     const confirmDeleteTranslationBtn = document.getElementById('confirm-delete-translation-btn');
 
-    // Combined import modal elements
-    const openImportModalBtn = document.getElementById('open-import-modal-btn');
-    const openImportModalBtnEmpty = document.getElementById('open-import-modal-btn-empty');
-    const importModal = document.getElementById('import-modal');
-    const closeImportModalBtn = document.getElementById('close-import-modal-btn');
-    const cancelImportBtn = document.getElementById('cancel-import-btn');
-    const confirmImportBtn = document.getElementById('confirm-import-btn');
+    // Note: Import modal replaced with drag and drop interface
     
     // File pairing modal elements
     const filePairingModal = document.getElementById('file-pairing-modal');
@@ -63,24 +57,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
 
     
-    // Import modal sections
-    const uploadSection = document.getElementById('upload-section');
-    const corpusSection = document.getElementById('corpus-section');
-    
-    // Corpus elements
-    const corpusFilesLoading = document.getElementById('corpus-files-loading');
-    const corpusFilesList = document.getElementById('corpus-files-list');
-    const corpusFilesEmpty = document.getElementById('corpus-files-empty');
-    const corpusSearchSection = document.getElementById('corpus-search-section');
-    const corpusSearchInput = document.getElementById('corpus-search');
-    const corpusNoResults = document.getElementById('corpus-no-results');
+    // Note: Complex import sections replaced with simple drag and drop
     
     let currentFileToDelete = null;
     let currentTranslationToDelete = null;
     let originalDownloaded = false;
     let currentFileForPairing = null;
-    let selectedCorpusFile = null;
-    let currentImportMethod = 'upload';
     
     const projectId = window.location.pathname.split('/')[2];
     console.log('Project ID:', projectId);
@@ -179,82 +161,8 @@ document.addEventListener('DOMContentLoaded', function() {
         confirmDeleteTranslationBtn.addEventListener('click', deleteTranslation);
     }
 
-    // Combined import modal event listeners
-    if (openImportModalBtn) {
-        openImportModalBtn.addEventListener('click', openImportModal);
-    }
-    
-    if (openImportModalBtnEmpty) {
-        openImportModalBtnEmpty.addEventListener('click', openImportModal);
-    }
-    
-    if (closeImportModalBtn) {
-        closeImportModalBtn.addEventListener('click', closeImportModal);
-    }
-    
-    if (cancelImportBtn) {
-        cancelImportBtn.addEventListener('click', closeImportModal);
-    }
-    
-    if (confirmImportBtn) {
-        confirmImportBtn.addEventListener('click', handleImport);
-    }
-    
-
-
-
-    
-    // Close import modal when clicking outside
-    if (importModal) {
-        importModal.addEventListener('click', function(e) {
-            if (e.target === importModal) {
-                closeImportModal();
-            }
-        });
-    }
-    
-    // Handle import method selection
-    document.addEventListener('change', function(e) {
-        if (e.target.name === 'import_method') {
-            currentImportMethod = e.target.value;
-            updateImportSections();
-            updateImportButton();
-        }
-        
-        if (e.target.name === 'upload_method' && e.target.closest('#import-modal')) {
-            const fileSection = document.getElementById('file-upload-section');
-            const textSection = document.getElementById('text-paste-section');
-            
-            if (e.target.value === 'file') {
-                fileSection.classList.remove('hidden');
-                textSection.classList.add('hidden');
-            } else {
-                fileSection.classList.add('hidden');
-                textSection.classList.remove('hidden');
-            }
-            updateImportButton();
-        }
-    });
-
-    // Handle text input line counting
-    const textContentUpload = document.getElementById('text-content-upload');
-    const uploadLineCount = document.getElementById('upload-line-count');
-    
-    if (textContentUpload && uploadLineCount) {
-        textContentUpload.addEventListener('input', function() {
-            const lines = this.value.split('\n').length;
-            uploadLineCount.textContent = `${lines} lines`;
-            updateImportButton();
-        });
-    }
-
-    // Handle file upload input change
-    const textFileUpload = document.getElementById('text-file-upload');
-    if (textFileUpload) {
-        textFileUpload.addEventListener('change', function() {
-            updateImportButton();
-        });
-    }
+    // Initialize drag and drop file upload
+    setupDragAndDrop();
 
 
 
@@ -503,7 +411,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         // Clear file input and text area
-        const fileInput = document.getElementById('text-file-upload');
+        const fileInput = document.getElementById('file-input');
         const textArea = document.getElementById('text-content-upload');
         if (fileInput) fileInput.value = '';
         if (textArea) textArea.value = '';
@@ -522,6 +430,7 @@ document.addEventListener('DOMContentLoaded', function() {
         switch(currentImportMethod) {
             case 'upload':
                 uploadSection.classList.remove('hidden');
+                setupDragAndDrop(); // Initialize drag and drop for upload
                 break;
             case 'corpus':
                 corpusSection.classList.remove('hidden');
@@ -537,14 +446,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         switch(currentImportMethod) {
             case 'upload':
-                const uploadMethod = document.querySelector('input[name="upload_method"]:checked')?.value;
-                if (uploadMethod === 'file') {
-                    const fileInput = document.getElementById('text-file-upload');
-                    canImport = fileInput && fileInput.files.length > 0;
-                } else if (uploadMethod === 'text') {
-                    const textArea = document.getElementById('text-content-upload');
-                    canImport = textArea && textArea.value.trim().length > 0;
-                }
+                const fileInput = document.getElementById('file-input');
+                canImport = fileInput && fileInput.files.length > 0;
                 break;
             case 'corpus':
                 canImport = selectedCorpusFile !== null;
@@ -1848,4 +1751,164 @@ document.addEventListener('DOMContentLoaded', function() {
             chevron.classList.remove('rotate-180');
         }
     };
+
+    // Simple drag and drop file upload
+    function setupDragAndDrop() {
+        // Prevent duplicate setup
+        if (window.dragDropSetup) {
+            console.log('Drag and drop already set up, skipping...');
+            return;
+        }
+        window.dragDropSetup = true;
+        
+        // Get drag and drop zones
+        const dragDropZone = document.getElementById('drag-drop-zone');
+        const dragDropZoneEmpty = document.getElementById('drag-drop-zone-empty');
+        const fileInput = document.getElementById('file-input');
+        const fileInputEmpty = document.getElementById('file-input-empty');
+        
+        console.log('Setting up drag and drop zones...');
+        
+        // Setup for main drag zone (when files exist)
+        if (dragDropZone && fileInput) {
+            console.log('Setting up main drag zone');
+            setupDragAndDropZone(dragDropZone, fileInput, 'upload-progress', 'progress-bar');
+        }
+        
+        // Setup for empty state drag zone
+        if (dragDropZoneEmpty && fileInputEmpty) {
+            console.log('Setting up empty state drag zone');
+            setupDragAndDropZone(dragDropZoneEmpty, fileInputEmpty, 'upload-progress-empty', 'progress-bar-empty');
+        }
+    }
+    
+    function setupDragAndDropZone(zone, input, progressId, progressBarId) {
+        // Click to upload
+        zone.addEventListener('click', () => {
+            input.click();
+        });
+        
+        // File input change
+        input.addEventListener('change', (e) => {
+            console.log('File input change - files:', e.target.files);
+            if (e.target.files.length > 0) {
+                const files = Array.from(e.target.files);
+                // Clear the input immediately to prevent duplicate events
+                e.target.value = '';
+                handleFileUpload(files, progressId, progressBarId);
+            }
+        });
+        
+        // Drag and drop events
+        zone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            zone.classList.add('border-blue-500', 'bg-blue-100');
+        });
+        
+        zone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            zone.classList.remove('border-blue-500', 'bg-blue-100');
+        });
+        
+        zone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            zone.classList.remove('border-blue-500', 'bg-blue-100');
+            
+            const files = Array.from(e.dataTransfer.files);
+            console.log('Drop event - files:', files);
+            if (files.length > 0) {
+                handleFileUpload(files, progressId, progressBarId);
+            }
+        });
+    }
+    
+    function handleFileUpload(files, progressId, progressBarId) {
+        console.log('handleFileUpload called with files:', files);
+        const progressElement = document.getElementById(progressId);
+        const progressBar = document.getElementById(progressBarId);
+        
+        // Check for non-.txt files and redirect to USFM importer
+        const nonTxtFiles = files.filter(file => {
+            const ext = '.' + file.name.toLowerCase().split('.').pop();
+            console.log(`File: ${file.name}, Extension: ${ext}, Is non-txt: ${['.usfm', '.sfm'].includes(ext)}`);
+            return ['.usfm', '.sfm'].includes(ext);
+        });
+        
+        console.log('Non-txt files found:', nonTxtFiles);
+        
+        if (nonTxtFiles.length > 0) {
+            console.log('Redirecting to USFM importer...');
+            // Redirect to USFM importer for non-.txt files
+            window.location.href = `/project/${projectId}/usfm-import`;
+            return;
+        }
+        
+        // Show progress for .txt files
+        if (progressElement) progressElement.classList.remove('hidden');
+        
+        // Filter for .txt files only
+        const txtFiles = files.filter(file => {
+            const ext = '.' + file.name.toLowerCase().split('.').pop();
+            return ext === '.txt';
+        });
+        
+        if (txtFiles.length === 0) {
+            alert('Please select .txt files or use the USFM importer for .usfm/.sfm files');
+            if (progressElement) progressElement.classList.add('hidden');
+            return;
+        }
+        
+        if (txtFiles.length !== files.length) {
+            const skippedCount = files.length - txtFiles.length;
+            alert(`${skippedCount} non-.txt file(s) will be handled by the USFM importer`);
+        }
+        
+        // Upload .txt files one by one
+        uploadFilesSequentially(txtFiles, 0, progressBar, progressElement);
+    }
+    
+    function uploadFilesSequentially(files, index, progressBar, progressElement) {
+        if (index >= files.length) {
+            // All files uploaded
+            setTimeout(() => {
+                if (progressElement) progressElement.classList.add('hidden');
+                location.reload();
+            }, 1000);
+            return;
+        }
+        
+        const file = files[index];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_method', 'file');
+        
+        // Update progress bar
+        const progress = ((index + 1) / files.length) * 100;
+        if (progressBar) progressBar.style.width = `${progress}%`;
+        
+        fetch(`/project/${projectId}/upload`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (data.is_usfm && data.redirect_url) {
+                    // USFM detected - redirect to USFM import page
+                    window.location.href = data.redirect_url;
+                    return;
+                }
+                // Continue with next file
+                uploadFilesSequentially(files, index + 1, progressBar, progressElement);
+            } else {
+                alert(`Error uploading ${file.name}: ${data.error}`);
+                if (progressElement) progressElement.classList.add('hidden');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert(`Error uploading ${file.name}`);
+            if (progressElement) progressElement.classList.add('hidden');
+        });
+    }
 }); 

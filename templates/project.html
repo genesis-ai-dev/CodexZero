@@ -140,10 +140,28 @@
                     <h2 class="text-xl font-bold mb-2" style="color: #2d2d2d;">Files</h2>
                     <p class="text-neutral-600 font-medium">All project files and translations</p>
                 </div>
-                <button id="open-import-modal-btn" class="btn-marker">
-                    <i class="fas fa-plus mr-2"></i>
-                    Add Files
-                </button>
+            </div>
+            
+            <!-- Drag and Drop Zone -->
+            <div id="drag-drop-zone" class="border-2 border-dashed border-neutral-300 rounded-lg p-8 mb-6 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer">
+                <div class="flex flex-col items-center">
+                    <i class="fas fa-cloud-upload-alt text-4xl text-neutral-400 mb-4"></i>
+                    <h3 class="text-lg font-bold text-neutral-700 mb-2">Drop files here or click to upload</h3>
+                    <p class="text-sm text-neutral-600 mb-4">Drop .txt files here, or .usfm/.sfm to go to USFM importer</p>
+                    <input type="file" id="file-input" multiple accept=".txt,.usfm,.sfm" class="hidden">
+                    <div class="text-xs text-neutral-500">Non-.txt files automatically redirect to USFM importer</div>
+                </div>
+            </div>
+            
+            <!-- Upload Progress -->
+            <div id="upload-progress" class="hidden mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div class="flex items-center mb-2">
+                    <i class="fas fa-spinner fa-spin text-blue-600 mr-2"></i>
+                    <span class="text-blue-700 font-medium">Uploading...</span>
+                </div>
+                <div class="w-full bg-blue-200 rounded-full h-2">
+                    <div id="progress-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
             </div>
             
             <div class="space-y-6">
@@ -271,17 +289,27 @@
                 {% endfor %}
             </div>
             {% else %}
-            <!-- Empty State -->
-            <div class="paper-cream border border-neutral-300 text-center py-12">
-                <div class="w-12 h-12 paper-light border border-neutral-200 flex items-center justify-center mx-auto mb-4">
-                    <i class="fas fa-file-alt text-neutral-600 text-xl"></i>
+            <!-- Empty State with Drag and Drop -->
+            <div id="drag-drop-zone-empty" class="border-2 border-dashed border-neutral-300 rounded-lg p-12 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer">
+                <div class="flex flex-col items-center">
+                    <i class="fas fa-cloud-upload-alt text-6xl text-neutral-400 mb-6"></i>
+                    <h3 class="text-xl font-bold mb-2" style="color: #2d2d2d;">Drop files here or click to upload</h3>
+                    <p class="text-neutral-600 mb-4 font-medium">Upload source texts or existing translations to get started</p>
+                    <p class="text-sm text-neutral-600 mb-6">Drop .txt files here, or .usfm/.sfm to go to USFM importer</p>
+                    <input type="file" id="file-input-empty" multiple accept=".txt,.usfm,.sfm" class="hidden">
+                    <div class="text-xs text-neutral-500">Non-.txt files automatically redirect to USFM importer</div>
                 </div>
-                <h3 class="text-lg font-bold mb-2" style="color: #2d2d2d;">No files yet</h3>
-                <p class="text-neutral-700 mb-6 font-medium">Upload source texts or existing translations to get started</p>
-                <button id="open-import-modal-btn-empty" class="btn-marker">
-                    <i class="fas fa-plus mr-2"></i>
-                    Add Files
-                </button>
+            </div>
+            
+            <!-- Upload Progress for Empty State -->
+            <div id="upload-progress-empty" class="hidden mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div class="flex items-center mb-2">
+                    <i class="fas fa-spinner fa-spin text-blue-600 mr-2"></i>
+                    <span class="text-blue-700 font-medium">Uploading...</span>
+                </div>
+                <div class="w-full bg-blue-200 rounded-full h-2">
+                    <div id="progress-bar-empty" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
             </div>
             {% endif %}
         </div>
@@ -501,132 +529,7 @@
     </div>
 </div>
 
-<!-- Import Modal -->
-<div id="import-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
-    <div class="paper-white border border-neutral-300 shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
-        <div class="px-6 py-4 paper-cream border-b border-neutral-200">
-            <div class="flex items-center justify-between">
-                <h3 class="text-lg font-bold" style="color: #2d2d2d;">Add Files</h3>
-                <button id="close-import-modal-btn" class="text-neutral-500 hover:text-neutral-700">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-        </div>
-        
-        <div class="px-6 py-4">
-            <!-- Import Methods -->
-            <div class="grid grid-cols-2 gap-4 mb-6">
-                <label class="flex flex-col items-center p-4 paper-light border border-neutral-200 hover:paper-cream cursor-pointer">
-                    <input type="radio" name="import_method" value="upload" class="mb-3 text-blue-600" checked>
-                    <i class="fas fa-upload text-neutral-600 text-xl mb-2"></i>
-                    <div class="text-center">
-                        <div class="font-bold text-neutral-900">Upload</div>
-                        <div class="text-xs text-neutral-600 font-medium">Files or text (auto-detects USFM)</div>
-                    </div>
-                </label>
-                <label class="flex flex-col items-center p-4 paper-light border border-neutral-200 hover:paper-cream cursor-pointer">
-                    <input type="radio" name="import_method" value="corpus" class="mb-3 text-blue-600">
-                    <i class="fas fa-database text-neutral-600 text-xl mb-2"></i>
-                    <div class="text-center">
-                        <div class="font-bold text-neutral-900">Corpus</div>
-                        <div class="text-xs text-neutral-600 font-medium">eBible texts</div>
-                    </div>
-                </label>
-            </div>
-            
-            <!-- Upload Section -->
-            <div id="upload-section" class="import-section">
-                <div class="space-y-3 mb-4">
-                    <label class="flex items-center p-3 paper-light border border-neutral-200 hover:paper-cream cursor-pointer">
-                        <input type="radio" name="upload_method" value="file" class="mr-3 text-blue-600" checked>
-                        <div>
-                            <div class="font-bold text-neutral-900">Upload File</div>
-                            <div class="text-xs text-neutral-600 font-medium">Select a .txt file</div>
-                        </div>
-                    </label>
-                    <label class="flex items-center p-3 paper-light border border-neutral-200 hover:paper-cream cursor-pointer">
-                        <input type="radio" name="upload_method" value="text" class="mr-3 text-blue-600">
-                        <div>
-                            <div class="font-bold text-neutral-900">Paste Text</div>
-                            <div class="text-xs text-neutral-600 font-medium">Paste directly</div>
-                        </div>
-                    </label>
-                </div>
-                
-                <div id="file-upload-section" class="mb-4">
-                    <input type="file" 
-                           id="text-file-upload" 
-                           name="text_file" 
-                           accept=".txt"
-                           class="block w-full text-sm text-neutral-600 font-medium file:mr-4 file:py-2 file:px-4 file:border file:border-neutral-200 file:text-sm file:font-bold file:paper-light file:text-neutral-700 hover:file:paper-cream">
-                </div>
-                
-                <div id="text-paste-section" class="mb-4 hidden">
-                    <textarea id="text-content-upload" 
-                              name="text_content" 
-                              rows="8" 
-                              class="w-full p-4 border border-neutral-200 paper-white resize-none text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                              placeholder="Paste your text here..."></textarea>
-                    <div class="flex justify-between items-center mt-2">
-                        <p class="text-sm text-neutral-700 font-medium">2-50,000 lines accepted</p>
-                        <span id="upload-line-count" class="text-sm text-neutral-600 font-medium">0 lines</span>
-                    </div>
-                </div>
-                
-                <p class="text-xs text-neutral-600 font-medium">One verse or sentence per line • 2-50,000 lines • Auto-detects USFM format</p>
-            </div>
-            
-            <!-- Corpus Section -->
-            <div id="corpus-section" class="import-section hidden">
-                <div class="mb-4 p-3 bg-blue-50 border border-blue-200">
-                    <div class="flex items-start">
-                        <i class="fas fa-info-circle text-blue-600 mr-2 mt-0.5"></i>
-                        <div class="text-sm text-blue-700 font-medium">
-                            Select a pre-existing eBible translation
-                        </div>
-                    </div>
-                </div>
-                
-                <div id="corpus-search-section" class="hidden mb-4">
-                    <input type="text" 
-                           id="corpus-search" 
-                           placeholder="Search translations..."
-                           class="w-full px-4 py-2 border border-neutral-200 paper-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                </div>
-                
-                <div id="corpus-files-loading" class="text-center py-8">
-                    <i class="fas fa-spinner fa-spin text-neutral-500 text-2xl mb-2"></i>
-                    <p class="text-neutral-700 font-medium">Loading translations...</p>
-                </div>
-                
-                <div id="corpus-files-list" class="hidden space-y-2 max-h-60 overflow-y-auto">
-                    <!-- Populated by JS -->
-                </div>
-                
-                <div id="corpus-files-empty" class="hidden text-center py-8">
-                    <i class="fas fa-database text-neutral-500 text-2xl mb-2"></i>
-                    <p class="text-neutral-700 font-medium">No translations available</p>
-                </div>
-                
-                <div id="corpus-no-results" class="hidden text-center py-8">
-                    <i class="fas fa-search text-neutral-500 text-2xl mb-2"></i>
-                    <p class="text-neutral-700 font-medium">No matching translations</p>
-                </div>
-            </div>
-            
 
-        </div>
-        
-        <div class="px-6 py-4 paper-cream border-t border-neutral-200 flex justify-end space-x-3">
-            <button id="cancel-import-btn" class="px-4 py-2 text-neutral-600 hover:text-neutral-800 font-bold">
-                Cancel
-            </button>
-            <button id="confirm-import-btn" class="btn-marker">
-                Import
-            </button>
-        </div>
-    </div>
-</div>
 
 <!-- Delete Modal -->
 <div id="delete-file-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">

@@ -54,52 +54,130 @@
     </div>
 </section>
 
+<!-- Feature Slides Section -->
+<section class="feature-slides">
+    <div class="text-center py-16 px-6">
+        <h2 class="text-4xl font-bold mb-4" style="color: #2d2d2d;">Simple. Powerful. Free.</h2>
+        <p class="text-xl text-neutral-600 mb-16">Experience the future of Bible translation</p>
+    </div>
+
+    <!-- Slide 1: Minutes to Get Started -->
+    <div class="feature-slide">
+        <div class="max-w-7xl mx-auto px-6 py-20">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                <div class="text-left lg:pr-12">
+                    <div class="w-20 h-20 paper-light marker-border rounded-lg mb-8 flex items-center justify-center">
+                        <i class="fas fa-clock text-3xl" style="color: #2d2d2d;"></i>
+                    </div>
+                    <h3 class="text-4xl lg:text-5xl font-bold mb-6" style="color: #2d2d2d;">
+                        Minutes to Get Started
+                    </h3>
+                    <p class="text-xl text-neutral-700 leading-relaxed mb-8">Upload your existing translation files, add simple instructions, and start generating high-quality drafts immediately.</p>
+                    <div class="flex flex-wrap gap-4 text-sm text-neutral-600">
+                        <span class="flex items-center"><i class="fas fa-check text-green-600 mr-2"></i>Drag & drop files</span>
+                        <span class="flex items-center"><i class="fas fa-check text-green-600 mr-2"></i>Simple setup wizard</span>
+                        <span class="flex items-center"><i class="fas fa-check text-green-600 mr-2"></i>Instant results</span>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <img src="{{ url_for('static', filename='desktoplayout.png') }}" alt="CodexZero Desktop Interface" class="mx-auto rounded-2xl shadow-2xl w-full max-w-2xl transition-transform duration-500 hover:scale-105">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 2: Seamless Workflow -->
+    <div class="feature-slide paper-cream">
+        <div class="max-w-7xl mx-auto px-6 py-20">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                <div class="text-center lg:order-first">
+                    <img src="{{ url_for('static', filename='mobile.png') }}" alt="CodexZero Mobile Interface" class="mx-auto rounded-2xl shadow-2xl h-96 lg:h-[600px] w-auto transition-transform duration-500 hover:scale-105">
+                </div>
+                <div class="text-left lg:pl-12">
+                    <div class="w-20 h-20 paper-light marker-border rounded-lg mb-8 flex items-center justify-center">
+                        <i class="fas fa-exchange-alt text-3xl" style="color: #2d2d2d;"></i>
+                    </div>
+                    <h3 class="text-4xl lg:text-5xl font-bold mb-6" style="color: #2d2d2d;">
+                        Seamless Workflow
+                    </h3>
+                    <p class="text-xl text-neutral-700 leading-relaxed mb-8">Import from Paratext, generate drafts, and export back to your preferred translation environment without disrupting your process.</p>
+                    <div class="flex flex-wrap gap-4 text-sm text-neutral-600">
+                        <span class="flex items-center"><i class="fas fa-check text-green-600 mr-2"></i>Paratext integration</span>
+                        <span class="flex items-center"><i class="fas fa-check text-green-600 mr-2"></i>Mobile ready</span>
+                        <span class="flex items-center"><i class="fas fa-check text-green-600 mr-2"></i>Export anywhere</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 3: Grows with Your Project -->
+    <div class="feature-slide">
+        <div class="max-w-7xl mx-auto px-6 py-20">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                <div class="text-left lg:pr-12">
+                    <div class="w-20 h-20 paper-light marker-border rounded-lg mb-8 flex items-center justify-center">
+                        <i class="fas fa-sync-alt text-3xl" style="color: #2d2d2d;"></i>
+                    </div>
+                    <h3 class="text-4xl lg:text-5xl font-bold mb-6" style="color: #2d2d2d;">
+                        Grows with Your Project
+                    </h3>
+                    <p class="text-xl text-neutral-700 leading-relaxed mb-8">The AI learns from your corrections and preferences, becoming more accurate and aligned with your translation style over time.</p>
+                    <div class="flex flex-wrap gap-4 text-sm text-neutral-600">
+                        <span class="flex items-center"><i class="fas fa-check text-green-600 mr-2"></i>Adaptive learning</span>
+                        <span class="flex items-center"><i class="fas fa-check text-green-600 mr-2"></i>Style consistency</span>
+                        <span class="flex items-center"><i class="fas fa-check text-green-600 mr-2"></i>Quality improves</span>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <div class="bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl shadow-2xl w-full max-w-2xl h-80 lg:h-96 mx-auto flex items-center justify-center transition-transform duration-500 hover:scale-105">
+                        <div class="text-center">
+                            <i class="fas fa-brain text-6xl text-blue-600 mb-4"></i>
+                            <p class="text-lg font-semibold text-neutral-700">AI Learning Visualization</p>
+                            <p class="text-sm text-neutral-600">Coming Soon</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 4: Completely Free -->
+    <div class="feature-slide paper-cream">
+        <div class="max-w-7xl mx-auto px-6 py-20">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                <div class="text-center lg:order-first">
+                    <div class="bg-gradient-to-br from-green-100 to-emerald-100 rounded-2xl shadow-2xl w-full max-w-2xl h-80 lg:h-96 mx-auto flex items-center justify-center transition-transform duration-500 hover:scale-105">
+                        <div class="text-center">
+                            <i class="fas fa-heart text-6xl text-red-500 mb-4"></i>
+                            <p class="text-lg font-semibold text-neutral-700">Global Access Dashboard</p>
+                            <p class="text-sm text-neutral-600">Coming Soon</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-left lg:pl-12">
+                    <div class="w-20 h-20 paper-light marker-border rounded-lg mb-8 flex items-center justify-center">
+                        <i class="fas fa-heart text-3xl" style="color: #2d2d2d;"></i>
+                    </div>
+                    <h3 class="text-4xl lg:text-5xl font-bold mb-6" style="color: #2d2d2d;">
+                        Completely Free
+                    </h3>
+                    <p class="text-xl text-neutral-700 leading-relaxed mb-8">No hidden costs, no subscription fees. Professional-grade AI translation tools available to every translation team worldwide.</p>
+                    <div class="flex flex-wrap gap-4 text-sm text-neutral-600">
+                        <span class="flex items-center"><i class="fas fa-check text-green-600 mr-2"></i>Zero cost</span>
+                        <span class="flex items-center"><i class="fas fa-check text-green-600 mr-2"></i>No limits</span>
+                        <span class="flex items-center"><i class="fas fa-check text-green-600 mr-2"></i>Global access</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Overview -->
 <section class="py-24 px-6">
     <div class="max-w-4xl mx-auto text-center">
-        <h2 class="text-3xl font-bold mb-8" style="color: #2d2d2d;">Simple. Powerful. Free.</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
-            <div class="p-6 paper-light marker-border rounded-lg">
-                <h3 class="text-lg font-semibold mb-3" style="color: #2d2d2d;">
-                    <i class="fas fa-clock mr-2"></i>
-                    Minutes to Get Started
-                </h3>
-                <p class="text-neutral-700 leading-relaxed">Upload your existing translation files, add simple instructions, and start generating high-quality drafts immediately.</p>
-            </div>
-            <div class="p-6 paper-light marker-border rounded-lg">
-                <h3 class="text-lg font-semibold mb-3" style="color: #2d2d2d;">
-                    <i class="fas fa-sync-alt mr-2"></i>
-                    Grows with Your Project
-                </h3>
-                <p class="text-neutral-700 leading-relaxed">The AI learns from your corrections and preferences, becoming more accurate and aligned with your translation style over time.</p>
-            </div>
-            <div class="p-6 paper-light marker-border rounded-lg">
-                <h3 class="text-lg font-semibold mb-3" style="color: #2d2d2d;">
-                    <i class="fas fa-exchange-alt mr-2"></i>
-                    Seamless Workflow
-                </h3>
-                <p class="text-neutral-700 leading-relaxed">Import from Paratext, generate drafts, and export back to your preferred translation environment without disrupting your process.</p>
-            </div>
-            <div class="p-6 paper-light marker-border rounded-lg">
-                <h3 class="text-lg font-semibold mb-3" style="color: #2d2d2d;">
-                    <i class="fas fa-heart mr-2"></i>
-                    Completely Free
-                </h3>
-                <p class="text-neutral-700 leading-relaxed">No hidden costs, no subscription fees. Professional-grade AI translation tools available to every translation team worldwide.</p>
-            </div>
-        </div>
-        
-        <div class="mt-12 mb-8">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-                <div class="text-center">
-                    <h4 class="text-lg font-semibold mb-4 text-neutral-800">Desktop Experience</h4>
-                    <img src="{{ url_for('static', filename='desktoplayout.png') }}" alt="Codex Zero Desktop Interface" class="mx-auto rounded-xl shadow-lg h-80 w-auto transition-transform duration-300 hover:scale-105 cursor-pointer">
-                </div>
-                <div class="text-center">
-                    <h4 class="text-lg font-semibold mb-4 text-neutral-800">Mobile Ready</h4>
-                    <img src="{{ url_for('static', filename='mobile.png') }}" alt="Codex Zero Mobile Interface" class="mx-auto rounded-xl shadow-lg h-80 w-auto transition-transform duration-300 hover:scale-105 cursor-pointer">
-                </div>
-            </div>
-        </div>
+        <h2 class="text-3xl font-bold mb-12" style="color: #2d2d2d;">Everything You Need</h2>
         
         <div class="max-w-3xl mx-auto text-left space-y-4 mb-12">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -151,8 +229,6 @@
         <p class="text-lg text-neutral-600 mb-2">Start with Codex Zero, graduate to Codex</p>
         <p class="text-neutral-500 mb-8">Free, open source, and cross-platform</p>
         
-
-        
         <a href="https://codexeditor.app" target="_blank" class="btn-marker text-lg inline-block">
             <i class="fas fa-external-link-alt mr-2"></i>
             Explore Codex Editor
@@ -180,9 +256,29 @@
     transform: translate(0, 0) !important;
 }
 
+.feature-slides {
+    overflow-x: hidden;
+}
+
+.feature-slide {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.feature-slide:nth-child(even) {
+    background: var(--paper-cream, #fefbf7);
+}
+
 @media (max-width: 1024px) {
     .scattered-letter {
         font-size: 6.5rem;
+    }
+    
+    .feature-slide {
+        min-height: auto;
+        padding: 4rem 0;
     }
 }
 
@@ -190,11 +286,23 @@
     .scattered-letter {
         font-size: 4.5rem;
     }
+    
+    .feature-slide h3 {
+        font-size: 2.5rem !important;
+    }
+    
+    .feature-slide p {
+        font-size: 1.125rem !important;
+    }
 }
 
 @media (max-width: 480px) {
     .scattered-letter {
         font-size: 3.5rem;
+    }
+    
+    .feature-slide h3 {
+        font-size: 2rem !important;
     }
 }
 </style>

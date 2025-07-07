@@ -1,6 +1,7 @@
 import os
 import sys
 import uuid
+import chardet
 from typing import List, Dict, Optional, Tuple
 
 # Add project root to path for imports
@@ -241,5 +242,7 @@ class SourceTextManager:
         return None 
 
 def safe_decode_content(file_content):
-    """Simple UTF-8 decode that ignores problematic bytes"""
-    return file_content.decode('utf-8', errors='ignore') 
+    """Auto-detect encoding to preserve all characters with zero information loss"""
+    detected = chardet.detect(file_content)
+    encoding = detected['encoding'] if detected and detected['encoding'] else 'utf-8'
+    return file_content.decode(encoding) 

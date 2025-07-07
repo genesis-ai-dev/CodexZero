@@ -1,18 +1,19 @@
 import os
 import json
 import random
+import threading
+import io
+import chardet
 from flask import Blueprint, render_template, request, jsonify, send_file, redirect
 from flask_login import login_required, current_user
 from thefuzz import fuzz
 from datetime import datetime
-import threading
-import io
+from typing import Tuple, List, Dict, Any
 
 from models import Project, Translation, ProjectFile, db
 from ai.bot import Chatbot, extract_translation_from_xml
 from ai.contextquery import ContextQuery, MemoryContextQuery
 from utils.translation_manager import VerseReferenceManager, TranslationFileManager
-from typing import Tuple, List, Dict, Any
 from storage import get_storage
 
 translation = Blueprint('translation', __name__)
@@ -300,8 +301,10 @@ def _get_verse_content(project_id, file_id, verse_index):
     return ""
 
 def simple_decode_utf8(file_content):
-    """Simple UTF-8 decode that ignores problematic bytes"""
-    return file_content.decode('utf-8', errors='ignore')
+    """Auto-detect encoding to preserve all characters with zero information loss"""
+    detected = chardet.detect(file_content)
+    encoding = detected['encoding'] if detected and detected['encoding'] else 'utf-8'
+    return file_content.decode(encoding)
 
 def _calculate_similarity_metrics(ai_translation, ground_truth):
     """Calculate CHRF score between AI translation and ground truth"""
