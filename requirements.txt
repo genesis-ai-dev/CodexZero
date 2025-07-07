@@ -16,3 +16,4 @@ google-auth
 pymysql
 boto3
 vref-utils==0.0.10
+chardet
