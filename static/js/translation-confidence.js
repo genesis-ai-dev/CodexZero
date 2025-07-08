@@ -113,18 +113,31 @@ class TranslationConfidence {
         this.cleanupConfidenceDisplay(confidenceDiv, textarea, verseIndex);
         textarea.value = translation;
         
+        // Find the target window that contains this textarea
+        const targetWindow = this.getTextWindowForTextarea(textarea, translationEditor);
+        const targetId = targetWindow?.id;
+        
         // Buffer the change for save tracking
         translationEditor.bufferVerseChange(verseIndex, translation);
         
-        // Auto-save the translation when accepted
+        // Auto-save the translation when accepted with specific target ID
         try {
-            await translationEditor.saveVerse(verseIndex, translation);
+            await translationEditor.saveVerse(verseIndex, translation, targetId);
             // Remove from unsaved changes since it's now saved
             translationEditor.unsavedChanges.delete(verseIndex);
             translationEditor.updateSaveButtonState();
         } catch (error) {
             console.error('Error saving accepted translation:', error);
         }
+    }
+    
+    getTextWindowForTextarea(textarea, translationEditor) {
+        for (const [id, window] of translationEditor.textWindows) {
+            if (window.element?.contains(textarea)) {
+                return window;
+            }
+        }
+        return null;
     }
     
     rejectTranslation(confidenceDiv, textarea, originalContent, verseIndex, translationEditor) {

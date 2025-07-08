@@ -538,22 +538,13 @@ class FineTuningService:
         return round(estimated_cost, 4)
     
     def _get_training_instructions(self, project_id: int, source_file_id: int, target_file_id: int, project) -> str:
-        """Get training instructions including file context and project instructions"""
-        from translation import _get_file_context
+        """Get training instructions including target file purpose"""
+        from translation import _get_translation_instructions
         
-        instruction_parts = []
-        
-        # Add target file context only
+        source_file_id_str = f"file_{source_file_id}"
         target_file_id_str = f"file_{target_file_id}"
-        file_context = _get_file_context(project_id, target_file_id_str)
-        if file_context:
-            instruction_parts.append(file_context)
         
-        # Add project instructions
-        if project.instructions and project.instructions.strip():
-            instruction_parts.append(project.instructions.strip())
-        
-        return "\n\n".join(instruction_parts) if instruction_parts else None
+        return _get_translation_instructions(project_id, source_file_id_str, target_file_id_str, project)
     
     def get_instruction_tuning_preview(self, source_file_id: int, target_file_id: int, project_id: int, max_examples: int = 100) -> Dict:
         """

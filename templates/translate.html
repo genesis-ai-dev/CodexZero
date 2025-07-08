@@ -4,6 +4,7 @@
 {% from 'components/translation_editor.html' import translation_editor %}
 {% from 'components/translation_modals.html' import translation_modals %}
 {% from 'components/translation_overlays.html' import translation_overlays %}
+{% from 'components/verse_cell.html' import verse_cell %}
 {% include 'components/confidence_tooltip.html' %}
 
 {% block title %}Translation Editor - {{ project.target_language }} - CodexZero{% endblock %}
@@ -523,6 +524,9 @@ body.is-collecting-verses textarea {
 
     {{ translation_modals() }}
     {{ translation_overlays() }}
+    
+    <!-- Include verse cell component -->
+    {{ verse_cell() }}
 </section>
 
 
@@ -568,17 +572,214 @@ class TranslationEditor {
     initialize() {
         this.setupEventListeners();
         this.setupMobileListeners();
-        this.loadAllTexts();
+        
+        // Show immediate UI
         this.navigation.populateBookOptions();
         this.navigation.populateTestamentSections();
         this.restoreNavigationState();
-        this.saveSystem.updateSaveButtonState();
-        
-        // Initialize mobile state
         this.updateMobileState();
         
-        // Initialize models after everything else is ready
-        this.ui.initializeModels();
+        // Load data in background with progress indication
+        this.loadEditorData();
+    }
+    
+    async loadEditorData() {
+        try {
+            // Show loading state
+            this.showGlobalLoading('Loading translation editor...');
+            
+            // Load metadata first (fast)
+            await this.loadTextMetadata();
+            
+            // Then restore layout in parallel (much faster)
+            await this.restoreLayoutStateParallel();
+            
+            // Initialize remaining systems
+            this.saveSystem.updateSaveButtonState();
+            this.ui.initializeModels();
+            
+        } catch (error) {
+            console.error('Error loading editor data:', error);
+            this.showGlobalError('Failed to load translation editor. Please refresh the page.');
+        } finally {
+            this.hideGlobalLoading();
+        }
+    }
+    
+    showGlobalLoading(message = 'Loading...') {
+        // Create or update loading overlay
+        let overlay = document.getElementById('global-loading-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'global-loading-overlay';
+            overlay.className = 'fixed inset-0 bg-white bg-opacity-90 z-50 flex items-center justify-center';
+            overlay.innerHTML = `
+                <div class="text-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <div id="loading-message" class="text-gray-600">${message}</div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        } else {
+            document.getElementById('loading-message').textContent = message;
+            overlay.classList.remove('hidden');
+        }
+    }
+    
+    updateGlobalLoadingMessage(message) {
+        const messageEl = document.getElementById('loading-message');
+        if (messageEl) {
+            messageEl.textContent = message;
+        }
+    }
+    
+    hideGlobalLoading() {
+        const overlay = document.getElementById('global-loading-overlay');
+        if (overlay) {
+            overlay.classList.add('hidden');
+        }
+    }
+    
+    showGlobalError(message) {
+        const overlay = document.getElementById('global-loading-overlay');
+        if (overlay) {
+            overlay.innerHTML = `
+                <div class="text-center">
+                    <div class="text-red-600 mb-4">
+                        <i class="fas fa-exclamation-triangle text-4xl"></i>
+                    </div>
+                    <div class="text-red-600 mb-4">${message}</div>
+                    <button onclick="location.reload()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                        Retry
+                    </button>
+                </div>
+            `;
+        }
+    }
+    
+    async loadTextMetadata() {
+        const response = await fetch(`/project/${this.projectId}/texts`);
+        const data = await response.json();
+        
+        // Store text metadata for later use
+        this.textMetadata = new Map();
+        if (data.texts) {
+            data.texts.forEach(text => {
+                this.textMetadata.set(text.id, {
+                    name: text.name,
+                    type: text.type,
+                    progress: text.progress
+                });
+            });
+        }
+    }
+    
+    async restoreLayoutStateParallel() {
+        const layoutState = this.storage.getSavedLayoutState();
+        
+        if (layoutState.textIds.length === 0) {
+            // No saved layout, show empty state
+            this.renderPrimaryText();
+            this.renderReferenceTexts();
+            return;
+        }
+        
+        try {
+            this.updateGlobalLoadingMessage(`Loading ${layoutState.textIds.length} text(s)...`);
+            
+            // Load all texts in parallel instead of sequentially
+            const loadPromises = layoutState.textIds.map(async (textId) => {
+                try {
+                    const isPrimary = textId === layoutState.primaryTextId;
+                    return await this.loadTextData(textId, isPrimary);
+                } catch (error) {
+                    console.error(`Failed to load text ${textId}:`, error);
+                    // Return null for failed loads so we can filter them out
+                    return null;
+                }
+            });
+            
+            // Wait for all texts to load in parallel
+            const results = await Promise.all(loadPromises);
+            
+            // Process successful loads
+            let successCount = 0;
+            results.forEach((result, index) => {
+                if (result) {
+                    const textId = layoutState.textIds[index];
+                    const isPrimary = textId === layoutState.primaryTextId;
+                    
+                    this.textWindows.set(textId, result.textWindow);
+                    
+                    if (isPrimary) {
+                        this.primaryTextId = textId;
+                    }
+                    
+                    successCount++;
+                }
+            });
+            
+            // Render all loaded texts at once
+            this.renderPrimaryText();
+            this.renderReferenceTexts();
+            
+            console.log(`Successfully loaded ${successCount}/${layoutState.textIds.length} texts in parallel`);
+            
+        } catch (error) {
+            console.error('Error restoring layout state:', error);
+            // Show empty state on error
+            this.renderPrimaryText();
+            this.renderReferenceTexts();
+        }
+    }
+    
+    async loadTextData(textId, isPrimary = false) {
+        if (!textId) return null;
+        
+        const isTranslation = textId.includes('translation_');
+        if (isTranslation) this.currentTranslation = textId;
+        
+        // For translations, we need to find a source text to compare against
+        let sourceId = textId;
+        if (isTranslation) {
+            // Find the first available non-translation text as source
+            let foundSource = null;
+            for (const [id, metadata] of this.textMetadata) {
+                if (metadata.type !== 'Translation' && !id.includes('translation_')) {
+                    foundSource = id;
+                    break;
+                }
+            }
+            
+            if (!foundSource) {
+                console.warn('No source texts available for translation');
+                return null;
+            }
+            
+            sourceId = foundSource;
+        }
+        
+        const response = await fetch(
+            `/project/${this.projectId}/translation/${textId}/chapter/${this.currentBook}/${this.currentChapter}?source_id=${sourceId}`
+        );
+        const data = await response.json();
+        
+        if (!data.verses) {
+            console.error('Error loading text:', data.error);
+            return null;
+        }
+        
+        const windowTitle = this.getWindowTitle(textId);
+        const targetLanguage = await this.getTargetLanguage();
+        const windowType = isPrimary ? 'primary' : 'reference';
+        
+        const textWindow = new TextWindow(textId, data, windowType, windowTitle, targetLanguage);
+        
+        return {
+            textWindow,
+            textId,
+            isPrimary
+        };
     }
     
     setupMobileListeners() {
@@ -736,12 +937,36 @@ class TranslationEditor {
         
         // Save button
         document.getElementById('save-changes-btn')?.addEventListener('click', async () => {
-            await this.saveAllChanges();
+            const button = document.getElementById('save-changes-btn');
+            if (button.disabled) return;
+            
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...';
+            button.disabled = true;
+            
+            try {
+                await this.saveAllChanges();
+            } finally {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
         });
         
         // Mobile save button
         document.getElementById('mobile-save-button')?.addEventListener('click', async () => {
-            await this.saveAllChanges();
+            const button = document.getElementById('mobile-save-button');
+            if (button.disabled) return;
+            
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...';
+            button.disabled = true;
+            
+            try {
+                await this.saveAllChanges();
+            } finally {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
         });
         
         // Plus buttons for loading texts (these are in the main content area)
@@ -812,48 +1037,8 @@ class TranslationEditor {
         this.storage.saveLayoutState(this.textWindows, this.primaryTextId);
     }
     
-    async restoreLayoutState() {
-        const layoutState = this.storage.getSavedLayoutState();
-        
-        if (layoutState.textIds.length > 0) {
-            try {
-                for (const textId of layoutState.textIds) {
-                    const isPrimary = textId === layoutState.primaryTextId;
-                    await this.loadText(textId, isPrimary);
-                }
-            } catch (error) {
-                console.error('Error restoring layout:', error);
-            }
-        }
-    }
-    
     restoreNavigationState() {
         this.navigation.updateChapterTitle();
-    }
-    
-    // Text loading and management
-    async loadAllTexts() {
-        try {
-            const response = await fetch(`/project/${this.projectId}/texts`);
-            const data = await response.json();
-            
-            // Store text metadata for later use
-            this.textMetadata = new Map();
-            if (data.texts) {
-                data.texts.forEach(text => {
-                    this.textMetadata.set(text.id, {
-                        name: text.name,
-                        type: text.type,
-                        progress: text.progress
-                    });
-                });
-            }
-            
-            // Restore layout state instead of individual text loading
-            await this.restoreLayoutState();
-        } catch (error) {
-            console.error('Error loading texts:', error);
-        }
     }
     
     async createNewTranslation() {
@@ -901,52 +1086,15 @@ class TranslationEditor {
         if (!textId) return;
         
         try {
-            const isTranslation = textId.includes('translation_');
-            if (isTranslation) this.currentTranslation = textId;
-            
-            this.showLoadingFeedback(isTranslation);
-            
-            // For translations, we need to find a source text to compare against
-            let sourceId = textId;
-            if (isTranslation) {
-                // Find the first available non-translation text as source
-                let foundSource = null;
-                for (const [id, metadata] of this.textMetadata) {
-                    if (metadata.type !== 'Translation' && !id.includes('translation_')) {
-                        foundSource = id;
-                        break;
-                    }
-                }
-                
-                if (!foundSource) {
-                    // No source texts available - show helpful message
-                    console.warn('No source texts available for translation');
-                    alert('Please upload a source text (like an eBible file) before creating translations. You can upload files from the project dashboard.');
-                    return;
-                }
-                
-                sourceId = foundSource;
-            }
-            
-            const response = await fetch(
-                `/project/${this.projectId}/translation/${textId}/chapter/${this.currentBook}/${this.currentChapter}?source_id=${sourceId}`
-            );
-            const data = await response.json();
-            
-            if (!data.verses) {
-                console.error('Error loading text:', data.error);
-                if (data.error) {
-                    alert('Error loading text: ' + data.error);
-                }
+            // Use the optimized loading method
+            const result = await this.loadTextData(textId, isPrimary);
+            if (!result) {
+                alert('Failed to load text. Please try again.');
                 return;
             }
             
-            const windowTitle = this.getWindowTitle(textId);
-            const targetLanguage = await this.getTargetLanguage();
-            const windowType = isPrimary ? 'primary' : 'reference';
-            
-            const textWindow = new TextWindow(textId, data, windowType, windowTitle, targetLanguage);
-            this.textWindows.set(textId, textWindow);
+            // Add to text windows
+            this.textWindows.set(textId, result.textWindow);
             
             if (isPrimary) {
                 this.primaryTextId = textId;
@@ -956,29 +1104,14 @@ class TranslationEditor {
             }
             
             this.saveLayoutState();
-            this.showSuccessFeedback(windowTitle);
             
         } catch (error) {
             console.error('Error loading text:', error);
-            this.showErrorFeedback();
             alert('Failed to load text. Please try again.');
         }
     }
     
-    showLoadingFeedback(isTranslation) {
-        // Text info elements were removed from sidebar
-        console.log(isTranslation ? 'Loading translation...' : 'Loading text...');
-    }
-    
-    showSuccessFeedback(windowTitle) {
-        // Text info elements were removed from sidebar
-        console.log(`✓ ${windowTitle} loaded`);
-    }
-    
-    showErrorFeedback() {
-        // Text info elements were removed from sidebar
-        console.error('✗ Failed to load text');
-    }
+
     
     getWindowTitle(textId) {
         if (!this.textMetadata.has(textId)) return 'Unknown Text';
@@ -1021,85 +1154,161 @@ class TranslationEditor {
     
     renderPrimaryText() {
         const container = document.getElementById('primary-text-container');
-        container.innerHTML = '';
         
         if (this.primaryTextId && this.textWindows.has(this.primaryTextId)) {
             const textWindow = this.textWindows.get(this.primaryTextId);
-            textWindow.render(container);
-            this.setupAutoResizeForWindow(textWindow);
+            this.renderTextWindow(container, textWindow);
         } else {
-            container.innerHTML = `
-                <div class="text-gray-500 text-center py-20 flex flex-col items-center">
-                    <button id="add-primary-text-btn" class="mb-4 px-6 py-3 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border-2 border-dashed border-green-300 hover:border-green-400 rounded-lg transition-all duration-200 flex items-center gap-2">
-                        <i class="fas fa-plus"></i>
-                        Create or Load Translation
-                    </button>
-                    <p class="text-sm">Create a new translation or load an existing one</p>
-                </div>
-            `;
-            
-            // Re-add event listener for the new button
-            const newPrimaryBtn = document.getElementById('add-primary-text-btn');
-            if (newPrimaryBtn) {
-                newPrimaryBtn.addEventListener('click', () => {
-                    this.showTextSelectionModal(true);
-                });
-            }
+            this.renderEmptyPrimaryState(container);
         }
     }
     
     renderReferenceTexts() {
         const container = document.getElementById('secondary-texts-container');
-        container.innerHTML = '';
         
-        // Render all non-primary text windows
-        let hasReferenceTexts = false;
+        // Collect reference text windows first
+        const referenceWindows = [];
         this.textWindows.forEach((textWindow, id) => {
             if (id !== this.primaryTextId) {
-                textWindow.render(container);
-                this.setupAutoResizeForWindow(textWindow);
-                hasReferenceTexts = true;
+                referenceWindows.push(textWindow);
             }
         });
         
-        if (!hasReferenceTexts) {
-            container.innerHTML = `
-                <div class="text-gray-500 text-center py-20 flex flex-col items-center">
-                    <button id="add-reference-text-btn" class="mb-4 px-6 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border-2 border-dashed border-blue-300 hover:border-blue-400 rounded-lg transition-all duration-200 flex items-center gap-2">
-                        <i class="fas fa-plus"></i>
-                        Load Reference Text
-                    </button>
-                    <p class="text-sm">Load reference texts to compare and translate from</p>
-                </div>
-            `;
-            
-            // Re-add event listener for the new button
-            const newReferenceBtn = document.getElementById('add-reference-text-btn');
-            if (newReferenceBtn) {
-                newReferenceBtn.addEventListener('click', () => {
-                    this.showTextSelectionModal(false);
-                });
-            }
+        if (referenceWindows.length > 0) {
+            this.renderTextWindows(container, referenceWindows);
+        } else {
+            this.renderEmptyReferenceState(container);
         }
+    }
+    
+    renderTextWindow(container, textWindow) {
+        // Use DocumentFragment for better performance
+        const fragment = document.createDocumentFragment();
+        const tempDiv = document.createElement('div');
+        
+        // Render to temporary div first
+        textWindow.render(tempDiv);
+        
+        // Move all children to fragment
+        while (tempDiv.firstChild) {
+            fragment.appendChild(tempDiv.firstChild);
+        }
+        
+        // Single DOM update
+        container.innerHTML = '';
+        container.appendChild(fragment);
+        
+        // Setup interactions after DOM is ready
+        requestAnimationFrame(() => {
+            this.setupAutoResizeForWindow(textWindow);
+        });
+    }
+    
+    renderTextWindows(container, textWindows) {
+        // Batch render multiple text windows
+        const fragment = document.createDocumentFragment();
+        
+        textWindows.forEach(textWindow => {
+            const tempDiv = document.createElement('div');
+            textWindow.render(tempDiv);
+            
+            while (tempDiv.firstChild) {
+                fragment.appendChild(tempDiv.firstChild);
+            }
+        });
+        
+        // Single DOM update for all windows
+        container.innerHTML = '';
+        container.appendChild(fragment);
+        
+        // Setup interactions for all windows
+        requestAnimationFrame(() => {
+            textWindows.forEach(textWindow => {
+                this.setupAutoResizeForWindow(textWindow);
+            });
+        });
+    }
+    
+    renderEmptyPrimaryState(container) {
+        container.innerHTML = `
+            <div class="text-gray-500 text-center py-20 flex flex-col items-center">
+                <button id="add-primary-text-btn" class="mb-4 px-6 py-3 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border-2 border-dashed border-green-300 hover:border-green-400 rounded-lg transition-all duration-200 flex items-center gap-2">
+                    <i class="fas fa-plus"></i>
+                    Create or Load Translation
+                </button>
+                <p class="text-sm">Create a new translation or load an existing one</p>
+            </div>
+        `;
+        
+        // Add event listener with debouncing
+        this.setupButtonListener('add-primary-text-btn', () => this.showTextSelectionModal(true));
+    }
+    
+    renderEmptyReferenceState(container) {
+        container.innerHTML = `
+            <div class="text-gray-500 text-center py-20 flex flex-col items-center">
+                <button id="add-reference-text-btn" class="mb-4 px-6 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border-2 border-dashed border-blue-300 hover:border-blue-400 rounded-lg transition-all duration-200 flex items-center gap-2">
+                    <i class="fas fa-plus"></i>
+                    Load Reference Text
+                </button>
+                <p class="text-sm">Load reference texts to compare and translate from</p>
+            </div>
+        `;
+        
+        // Add event listener with debouncing
+        this.setupButtonListener('add-reference-text-btn', () => this.showTextSelectionModal(false));
+    }
+    
+    setupButtonListener(buttonId, handler) {
+        // Use requestAnimationFrame to ensure DOM is ready
+        requestAnimationFrame(() => {
+            const button = document.getElementById(buttonId);
+            if (button && !button.dataset.listenerAdded) {
+                button.addEventListener('click', handler);
+                button.dataset.listenerAdded = 'true'; // Prevent duplicate listeners
+            }
+        });
     }
     
     setupAutoResizeForWindow(textWindow) {
         if (!textWindow.element) return;
         
         const textareas = textWindow.element.querySelectorAll('textarea');
+        
+        // Batch DOM operations for better performance
+        if (textareas.length > 0) {
+            // Process all textareas in a single animation frame
+            requestAnimationFrame(() => {
+                this.batchAutoResize(textareas);
+                textareas.forEach(textarea => this.addTextareaListeners(textarea));
+            });
+        }
+    }
+    
+    batchAutoResize(textareas) {
+        // Process all textareas at once to minimize reflows
+        const updates = [];
+        
+        // First, collect all measurements
         textareas.forEach(textarea => {
-            // Set up auto-resize
-            setTimeout(() => this.autoResizeTextarea(textarea), 0);
-            setTimeout(() => this.autoResizeTextarea(textarea), 100);
-            
-            this.addTextareaListeners(textarea);
+            textarea.style.height = 'auto';
+            const newHeight = Math.max(80, textarea.scrollHeight);
+            updates.push({ textarea, height: newHeight });
+        });
+        
+        // Then apply all updates
+        updates.forEach(({ textarea, height }) => {
+            textarea.style.height = height + 'px';
         });
     }
     
     autoResizeTextarea(textarea) {
-        textarea.style.height = 'auto';
-        const newHeight = Math.max(80, textarea.scrollHeight);
-        textarea.style.height = newHeight + 'px';
+        // Optimized version that doesn't trigger layout thrashing
+        requestAnimationFrame(() => {
+            textarea.style.height = 'auto';
+            const newHeight = Math.max(80, textarea.scrollHeight);
+            textarea.style.height = newHeight + 'px';
+        });
     }
     
     addTextareaListeners(textarea) {
@@ -1154,16 +1363,58 @@ class TranslationEditor {
             await this.saveSystem.saveAllChanges();
         }
         
-        // Reload all current text windows with new chapter data
-        const textIds = Array.from(this.textWindows.keys());
-        this.textWindows.clear();
+        // Show loading state
+        this.showGlobalLoading('Refreshing texts...');
         
-        // Refresh metadata to get latest progress info
-        await this.refreshTextMetadata();
-        
-        for (const textId of textIds) {
-            const isPrimary = textId === this.primaryTextId;
-            await this.loadText(textId, isPrimary);
+        try {
+            // Collect current text info
+            const textIds = Array.from(this.textWindows.keys());
+            const currentPrimaryId = this.primaryTextId;
+            
+            // Clear windows
+            this.textWindows.clear();
+            this.primaryTextId = null;
+            
+            // Refresh metadata first
+            await this.refreshTextMetadata();
+            
+            if (textIds.length > 0) {
+                // Load all texts in parallel
+                const loadPromises = textIds.map(async (textId) => {
+                    try {
+                        const isPrimary = textId === currentPrimaryId;
+                        return await this.loadTextData(textId, isPrimary);
+                    } catch (error) {
+                        console.error(`Failed to refresh text ${textId}:`, error);
+                        return null;
+                    }
+                });
+                
+                const results = await Promise.all(loadPromises);
+                
+                // Process results
+                results.forEach((result, index) => {
+                    if (result) {
+                        const textId = textIds[index];
+                        const isPrimary = textId === currentPrimaryId;
+                        
+                        this.textWindows.set(textId, result.textWindow);
+                        
+                        if (isPrimary) {
+                            this.primaryTextId = textId;
+                        }
+                    }
+                });
+            }
+            
+            // Render everything at once
+            this.renderPrimaryText();
+            this.renderReferenceTexts();
+            
+        } catch (error) {
+            console.error('Error refreshing texts:', error);
+        } finally {
+            this.hideGlobalLoading();
         }
     }
     
@@ -1279,9 +1530,18 @@ class TranslationEditor {
     }
 }
 
-// Initialize when page loads
+// Initialize when page loads with optimized timing
 document.addEventListener('DOMContentLoaded', () => {
-    new TranslationEditor();
+    // Show UI immediately, then initialize editor
+    const editor = new TranslationEditor();
+    
+    // Preload data that might be needed soon
+    requestIdleCallback(() => {
+        // Cache common operations when browser is idle
+        if (editor.textMetadata.size === 0) {
+            editor.loadTextMetadata().catch(console.error);
+        }
+    });
 });
 </script>
 

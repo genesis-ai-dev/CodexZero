@@ -100,14 +100,14 @@ class TranslationTestResults {
         
         useAiBtn.addEventListener('click', () => {
             textarea.value = aiTranslation;
-            this.editor.ui.autoResizeTextarea(textarea);
+            this.editor.autoResizeTextarea(textarea);
             this.editor.saveSystem.bufferVerseChange(verseIndex, aiTranslation);
             testResults.remove();
         });
         
         keepOriginalBtn.addEventListener('click', () => {
             textarea.value = groundTruth;
-            this.editor.ui.autoResizeTextarea(textarea);
+            this.editor.autoResizeTextarea(textarea);
             this.editor.saveSystem.bufferVerseChange(verseIndex, groundTruth);
             testResults.remove();
         });

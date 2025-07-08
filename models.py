@@ -46,6 +46,7 @@ class Project(db.Model):
     language_rules = db.relationship('LanguageRule', backref='project', lazy=True, cascade='all, delete-orphan')
     translations = db.relationship('Translation', backref='project', lazy=True, cascade='all, delete-orphan')
     fine_tuning_jobs = db.relationship('FineTuningJob', backref='project', lazy=True, cascade='all, delete-orphan')
+    verse_audio = db.relationship('VerseAudio', backref='project', lazy=True, cascade='all, delete-orphan')
     
     def get_available_translation_models(self):
         """Get available translation models including fine-tuned ones"""
@@ -166,6 +167,58 @@ class Translation(db.Model):
     
     def __repr__(self):
         return f'<Translation {self.name} ({self.translation_type})>'
+
+
+class VerseAudio(db.Model):
+    __tablename__ = 'verse_audio'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    
+    # Reference to the text (file or translation)
+    text_id = db.Column(db.String(50), nullable=False)  # 'file_123' or 'translation_456'
+    verse_index = db.Column(db.Integer, nullable=False)  # 0-based line number
+    
+    # Audio file details
+    original_filename = db.Column(db.String(255), nullable=False)
+    storage_path = db.Column(db.String(500), nullable=False)
+    content_type = db.Column(db.String(100), nullable=False)  # audio/mpeg, audio/wav, etc.
+    file_size = db.Column(db.BigInteger, nullable=False)
+    
+    # Audio metadata (optional)
+    duration_seconds = db.Column(db.Float, nullable=True)  # Audio duration in seconds
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Constraints: one audio file per verse per text
+    __table_args__ = (
+        db.UniqueConstraint('project_id', 'text_id', 'verse_index', name='unique_verse_audio'),
+    )
+    
+    def get_text_type(self):
+        """Get the type of text this audio is associated with"""
+        if self.text_id.startswith('file_'):
+            return 'file'
+        elif self.text_id.startswith('translation_'):
+            return 'translation'
+        return 'unknown'
+    
+    def get_text_name(self):
+        """Get the name of the associated text"""
+        if self.text_id.startswith('file_'):
+            file_id = int(self.text_id.replace('file_', ''))
+            project_file = ProjectFile.query.get(file_id)
+            return project_file.original_filename if project_file else 'Unknown File'
+        elif self.text_id.startswith('translation_'):
+            translation_id = int(self.text_id.replace('translation_', ''))
+            translation = Translation.query.get(translation_id)
+            return translation.name if translation else 'Unknown Translation'
+        return 'Unknown'
+    
+    def __repr__(self):
+        return f'<VerseAudio {self.text_id}:{self.verse_index}>'
 
 class FineTuningJob(db.Model):
     __tablename__ = 'fine_tuning_jobs'

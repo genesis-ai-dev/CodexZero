@@ -32,8 +32,17 @@ class TranslationSave {
     }
     
     bufferVerseChange(verseIndex, text) {
-        // Only buffer if the verse index is valid
         if (verseIndex !== null && verseIndex !== undefined && !isNaN(verseIndex)) {
+            // Find the textarea to check if it's in test mode
+            const textarea = document.querySelector(`textarea[data-verse-index="${verseIndex}"]`);
+            const hasExistingContent = textarea?.value?.trim();
+            
+            // Don't buffer changes if this appears to be test mode
+            if (hasExistingContent && textarea?.style.borderColor === '#3b82f6') {
+                console.log('Skipping buffer for potential test mode verse:', verseIndex);
+                return;
+            }
+            
             this.editor.unsavedChanges.set(verseIndex, text);
             this.editor.hasUnsavedChanges = this.editor.unsavedChanges.size > 0;
             this.updateSaveButtonState();
@@ -95,24 +104,50 @@ class TranslationSave {
             mobileSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...';
         }
         
-        try {
-            const promises = Array.from(this.editor.unsavedChanges.entries()).map(([verseIndex, text]) => 
-                this.saveVerse(verseIndex, text, targetId)
-            );
-            
-            await Promise.all(promises);
-            
-            this.editor.unsavedChanges.clear();
-            this.editor.hasUnsavedChanges = false;
-            this.updateSaveButtonState();
-            
-            // Refresh text metadata after saving to update progress
+        const savedVerses = new Set();
+        const failedVerses = new Map();
+        
+        for (const [verseIndex, text] of this.editor.unsavedChanges.entries()) {
+            try {
+                // Find the textarea for this verse index to determine correct target
+                const textarea = document.querySelector(`textarea[data-verse-index="${verseIndex}"]`);
+                let correctTargetId = targetId;
+                
+                if (textarea && !correctTargetId) {
+                    // Find which window contains this textarea
+                    for (const [id, window] of this.editor.textWindows) {
+                        if (window.element?.contains(textarea)) {
+                            correctTargetId = id;
+                            break;
+                        }
+                    }
+                }
+                
+                await this.saveVerse(verseIndex, text, correctTargetId);
+                savedVerses.add(verseIndex);
+            } catch (error) {
+                failedVerses.set(verseIndex, error.message);
+                console.error(`Failed to save verse ${verseIndex}:`, error);
+            }
+        }
+        
+        // Remove successfully saved verses from unsaved changes
+        for (const verseIndex of savedVerses) {
+            this.editor.unsavedChanges.delete(verseIndex);
+        }
+        
+        this.editor.hasUnsavedChanges = this.editor.unsavedChanges.size > 0;
+        this.updateSaveButtonState();
+        
+        if (savedVerses.size > 0) {
+            // Refresh metadata for successful saves
             await this.editor.refreshTextMetadata();
-            
-            // Save layout state after successful save to ensure progress is reflected
             this.editor.saveLayoutState();
-            
-            // Show success feedback
+        }
+        
+        // Show appropriate feedback
+        if (failedVerses.size === 0) {
+            // All successful
             if (saveBtn) {
                 saveBtn.textContent = 'Saved!';
                 setTimeout(() => this.updateSaveButtonState(), 2000);
@@ -121,8 +156,18 @@ class TranslationSave {
                 mobileSaveBtn.innerHTML = '<i class="fas fa-check mr-2"></i> Saved!';
                 setTimeout(() => this.updateSaveButtonState(), 2000);
             }
-        } catch (error) {
-            console.error('Error saving changes:', error);
+        } else if (savedVerses.size > 0) {
+            // Partial success
+            if (saveBtn) {
+                saveBtn.textContent = `${savedVerses.size} Saved, ${failedVerses.size} Failed`;
+                saveBtn.disabled = false;
+            }
+            if (mobileSaveBtn) {
+                mobileSaveBtn.innerHTML = `<i class="fas fa-exclamation-triangle mr-2"></i> ${failedVerses.size} Failed`;
+                mobileSaveBtn.disabled = false;
+            }
+        } else {
+            // All failed
             if (saveBtn) {
                 saveBtn.textContent = 'Save Failed - Retry';
                 saveBtn.disabled = false;
@@ -135,26 +180,38 @@ class TranslationSave {
     }
     
     async saveVerse(verseIndex, text, targetId = null) {
-        // Use provided targetId, or fallback to currentTranslation or primaryTextId
-        const saveTargetId = targetId || this.editor.currentTranslation || this.editor.primaryTextId;
+        const saveTargetId = targetId || this.editor.primaryTextId;
         
         if (!saveTargetId) {
-            console.error('No target specified for saving verse');
-            return;
+            console.error('No target specified for saving verse', verseIndex);
+            throw new Error('No target specified');
         }
         
-        const response = await fetch(`/project/${this.editor.projectId}/translation/${saveTargetId}/verse/${verseIndex}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                text: text
-            })
-        });
-        
-        const data = await response.json();
-        return data;
+        try {
+            const response = await fetch(`/project/${this.editor.projectId}/translation/${saveTargetId}/verse/${verseIndex}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: text
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Save failed');
+            }
+            
+            return data;
+        } catch (error) {
+            console.error(`Failed to save verse ${verseIndex} to ${saveTargetId}:`, error);
+            throw error;
+        }
     }
 }
 

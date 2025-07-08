@@ -61,6 +61,7 @@ class TextWindow {
         const textWindow = document.createElement('div');
         textWindow.className = `flex flex-col border border-gray-800 rounded-sm overflow-hidden bg-white min-h-15 flex-1 transition-all duration-200 ${this.getThemeClasses()}`;
         textWindow.dataset.textId = this.id;
+        textWindow.dataset.windowId = this.id; // Add this for hover detection
         
         textWindow.appendChild(this.createHeader());
         textWindow.appendChild(this.createContent());
@@ -653,55 +654,72 @@ class TextWindow {
     
     createVerseElement(verseData) {
         const verseWrapper = document.createElement('div');
-        verseWrapper.className = 'relative mb-4 transition-all duration-200 group';
+        verseWrapper.className = 'verse-cell relative mb-4 transition-all duration-200 group border border-stone-300 rounded-sm overflow-hidden bg-white hover:border-stone-400';
         verseWrapper.dataset.verse = verseData.verse;
+        verseWrapper.dataset.verseCell = 'true';
+        
+        // Create navigation bar
+        const navBar = document.createElement('div');
+        navBar.className = 'flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-200 min-h-[40px]';
+        
+        // Left side - verse reference
+        const verseLabel = document.createElement('div');
+        const labelClasses = this.type === 'primary' ? 
+            'text-red-600 bg-red-50' : 
+            'text-blue-600 bg-blue-50';
+        verseLabel.className = `text-xs font-semibold px-2 py-1 rounded-sm ${labelClasses}`;
+        verseLabel.textContent = verseData.reference;
+        
+        // Right side - controls container
+        const controlsContainer = document.createElement('div');
+        controlsContainer.className = 'flex items-center gap-1';
+        
+        navBar.appendChild(verseLabel);
+        navBar.appendChild(controlsContainer);
+        verseWrapper.appendChild(navBar);
         
         const textarea = document.createElement('textarea');
-        
-        // Adjust padding based on window type - primary windows need more right padding for sparkle button
-        const rightPadding = this.type === 'primary' ? 'pr-16' : 'pr-10';
-        textarea.className = `w-full min-h-25 p-5 pt-8 ${rightPadding} border border-stone-300 rounded-sm text-base leading-7 resize-none focus:ring-0 focus:border-gray-800 focus:bg-white bg-white font-['Inter'] transition-all duration-200 overflow-hidden hover:border-stone-400`;
+        textarea.className = `w-full min-h-20 p-4 border-0 text-base leading-7 resize-none focus:ring-0 focus:outline-none bg-white font-['Inter'] transition-all duration-200 overflow-hidden`;
         textarea.placeholder = `Edit verse ${verseData.verse} or drop text here...`;
         textarea.dataset.verse = verseData.verse;
         textarea.dataset.verseIndex = verseData.index;
         textarea.value = verseData.target_text || verseData.source_text || '';
         textarea.draggable = false;
         
-        const labelClasses = this.type === 'primary' ? 
-            'text-red-600 bg-red-50' : 
-            'text-blue-600 bg-blue-50';
-        
-        verseWrapper.innerHTML = `
-            <div class="absolute top-2.5 left-3 text-xs font-semibold px-1.5 py-0.5 z-10 rounded-sm ${labelClasses}">
-                ${verseData.reference}
-            </div>
-        `;
-        
         verseWrapper.appendChild(textarea);
         
         // Only add sparkle translate button for primary windows
         if (this.type === 'primary') {
+            // Add audio controls first
+            this.createAudioControls(controlsContainer, verseData, textarea);
+            
             const sparkleButton = document.createElement('button');
-            sparkleButton.className = 'absolute top-2.5 right-8 w-5 h-5 bg-transparent border-0 cursor-pointer flex items-center justify-center z-10 transition-all duration-200 text-gray-400 hover:text-purple-500 hover:scale-125 hover:drop-shadow-lg active:scale-90 sparkle-translate-btn';
-            sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+            sparkleButton.className = 'w-7 h-7 bg-transparent border-0 cursor-pointer flex items-center justify-center transition-all duration-200 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded-sm sparkle-translate-btn';
+            sparkleButton.innerHTML = '<i class="fas fa-magic text-sm"></i>';
             sparkleButton.title = 'Translate this verse with AI';
             sparkleButton.setAttribute('data-verse', verseData.verse);
             sparkleButton.setAttribute('data-verse-index', verseData.index);
             
             this.addSparkleButtonListener(sparkleButton, verseData, textarea);
-            verseWrapper.appendChild(sparkleButton);
+            controlsContainer.appendChild(sparkleButton);
         }
         
-        // Create drag handle - position based on whether sparkle button exists
+        // Create drag handle
         const dragHandle = document.createElement('div');
-        const rightPosition = this.type === 'primary' ? 'right-2' : 'right-2'; // Keep consistent positioning
-        dragHandle.className = `absolute top-2.5 ${rightPosition} w-5 h-5 bg-gray-100 border border-gray-300 rounded-sm cursor-move flex items-center justify-center z-10 transition-all duration-200 hover:bg-gray-200 hover:border-gray-400 sparkle-drag-handle`;
-        dragHandle.innerHTML = '<i class="fas fa-arrows-alt text-xs text-gray-500"></i>';
+        dragHandle.className = `w-7 h-7 bg-gray-100 border border-gray-300 rounded-sm cursor-move flex items-center justify-center transition-all duration-200 hover:bg-gray-200 hover:border-gray-400 sparkle-drag-handle`;
+        dragHandle.innerHTML = '<i class="fas fa-arrows-alt text-sm text-gray-500"></i>';
         dragHandle.title = 'Drag to translate';
         dragHandle.draggable = true;
         
         this.addDragListeners(dragHandle, verseData);
-        verseWrapper.appendChild(dragHandle);
+        controlsContainer.appendChild(dragHandle);
+        
+        // Initialize verse cell behavior after DOM is ready, but only if no audio controls exist
+        setTimeout(() => {
+            if (window.VerseCell && !verseWrapper.querySelector('.audio-controls')) {
+                window.VerseCell.initialize(verseWrapper);
+            }
+        }, 10);
         
         return verseWrapper;
     }
@@ -723,6 +741,11 @@ class TextWindow {
             // Start collection system - hover over verses to add them
             if (window.translationEditor?.dragDrop) {
                 window.translationEditor.dragDrop.startCollection(dragData);
+                
+                // Add visual feedback to the initial verse textarea
+                textarea.style.backgroundColor = '#dbeafe';
+                textarea.style.borderColor = '#3b82f6';
+                textarea.style.borderWidth = '2px';
             }
             
             e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
@@ -733,7 +756,14 @@ class TextWindow {
         
         dragHandle.addEventListener('dragend', () => {
             const container = dragHandle.closest('[data-verse]');
+            const textarea = container.querySelector('textarea');
+            
             container.classList.remove('opacity-70', 'bg-blue-100', 'border', 'border-blue-500', 'rounded');
+            
+            // Clear visual feedback from the initial verse (will be cleaned up by endCollection too)
+            textarea.style.backgroundColor = '';
+            textarea.style.borderColor = '';
+            textarea.style.borderWidth = '';
         });
     }
     
@@ -807,6 +837,258 @@ class TextWindow {
         });
     }
     
+    createAudioControls(container, verseData, textarea) {
+        const voiceSelect = document.createElement('select');
+        voiceSelect.className = 'voice-selector text-xs px-2 py-1 h-7 border border-gray-300 bg-gray-100 text-gray-500 rounded-sm hover:bg-gray-200 hover:text-gray-700 transition-all focus:outline-none cursor-pointer';
+        voiceSelect.style.minWidth = '70px';
+        voiceSelect.innerHTML = `
+            <option value="alloy">Alloy</option>
+            <option value="ash">Ash</option>
+            <option value="ballad">Ballad</option>
+            <option value="coral">Coral</option>
+            <option value="echo">Echo</option>
+            <option value="fable">Fable</option>
+            <option value="nova">Nova</option>
+            <option value="onyx">Onyx</option>
+            <option value="sage">Sage</option>
+            <option value="shimmer">Shimmer</option>
+        `;
+        
+        // Set default voice from localStorage
+        const savedVoice = localStorage.getItem('preferredVoice') || 'alloy';
+        voiceSelect.value = savedVoice;
+        
+        // Save voice preference when changed and sync all dropdowns
+        voiceSelect.addEventListener('change', () => {
+            const selectedVoice = voiceSelect.value;
+            localStorage.setItem('preferredVoice', selectedVoice);
+            
+            // Update all other voice selectors on the page
+            document.querySelectorAll('.voice-selector').forEach(selector => {
+                if (selector !== voiceSelect) {
+                    selector.value = selectedVoice;
+                }
+            });
+        });
+        
+        const ttsBtn = document.createElement('button');
+        ttsBtn.className = 'tts-btn w-7 h-7 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-gray-200 hover:text-gray-700 transition-all focus:outline-none';
+        ttsBtn.innerHTML = '<i class="fas fa-microphone text-sm"></i>';
+        ttsBtn.title = 'Generate audio';
+        
+        const playBtn = document.createElement('button');
+        playBtn.className = 'play-audio-btn w-7 h-7 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-gray-200 hover:text-gray-700 transition-all focus:outline-none';
+        playBtn.innerHTML = '<i class="fas fa-play text-sm"></i>';
+        playBtn.title = 'Play audio';
+        playBtn.style.display = 'none';
+        
+        const pauseBtn = document.createElement('button');
+        pauseBtn.className = 'pause-audio-btn w-7 h-7 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-gray-200 hover:text-gray-700 transition-all focus:outline-none';
+        pauseBtn.innerHTML = '<i class="fas fa-pause text-sm"></i>';
+        pauseBtn.title = 'Pause audio';
+        pauseBtn.style.display = 'none';
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-audio-btn w-7 h-7 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-red-100 hover:text-red-600 transition-all focus:outline-none';
+        deleteBtn.innerHTML = '<i class="fas fa-trash text-sm"></i>';
+        deleteBtn.title = 'Delete audio';
+        deleteBtn.style.display = 'none';
+        
+        // Add all controls to the container
+        container.appendChild(voiceSelect);
+        container.appendChild(ttsBtn);
+        container.appendChild(playBtn);
+        container.appendChild(pauseBtn);
+        container.appendChild(deleteBtn);
+        
+        // Store audio state on the container
+        container._currentAudio = null;
+        container._audioId = null;
+        
+        this.setupAudioListeners(verseData, textarea, container);
+        this.checkExistingAudio(container, verseData);
+    }
+    
+    setupAudioListeners(verseData, textarea, audioControls) {
+        const voiceSelect = audioControls.querySelector('.voice-selector');
+        const ttsBtn = audioControls.querySelector('.tts-btn');
+        const playBtn = audioControls.querySelector('.play-audio-btn');
+        const pauseBtn = audioControls.querySelector('.pause-audio-btn');
+        const deleteBtn = audioControls.querySelector('.delete-audio-btn');
+        
+        ttsBtn.onclick = async (e) => {
+            e.stopPropagation();
+            const text = textarea.value.trim();
+            if (!text) {
+                alert('Please enter some text first');
+                return;
+            }
+            await this.generateAudio(verseData, text, voiceSelect.value, audioControls);
+        };
+        
+        playBtn.onclick = async (e) => {
+            e.stopPropagation();
+            await this.playAudio(verseData, audioControls);
+        };
+        
+        pauseBtn.onclick = (e) => {
+            e.stopPropagation();
+            this.pauseAudio(audioControls);
+        };
+        
+        deleteBtn.onclick = async (e) => {
+            e.stopPropagation();
+            if (confirm('Delete audio for this verse?')) {
+                await this.deleteAudio(verseData, audioControls);
+            }
+        };
+    }
+    
+    async generateAudio(verseData, text, voice, audioControls) {
+        const ttsBtn = audioControls.querySelector('.tts-btn');
+        
+        ttsBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i>';
+        ttsBtn.disabled = true;
+        
+        try {
+            const projectId = window.location.pathname.split('/')[2];
+            const response = await fetch(`/project/${projectId}/verse-audio/${this.id}/${verseData.index}/tts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, voice })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                audioControls._audioId = data.audio_id;
+                this.showAudioButtons(audioControls, true);
+                await this.playAudio(verseData, audioControls);
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (error) {
+            alert('Failed to generate audio: ' + error.message);
+        } finally {
+            ttsBtn.innerHTML = '<i class="fas fa-microphone" style="font-size: 10px;"></i>';
+            ttsBtn.disabled = false;
+        }
+    }
+    
+    async playAudio(verseData, audioControls) {
+        const playBtn = audioControls.querySelector('.play-audio-btn');
+        const pauseBtn = audioControls.querySelector('.pause-audio-btn');
+        
+        if (audioControls._currentAudio && !audioControls._currentAudio.paused) {
+            this.pauseAudio(audioControls);
+            return;
+        }
+        
+        try {
+            let audioId = audioControls._audioId;
+            if (!audioId) {
+                const projectId = window.location.pathname.split('/')[2];
+                const response = await fetch(`/project/${projectId}/verse-audio/${this.id}/${verseData.index}/check`);
+                const data = await response.json();
+                if (!data.exists) {
+                    alert('No audio available. Generate audio first.');
+                    return;
+                }
+                audioId = data.audio_id;
+                audioControls._audioId = audioId;
+            }
+            
+            const projectId = window.location.pathname.split('/')[2];
+            const audioUrl = `/project/${projectId}/verse-audio/${audioId}/download`;
+            audioControls._currentAudio = new Audio(audioUrl);
+            
+            audioControls._currentAudio.play();
+            playBtn.style.display = 'none';
+            pauseBtn.style.display = 'flex';
+            
+            audioControls._currentAudio.onended = () => {
+                playBtn.style.display = 'flex';
+                pauseBtn.style.display = 'none';
+                audioControls._currentAudio = null;
+            };
+            
+            audioControls._currentAudio.onerror = () => {
+                playBtn.style.display = 'flex';
+                pauseBtn.style.display = 'none';
+                audioControls._currentAudio = null;
+                alert('Failed to play audio');
+            };
+        } catch (error) {
+            alert('Failed to play audio: ' + error.message);
+        }
+    }
+    
+    pauseAudio(audioControls) {
+        const playBtn = audioControls.querySelector('.play-audio-btn');
+        const pauseBtn = audioControls.querySelector('.pause-audio-btn');
+        
+        if (audioControls._currentAudio && !audioControls._currentAudio.paused) {
+            audioControls._currentAudio.pause();
+            playBtn.style.display = 'flex';
+            pauseBtn.style.display = 'none';
+        }
+    }
+    
+    async deleteAudio(verseData, audioControls) {
+        try {
+            if (audioControls._currentAudio) {
+                audioControls._currentAudio.pause();
+                audioControls._currentAudio = null;
+            }
+            
+            let audioId = audioControls._audioId;
+            if (!audioId) {
+                const projectId = window.location.pathname.split('/')[2];
+                const response = await fetch(`/project/${projectId}/verse-audio/${this.id}/${verseData.index}/check`);
+                const data = await response.json();
+                if (!data.exists) return;
+                audioId = data.audio_id;
+            }
+            
+            const projectId = window.location.pathname.split('/')[2];
+            const response = await fetch(`/project/${projectId}/verse-audio/${audioId}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                this.showAudioButtons(audioControls, false);
+                audioControls._audioId = null;
+            } else {
+                alert('Failed to delete audio');
+            }
+        } catch (error) {
+            alert('Failed to delete audio: ' + error.message);
+        }
+    }
+    
+    showAudioButtons(audioControls, hasAudio) {
+        const playBtn = audioControls.querySelector('.play-audio-btn');
+        const pauseBtn = audioControls.querySelector('.pause-audio-btn');
+        const deleteBtn = audioControls.querySelector('.delete-audio-btn');
+        
+        if (playBtn) playBtn.style.display = hasAudio ? 'flex' : 'none';
+        if (pauseBtn) pauseBtn.style.display = 'none';
+        if (deleteBtn) deleteBtn.style.display = hasAudio ? 'flex' : 'none';
+    }
+    
+    async checkExistingAudio(audioControls, verseData) {
+        try {
+            const projectId = window.location.pathname.split('/')[2];
+            const response = await fetch(`/project/${projectId}/verse-audio/${this.id}/${verseData.index}/check`);
+            const data = await response.json();
+            if (data.exists) {
+                audioControls._audioId = data.audio_id;
+                this.showAudioButtons(audioControls, true);
+            }
+        } catch (error) {
+            // No existing audio - this is fine
+        }
+    }
+    
     addWindowDropListeners(windowElement) {
         windowElement.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -817,44 +1099,50 @@ class TextWindow {
                 if (dragDrop.isValidDropTarget(this)) {
                     e.dataTransfer.dropEffect = 'copy';
                     windowElement.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.5)';
+                    windowElement.style.backgroundColor = 'rgba(16, 185, 129, 0.05)';
                 } else {
                     e.dataTransfer.dropEffect = 'none';
                     windowElement.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.5)';
+                    windowElement.style.backgroundColor = 'rgba(239, 68, 68, 0.05)';
                 }
             } else {
                 e.dataTransfer.dropEffect = 'copy';
                 windowElement.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.5)';
+                windowElement.style.backgroundColor = 'rgba(16, 185, 129, 0.05)';
             }
         });
         
         windowElement.addEventListener('dragleave', (e) => {
             if (!windowElement.contains(e.relatedTarget)) {
                 windowElement.style.boxShadow = '';
+                windowElement.style.backgroundColor = '';
             }
         });
         
         windowElement.addEventListener('drop', async (e) => {
             e.preventDefault();
             windowElement.style.boxShadow = '';
+            windowElement.style.backgroundColor = '';
             
             try {
                 let dragData;
                 
                 // Get collected verses if collection system is active
                 if (window.translationEditor?.dragDrop?.isDragging) {
-                    // Check if this is a valid drop target
-                    if (!window.translationEditor.dragDrop.isValidDropTarget(this)) {
-                        console.log('Invalid drop target - same as source window');
-                        window.translationEditor.dragDrop.endCollection();
+                    // Always end collection, but use the last hovered window (which should be this one)
+                    dragData = window.translationEditor.dragDrop.endCollection();
+                    
+                    // Use the translation drag drop system with last hovered window
+                    if (dragData && dragData.length > 0) {
+                        console.log('Processing drag with last hovered window:', this.title);
+                        await window.translationEditor.dragDrop.translateFromDrag(dragData, null, this);
                         return;
                     }
-                    dragData = window.translationEditor.dragDrop.endCollection();
                 } else {
                     // Fallback to single verse
                     dragData = [JSON.parse(e.dataTransfer.getData('text/plain'))];
+                    await this.processWindowDrop(dragData);
                 }
-                
-                await this.processWindowDrop(dragData);
                 
             } catch (error) {
                 console.error('Error processing window drop:', error);

@@ -1,17 +1,37 @@
-// Simple Hover-to-Collect Verse Translation
+// Simplified Hover-Based Drag and Drop Translation
 class TranslationDragDrop {
     constructor(translationEditor) {
         this.editor = translationEditor;
         this.collectedVerses = [];
-        this.collectedVerseNumbers = new Set(); // Track verse numbers to prevent duplicates
+        this.collectedVerseNumbers = new Set();
         this.isDragging = false;
         this.sourceWindowId = null;
-        
-        // Don't handle drops here - let text-window.js handle them
+        this.lastHoveredWindow = null; // Track the last window the user hovered over
+        this.setupGlobalListeners();
     }
     
     setupGlobalListeners() {
-        // Not needed anymore
+        // Track mouse movement during drag to detect which window we're over
+        document.addEventListener('dragover', (e) => {
+            if (!this.isDragging) return;
+            
+            // Find which window we're currently over
+            const windowElement = e.target.closest('[data-window-id]');
+            if (windowElement) {
+                const windowId = windowElement.dataset.windowId;
+                const window = this.editor.textWindows.get(windowId);
+                if (window && window.id !== this.sourceWindowId) {
+                    const previousWindow = this.lastHoveredWindow;
+                    this.lastHoveredWindow = window;
+                    
+                    // Update counter if window changed
+                    if (previousWindow !== window) {
+                        console.log('Hovering over window:', window.title);
+                        this.updateCounter();
+                    }
+                }
+            }
+        });
     }
     
     setupTextareaForMultiSelect(textarea) {
@@ -42,17 +62,23 @@ class TranslationDragDrop {
     }
     
     startCollection(initialVerse) {
-        // Don't pre-add the initial verse - let dragenter handle all collection
+        // Reset state
         this.collectedVerses = [];
         this.collectedVerseNumbers = new Set();
         this.isDragging = true;
         this.sourceWindowId = initialVerse.sourceId;
+        this.lastHoveredWindow = null;
         
-        // Show counter (will start at 0 until first dragenter)
+        // Automatically add the initial verse that was dragged
+        this.collectedVerses.push(initialVerse);
+        this.collectedVerseNumbers.add(initialVerse.verse);
+        console.log('Auto-added initial verse:', initialVerse.verse);
+        
+        // Show counter
         this.showCounter();
         this.updateCounter();
         
-        console.log('Started collection from window:', this.sourceWindowId, 'Ready to collect verses');
+        console.log('Started collection from window:', this.sourceWindowId, 'with initial verse:', initialVerse.verse);
     }
     
     collectVerse(textarea, targetWindow) {
@@ -101,7 +127,10 @@ class TranslationDragDrop {
         this.collectedVerses = [];
         this.collectedVerseNumbers.clear();
         this.sourceWindowId = null;
+        
         console.log('Ended collection, returning:', result.length, 'verses');
+        console.log('Target window for translation:', this.lastHoveredWindow?.title || 'none detected');
+        
         return result;
     }
     
@@ -120,7 +149,8 @@ class TranslationDragDrop {
     
     updateCounter() {
         if (this.counter) {
-            this.counter.textContent = `${this.collectedVerses.length} verses selected`;
+            const hoverInfo = this.lastHoveredWindow ? ` → ${this.lastHoveredWindow.title}` : '';
+            this.counter.textContent = `${this.collectedVerses.length} verses selected${hoverInfo}`;
         }
     }
     
@@ -141,33 +171,32 @@ class TranslationDragDrop {
         return null;
     }
     
-    getWindowAtPosition(x, y) {
-        // Find which window contains the mouse coordinates
-        for (const [id, window] of this.editor.textWindows) {
-            if (window.element) {
-                const rect = window.element.getBoundingClientRect();
-                if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-                    return window;
-                }
-            }
-        }
-        return null;
-    }
-    
-    // Check if drop target is valid (not the same window as source)
+    // Simplified validation - just check if we have a valid target window
     isValidDropTarget(targetWindow) {
         return targetWindow && targetWindow.id !== this.sourceWindowId;
     }
     
+    // Use the last hovered window as the drop target
+    getDropTargetWindow() {
+        return this.lastHoveredWindow;
+    }
+    
     async translateFromDrag(dragData, targetTextarea, targetWindow = null) {
         if (!dragData) return;
+        
+        // Use the last hovered window if no specific target provided
+        const actualTargetWindow = targetWindow || this.lastHoveredWindow;
+        if (!actualTargetWindow) {
+            console.error('No target window detected for translation');
+            return;
+        }
         
         const verses = Array.isArray(dragData) ? dragData : [dragData];
         
         // Show loading state on all target verses first
         const targetTextareas = [];
         for (const verse of verses) {
-            const textarea = targetWindow?.element?.querySelector(`textarea[data-verse="${verse.verse}"]`);
+            const textarea = actualTargetWindow.element?.querySelector(`textarea[data-verse="${verse.verse}"]`);
             if (textarea) {
                 targetTextareas.push(textarea);
                 // Initial loading state
@@ -188,7 +217,7 @@ class TranslationDragDrop {
                 currentTextarea.style.backgroundColor = '#eff6ff';
                 currentTextarea.placeholder = `Translating verse ${verses[i].verse}...`;
                 
-                await this.translateSingle(verses[i], currentTextarea, targetWindow);
+                await this.translateSingle(verses[i], currentTextarea, actualTargetWindow);
                 
                 // Success state
                 currentTextarea.style.borderColor = '#10b981';
@@ -264,16 +293,16 @@ class TranslationDragDrop {
             if (data.success) {
                 const verseIndex = parseInt(textarea.dataset.verseIndex);
                 
-                if (data.test_mode) {
+                if (data.test_mode || isTestMode) {
                     // Display test results using dedicated component
                     this.editor.testResults.displayTestResult(textarea, data, verseIndex);
-                    // DO NOT save in test mode - we want to preserve the ground truth!
+                    // CRITICAL: Never save test mode data - preserve ground truth
+                    console.log('Test mode: preserving original content, not saving translation');
                 } else {
                     // Regular translation display
                     this.editor.confidence.displayTranslationWithConfidence(
                         textarea, data.translation, data.confidence, verseIndex, this.editor
                     );
-                    // Only save when not in test mode
                     this.editor.saveSystem.bufferVerseChange(verseIndex, data.translation);
                 }
             } else {

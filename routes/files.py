@@ -367,19 +367,19 @@ def update_file_purpose(project_id, file_id):
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     project_file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
     
-    purpose = request.json.get('purpose', '').strip()
+    purpose_description = request.json.get('purpose_description', '').strip()
     
-    if len(purpose) > 1000:
+    if len(purpose_description) > 1000:
         return jsonify({'error': 'Purpose description must be 1000 characters or less'}), 400
     
-    project_file.purpose = purpose if purpose else None
+    project_file.purpose_description = purpose_description if purpose_description else None
     
     db.session.commit()
     
     return jsonify({
         'success': True,
         'message': 'File purpose updated successfully',
-        'purpose': project_file.purpose
+        'purpose_description': project_file.purpose_description
     })
 
 @files.route('/uploads/<path:filename>')

@@ -235,39 +235,40 @@ def translate_text(project_id: int, text: str, model: str = None, temperature: f
     }
 
 
-def _get_file_context(project_id: int, target_file_id: str = None) -> str:
-    """Get context from target file with its purpose"""
-    from models import ProjectFile
+def _get_file_purpose(project_id: int, file_id: str) -> str:
+    """Get purpose description for a file or translation"""
+    from models import ProjectFile, Translation
     
-    if not target_file_id:
+    if not file_id:
         return ""
     
-    # Extract file ID from target_file_id string
-    if target_file_id.startswith('file_'):
-        file_id = int(target_file_id.replace('file_', ''))
-        target_file = ProjectFile.query.filter_by(id=file_id, project_id=project_id).first()
-        
-        if target_file:
-            if target_file.purpose_description and target_file.purpose_description.strip():
-                return f"Target file context: {target_file.purpose_description.strip()}"
-            elif target_file.file_purpose and target_file.file_purpose.strip():
-                # Convert file_purpose to readable format
-                purpose = target_file.file_purpose.replace('_', ' ').title()
-                return f"Target file context: {purpose}"
+    if file_id.startswith('file_'):
+        file_id_int = int(file_id.replace('file_', ''))
+        file_obj = ProjectFile.query.filter_by(id=file_id_int, project_id=project_id).first()
+        if file_obj:
+            if file_obj.purpose_description and file_obj.purpose_description.strip():
+                return file_obj.purpose_description.strip()
+            elif file_obj.file_purpose and file_obj.file_purpose.strip():
+                return file_obj.file_purpose.replace('_', ' ').title()
+    
+    elif file_id.startswith('translation_'):
+        translation_id = int(file_id.replace('translation_', ''))
+        translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first()
+        if translation and translation.description and translation.description.strip():
+            return translation.description.strip()
     
     return ""
 
 def _get_translation_instructions(project_id: int, source_file_id: str, target_file_id: str, project) -> str:
-    """Get translation instructions including file context and project instructions"""
+    """Get translation instructions including target file purpose"""
     
     instruction_parts = []
     
-    # Add target file context only
-    file_context = _get_file_context(project_id, target_file_id)
-    if file_context:
-        instruction_parts.append(file_context)
+    target_purpose = _get_file_purpose(project_id, target_file_id)
     
-    # Add project instructions
+    if target_purpose:
+        instruction_parts.append(f"Target context: {target_purpose}")
+    
     if project.instructions and project.instructions.strip():
         instruction_parts.append(project.instructions.strip())
     

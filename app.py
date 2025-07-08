@@ -14,6 +14,7 @@ from routes.files import files
 from routes.api import api
 from routes.fine_tuning import fine_tuning
 from routes.admin import admin
+from routes.audio import audio
 from ai.bot import Chatbot
 
 def create_app():
@@ -43,6 +44,7 @@ def create_app():
     app.register_blueprint(api)
     app.register_blueprint(fine_tuning)
     app.register_blueprint(admin)
+    app.register_blueprint(audio)
     
     # Static file serving routes
     @app.route('/static/<path:filename>')
