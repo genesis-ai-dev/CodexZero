@@ -1116,7 +1116,9 @@ def save_verse(project_id, target_id, verse_index):
                 
                 # Save back to storage
                 updated_content = '\n'.join(target_lines)
-                storage.store_file_content(updated_content, target_file.storage_path)
+                import io
+                content_bytes = io.BytesIO(updated_content.encode('utf-8'))
+                storage.store_file(content_bytes, target_file.storage_path)
             
         elif target_id.startswith('translation_'):
             # Target is a translation

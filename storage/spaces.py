@@ -26,7 +26,7 @@ class DigitalOceanSpaces:
             ExtraArgs={'ACL': 'public-read'}
         )
         return self.get_file_url(file_path)
-    
+
     def get_file(self, file_path: str) -> bytes:
         """Retrieve file contents"""
         response = self.client.get_object(Bucket=self.bucket_name, Key=file_path)

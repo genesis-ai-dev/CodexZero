@@ -2,6 +2,7 @@ import os
 import sys
 import uuid
 import chardet
+import io
 from typing import List, Dict, Optional, Tuple
 
 # Add project root to path for imports
@@ -148,7 +149,8 @@ class TranslationFileManager:
         """Save entire translation file"""
         try:
             content = '\n'.join(self.lines)
-            self.storage.store_file_content(content, self.storage_path)
+            content_bytes = io.BytesIO(content.encode('utf-8'))
+            self.storage.store_file(content_bytes, self.storage_path)
             return True
         except Exception as e:
             print(f"Error saving translation file: {e}")
@@ -173,7 +175,8 @@ class TranslationFileManager:
         # Create empty file
         storage = get_storage()
         empty_content = '\n'.join([''] * 31170)
-        storage.store_file_content(empty_content, storage_path)
+        content_bytes = io.BytesIO(empty_content.encode('utf-8'))
+        storage.store_file(content_bytes, storage_path)
         
         return storage_path
 
