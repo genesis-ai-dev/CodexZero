@@ -39,23 +39,32 @@ def migrate():
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         """))
         
-        # Check if storage_type column exists before adding it
-        result = db.session.execute(text("""
-            SELECT COUNT(*) 
-            FROM information_schema.COLUMNS 
-            WHERE TABLE_SCHEMA = DATABASE() 
-            AND TABLE_NAME = 'project_files' 
-            AND COLUMN_NAME = 'storage_type'
-        """))
+        # Add missing columns to project_files table
+        columns_to_add = [
+            ('storage_type', 'VARCHAR(20) DEFAULT "file"', 'storage type'),
+            ('line_count', 'INTEGER DEFAULT 0', 'line count'),
+            ('paired_with_id', 'INTEGER', 'paired with ID'),
+            ('purpose', 'VARCHAR(100)', 'purpose')
+        ]
         
-        if result.scalar() == 0:
-            print("Adding storage_type column to project_files table...")
-            db.session.execute(text("""
-                ALTER TABLE project_files 
-                ADD COLUMN storage_type VARCHAR(20) DEFAULT 'file'
+        for col_name, col_definition, description in columns_to_add:
+            result = db.session.execute(text(f"""
+                SELECT COUNT(*) 
+                FROM information_schema.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = 'project_files' 
+                AND COLUMN_NAME = '{col_name}'
             """))
-        else:
-            print("storage_type column already exists")
+            
+            if result.scalar() == 0:
+                print(f"Adding {description} column to project_files table...")
+                db.session.execute(text(f"""
+                    ALTER TABLE project_files 
+                    ADD COLUMN {col_name} {col_definition}
+                """))
+                print(f"✓ Added {description} column")
+            else:
+                print(f"✓ {description} column already exists")
         
         db.session.commit()
         print("Migration completed successfully!")

@@ -41,16 +41,24 @@ def migrate():
             )
         """))
         
-        # Add storage_type column to translations table
-        try:
-            db.session.execute(text("SELECT storage_type FROM translations LIMIT 1"))
-            print("✓ storage_type column already exists")
-        except Exception:
-            print("Adding storage_type column to translations...")
-            db.session.execute(text("""
-                ALTER TABLE translations ADD COLUMN storage_type VARCHAR(20) DEFAULT 'file'
-            """))
-            print("✓ Added storage_type column")
+        # Add missing columns to translations table
+        columns_to_add = [
+            ('storage_type', 'VARCHAR(20) DEFAULT "file"', 'storage type'),
+            ('total_verses', 'INTEGER DEFAULT 31170', 'total verses'),
+            ('non_empty_verses', 'INTEGER DEFAULT 0', 'non-empty verses'),
+            ('progress_percentage', 'FLOAT DEFAULT 0.0', 'progress percentage')
+        ]
+        
+        for col_name, col_definition, description in columns_to_add:
+            try:
+                db.session.execute(text(f"SELECT {col_name} FROM translations LIMIT 1"))
+                print(f"✓ {description} column already exists")
+            except Exception:
+                print(f"Adding {description} column to translations...")
+                db.session.execute(text(f"""
+                    ALTER TABLE translations ADD COLUMN {col_name} {col_definition}
+                """))
+                print(f"✓ Added {description} column")
         
         db.session.commit()
         print("✓ Database schema updated successfully")
