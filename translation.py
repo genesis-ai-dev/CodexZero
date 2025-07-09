@@ -10,7 +10,7 @@ from thefuzz import fuzz
 from datetime import datetime
 from typing import Tuple, List, Dict, Any
 
-from models import Project, Text, Verse, db
+from models import Project, Translation, ProjectFile, ProjectFileVerse, TranslationVerse, Text, Verse, db
 from ai.bot import Chatbot, extract_translation_from_xml
 from ai.contextquery import ContextQuery, MemoryContextQuery, DatabaseContextQuery
 from utils.text_manager import TextManager
