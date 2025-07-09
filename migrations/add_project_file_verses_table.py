@@ -20,9 +20,9 @@ def create_app():
     return app
 
 def migrate():
-    app = create_app()
+    from flask import has_app_context
     
-    with app.app_context():
+    def run_migration():
         print("Creating project_file_verses table...")
         
         # Create the project_file_verses table with MySQL syntax
@@ -59,6 +59,16 @@ def migrate():
         
         db.session.commit()
         print("Migration completed successfully!")
+    
+    if has_app_context():
+        run_migration()
+    else:
+        app = create_app()
+        with app.app_context():
+            run_migration()
 
-if __name__ == '__main__':
-    migrate() 
+# Run migration when imported
+try:
+    migrate()
+except Exception as e:
+    print(f"Project file verses table migration failed: {e}") 
