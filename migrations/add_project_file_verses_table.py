@@ -44,7 +44,9 @@ def migrate():
             ('storage_type', 'VARCHAR(20) DEFAULT "file"', 'storage type'),
             ('line_count', 'INTEGER DEFAULT 0', 'line count'),
             ('paired_with_id', 'INTEGER', 'paired with ID'),
-            ('purpose', 'VARCHAR(100)', 'purpose')
+            ('purpose', 'VARCHAR(100)', 'purpose'),
+            ('created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP', 'created at'),
+            ('updated_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'updated at')
         ]
         
         for col_name, col_definition, description in columns_to_add:
