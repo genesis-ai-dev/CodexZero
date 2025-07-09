@@ -73,9 +73,10 @@ def migrate_translation_to_database(translation):
         return False
 
 def main():
-    app = create_app()
+    # Use current app context if available, otherwise create one
+    from flask import has_app_context
     
-    with app.app_context():
+    def run_migration():
         print("🚀 Starting translation migration to database storage")
         print("=" * 60)
         
@@ -130,9 +131,21 @@ def main():
             print("\n⚠️  Some translations failed to migrate. Check the errors above.")
         else:
             print("\n🎉 All translations migrated successfully!")
+    
+    # Run migration in current context or create new one
+    if has_app_context():
+        run_migration()
+    else:
+        app = create_app()
+        with app.app_context():
+            run_migration()
 
-if __name__ == '__main__':
+# Auto-execute migration when imported
+try:
     start_time = time.time()
     main()
     elapsed = time.time() - start_time
-    print(f"\n⏱️  Migration completed in {elapsed:.1f} seconds") 
+    print(f"\n⏱️  Translation migration completed in {elapsed:.1f} seconds")
+except Exception as e:
+    print(f"Translation migration failed: {e}")
+    # Don't crash the app if migration fails 

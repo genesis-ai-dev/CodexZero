@@ -87,9 +87,10 @@ def migrate_project_file_to_database(project_file):
         return False
 
 def main():
-    app = create_app()
+    # Use current app context if available, otherwise create one
+    from flask import has_app_context
     
-    with app.app_context():
+    def run_migration():
         print("Starting project file migration to database...")
         
         # Get all project files that are still using file storage
@@ -123,6 +124,18 @@ def main():
             print("\n⚠️  Some files failed to migrate. Check the errors above.")
         else:
             print("\n✓ All Bible text files successfully migrated to database storage!")
+    
+    # Run migration in current context or create new one
+    if has_app_context():
+        run_migration()
+    else:
+        app = create_app()
+        with app.app_context():
+            run_migration()
 
-if __name__ == '__main__':
-    main() 
+# Auto-execute migration when imported
+try:
+    main()
+except Exception as e:
+    print(f"Project files migration failed: {e}")
+    # Don't crash the app if migration fails 

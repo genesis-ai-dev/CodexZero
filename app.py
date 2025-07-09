@@ -69,7 +69,12 @@ def create_app():
             try:
                 import migrations.add_translation_verses_table
                 import migrations.add_project_file_verses_table
-                print("Migrations imported and executed")
+                print("Database schema migrations imported and executed")
+                
+                # Run data migrations
+                import migrate_translations_to_db
+                import migrate_project_files_to_db
+                print("Data migrations imported and executed")
             except Exception as e:
                 print(f"Migration import failed (may have already run): {e}")
             
