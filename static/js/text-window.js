@@ -151,15 +151,28 @@ class TextWindow {
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
         
-        fetch(`/project/${projectId}/files/${fileId}/purpose`, {
+        // Determine the correct route based on the original ID type
+        let url, requestBody;
+        
+        if (this.id.startsWith('text_')) {
+            // Use unified text route
+            url = `/project/${projectId}/texts/${fileId}/purpose`;
+            requestBody = { description: purposeDescription };
+        } else {
+            // Use legacy file route
+            url = `/project/${projectId}/files/${fileId}/purpose`;
+            requestBody = { 
+                purpose_description: purposeDescription,
+                file_purpose: purposeDescription ? 'custom' : null
+            };
+        }
+        
+        fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ 
-                purpose_description: purposeDescription,
-                file_purpose: purposeDescription ? 'custom' : null
-            })
+            body: JSON.stringify(requestBody)
         })
         .then(response => response.json())
         .then(data => {
@@ -624,17 +637,27 @@ class TextWindow {
         const currentPurpose = this.data?.purpose_description || this.data?.description || '';
         const isTranslation = this.id.includes('translation_');
         
+        // Fix the ID extraction logic to handle different prefixes correctly
+        let extractedId = this.id;
+        if (isTranslation) {
+            extractedId = this.id.replace('translation_', '');
+        } else if (this.id.startsWith('text_')) {
+            extractedId = this.id.replace('text_', '');
+        } else if (this.id.startsWith('file_')) {
+            extractedId = this.id.replace('file_', '');
+        }
+        
         purposeSection.innerHTML = `
             <label class="block text-xs font-semibold text-gray-700 mb-1">${isTranslation ? 'Translation Purpose' : 'File Purpose'}</label>
             <textarea class="w-full px-2 py-1 border border-gray-300 bg-white text-xs resize-none ${isTranslation ? 'translation-purpose-input' : 'purpose-input'}" 
                       rows="2" 
                       placeholder="e.g., This is a back translation, This is a translation into Spanish..."
-                      data-${isTranslation ? 'translation-id' : 'file-id'}="${this.id.replace(isTranslation ? 'translation_' : 'file_', '')}"
+                      data-${isTranslation ? 'translation-id' : 'file-id'}="${extractedId}"
                       maxlength="1000">${currentPurpose}</textarea>
             <div class="flex justify-between items-center mt-1">
                 <span class="text-xs text-gray-500 char-counter">${currentPurpose.length}/1,000</span>
                 <button class="${isTranslation ? 'save-translation-purpose-btn' : 'save-purpose-btn'} inline-flex items-center px-2 py-1 text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors rounded-sm"
-                        data-${isTranslation ? 'translation-id' : 'file-id'}="${this.id.replace(isTranslation ? 'translation_' : 'file_', '')}">
+                        data-${isTranslation ? 'translation-id' : 'file-id'}="${extractedId}">
                     <i class="fas fa-save mr-1"></i>Save
                 </button>
             </div>

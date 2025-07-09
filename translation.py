@@ -189,13 +189,13 @@ def translate_text(project_id: int, text: str, model: Optional[str] = None, temp
     
     if source_file_id and target_file_id:
         # Only get examples for base models (not fine-tuned models)
-        if not model.startswith('ft:'):
+        if model and not model.startswith('ft:'):
             examples, status_msg = _get_translation_examples(
                 project_id, source_file_id, target_file_id, text
             )
     
     # Get instructions - pair-specific first, then project fallback
-    instructions = _get_translation_instructions(project_id, source_file_id, target_file_id, project)
+    instructions = _get_translation_instructions(project_id, source_file_id or "", target_file_id or "", project)
     
     # Create system prompt with instructions
     system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
@@ -235,26 +235,39 @@ def translate_text(project_id: int, text: str, model: Optional[str] = None, temp
 
 
 def _get_file_purpose(project_id: int, file_id: str) -> str:
-    """Get purpose description for a file or translation"""
-    from models import ProjectFile, Translation
+    """Get purpose description for any text type - simplified approach"""
+    from models import ProjectFile, Translation, Text
     
     if not file_id:
         return ""
     
-    if file_id.startswith('file_'):
-        file_id_int = int(file_id.replace('file_', ''))
-        file_obj = ProjectFile.query.filter_by(id=file_id_int, project_id=project_id).first()
-        if file_obj:
-            if file_obj.purpose_description and file_obj.purpose_description.strip():
-                return file_obj.purpose_description.strip()
-            elif file_obj.file_purpose and file_obj.file_purpose.strip():
-                return file_obj.file_purpose.replace('_', ' ').title()
+    # Extract numeric ID from any format
+    try:
+        if file_id.startswith(('file_', 'translation_', 'text_')):
+            numeric_id = int(file_id.split('_', 1)[1])
+        else:
+            numeric_id = int(file_id)
+    except (ValueError, TypeError):
+        return ""
     
-    elif file_id.startswith('translation_'):
-        translation_id = int(file_id.replace('translation_', ''))
-        translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first()
-        if translation and translation.description and translation.description.strip():
-            return translation.description.strip()
+    # Check all three tables for purpose description
+    # ProjectFile table
+    file_obj = ProjectFile.query.filter_by(id=numeric_id, project_id=project_id).first()
+    if file_obj:
+        if file_obj.purpose_description and file_obj.purpose_description.strip():
+            return file_obj.purpose_description.strip()
+        elif file_obj.file_purpose and file_obj.file_purpose.strip():
+            return file_obj.file_purpose.replace('_', ' ').title()
+    
+    # Translation table
+    translation = Translation.query.filter_by(id=numeric_id, project_id=project_id).first()
+    if translation and translation.description and translation.description.strip():
+        return translation.description.strip()
+    
+    # Text table
+    text = Text.query.filter_by(id=numeric_id, project_id=project_id).first()
+    if text and text.description and text.description.strip():
+        return text.description.strip()
     
     return ""
 
@@ -917,10 +930,32 @@ def create_translation(project_id):
         return jsonify({'error': 'Failed to create translation'}), 500
 
 
-
-
-
-
+@translation.route('/project/<int:project_id>/translations/<int:translation_id>/purpose', methods=['POST'])
+@login_required
+def update_translation_purpose(project_id, translation_id):
+    """Update the purpose description for a legacy Translation record"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
+    
+    data = request.get_json()
+    description = data.get('description', '').strip()
+    
+    # Validate description length
+    if len(description) > 1000:
+        return jsonify({'error': 'Purpose description must be 1000 characters or less'}), 400
+    
+    # Update the translation description
+    translation.description = description if description else None
+    
+    try:
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': f'Updated purpose for {translation.name}'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to update purpose: {str(e)}'}), 500
 
 
 @translation.route('/project/<int:project_id>/translation/<target_id>/chapter/<book>/<int:chapter>')
