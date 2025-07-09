@@ -1070,7 +1070,8 @@ class TranslationEditor {
                     const newTranslationModal = document.getElementById('new-translation-modal');
                     const isPrimary = newTranslationModal.dataset.isPrimary === 'true';
                     
-                    const translationId = `translation_${data.translation.id}`;
+                    // Use the ID directly from the backend - it's already in the correct format (text_30)
+                    const translationId = data.translation.id;
                     await this.loadText(translationId, isPrimary);
                     
                     delete newTranslationModal.dataset.isPrimary;

@@ -368,7 +368,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function deleteTranslation() {
         if (!currentTranslationToDelete) return;
         
-        fetch(`/project/${projectId}/translations/${currentTranslationToDelete}`, {
+        // All translations are now unified Text records
+        fetch(`/project/${projectId}/texts/${currentTranslationToDelete}`, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
@@ -1152,13 +1153,14 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // All translations are now unified Text records
         // Visual feedback
         purposeInput.style.opacity = '0.6';
         purposeInput.disabled = true;
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
         
-        fetch(`/project/${projectId}/translations/${translationId}/purpose`, {
+        fetch(`/project/${projectId}/texts/${translationId}/purpose`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

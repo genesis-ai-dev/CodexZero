@@ -44,7 +44,7 @@ def migrate():
         # Add missing columns to translations table
         columns_to_add = [
             ('storage_type', 'VARCHAR(20) DEFAULT "file"', 'storage type'),
-            ('total_verses', 'INTEGER DEFAULT 31170', 'total verses'),
+            ('total_verses', 'INTEGER DEFAULT 41899', 'total verses'),
             ('non_empty_verses', 'INTEGER DEFAULT 0', 'non-empty verses'),
             ('progress_percentage', 'FLOAT DEFAULT 0.0', 'progress percentage')
         ]

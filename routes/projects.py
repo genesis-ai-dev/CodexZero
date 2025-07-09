@@ -123,45 +123,45 @@ def create_project():
 @login_required
 def view_project(project_id):
     """View a specific project"""
+    print(f"DEBUG: view_project called for project_id={project_id}")
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     
-    # Get available text files for back translation with line counts
-    text_files = []
-    total_available_lines = 0
+    # Get ALL texts (translations) in the database - everything is a Text record
+    from models import Text, Verse
     
-    for file in project.files:
-        if file.file_type in ['ebible', 'text']:
-            file_data = {
-                'id': file.id,
-                'original_filename': file.original_filename,
-                'file_type': file.file_type,
-                'file_size': file.file_size,
-                'storage_path': file.storage_path,
-                'line_count': 0
-            }
-            
-            try:
-                storage = get_storage()
-                file_content_bytes = storage.get_file(file.storage_path)
-                from utils.file_helpers import safe_decode_content
-                file_content = safe_decode_content(file_content_bytes)
-                all_lines = file_content.split('\n')
-                file_data['line_count'] = len(all_lines)
-                
-                # Use the first file's line count as total for backward compatibility
-                if not text_files:  # First file
-                    total_available_lines = len(all_lines)
-                    
-            except Exception as e:
-                print(f"Error calculating line count for {file.original_filename}: {e}")
-                file_data['line_count'] = 0
-            
-            text_files.append(file_data)
+    all_texts = Text.query.filter_by(
+        project_id=project_id
+    ).order_by(Text.created_at.desc()).all()
     
+    texts = []
+    total_available_verses = 0
+    
+    for text in all_texts:
+        # Skip JSONL files (those belong in fine-tuning tab)
+        if text.name and text.name.lower().endswith('.jsonl'):
+            continue
+            
+        # Count verses for this text (can be 0 for empty translations)
+        verse_count = Verse.query.filter_by(text_id=text.id).count()
+        
+        text_data = {
+            'id': f'text_{text.id}',
+            'name': text.name,
+            'verse_count': verse_count,
+            'created_at': text.created_at,
+            'purpose_description': text.description
+        }
+        
+        texts.append(text_data)
+        
+        # Track max verses for any text
+        if verse_count > total_available_verses:
+            total_available_verses = verse_count
+
     return render_template('project.html', 
                          project=project, 
-                         total_available_lines=total_available_lines, 
-                         text_files=text_files)
+                         total_available_verses=total_available_verses, 
+                         texts=texts)
 
 
 @projects.route('/project/<int:project_id>/edit')

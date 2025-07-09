@@ -54,33 +54,27 @@ class VerseReferenceManager:
     
     def parse_verse_ref(self, ref_string: str) -> Optional[Tuple[str, int, int]]:
         """Parse 'GEN 1:1' format into (book, chapter, verse)"""
-        try:
-            parts = ref_string.split()
-            if len(parts) != 2:
-                return None
-            
-            book = parts[0]
-            chapter_verse = parts[1].split(':')
-            if len(chapter_verse) != 2:
-                return None
-            
-            chapter = int(chapter_verse[0])
-            verse = int(chapter_verse[1])
-            
-            return book, chapter, verse
-        except (ValueError, IndexError):
+        parts = ref_string.split()
+        if len(parts) != 2:
             return None
+        
+        book = parts[0]
+        chapter_verse = parts[1].split(':')
+        if len(chapter_verse) != 2:
+            return None
+        
+        chapter = int(chapter_verse[0])
+        verse = int(chapter_verse[1])
+        
+        return book, chapter, verse
     
     def get_book_chapters(self, book: str) -> List[int]:
         """Get all chapter numbers for a book"""
         chapters = set()
         for ref in self.vref_data:
             if ref.startswith(f"{book} "):
-                try:
-                    chapter = int(ref.split()[1].split(':')[0])
-                    chapters.add(chapter)
-                except (ValueError, IndexError):
-                    continue
+                chapter = int(ref.split()[1].split(':')[0])
+                chapters.add(chapter)
         return sorted(list(chapters))
     
     def get_verse_reference(self, verse_index: int) -> Optional[str]:
@@ -91,40 +85,39 @@ class VerseReferenceManager:
 
 
 class TranslationFileManager:
-    """Manages translation files stored as eBible format (31170 lines)"""
+    """Manages translation files stored as eBible format (41899 lines)"""
     
     def __init__(self, storage_path: str):
         self.storage_path = storage_path
         self.storage = get_storage()
-        self.lines = None
+        self.lines: Optional[List[str]] = None
         self._verse_ref_manager = VerseReferenceManager()
     
     def load_translation_file(self) -> List[str]:
-        """Load translation file as list of lines (31170 lines)"""
+        """Load translation file as list of lines (41899 lines)"""
         if self.lines is not None:
             return self.lines
         
         try:
-            file_content = self.storage.get_file(self.storage_path)
+            file_content = self.storage.load_file(self.storage_path)
             content = safe_decode_content(file_content)
             self.lines = content.split('\n')
-            
-            # Ensure we have exactly 31170 lines
-            while len(self.lines) < 31170:
-                self.lines.append('')
-            
-            # Trim to exactly 31170 lines
-            self.lines = self.lines[:31170]
-            
         except Exception:
             # File doesn't exist, create empty translation
-            self.lines = [''] * 31170
+            self.lines = [''] * 41899
+        
+        # Ensure we have exactly 41899 lines
+        while len(self.lines) < 41899:
+            self.lines.append('')
+        
+        # Trim to exactly 41899 lines
+        self.lines = self.lines[:41899]
         
         return self.lines
     
     def save_verse(self, verse_index: int, text: str) -> bool:
         """Save single verse at specific index"""
-        if verse_index < 0 or verse_index >= 31170:
+        if verse_index < 0 or verse_index >= 41899:
             return False
         
         lines = self.load_translation_file()
@@ -135,7 +128,7 @@ class TranslationFileManager:
     
     def get_verse(self, verse_index: int) -> str:
         """Get verse text at specific index"""
-        if verse_index < 0 or verse_index >= 31170:
+        if verse_index < 0 or verse_index >= 41899:
             return ''
         
         lines = self.load_translation_file()
@@ -144,18 +137,17 @@ class TranslationFileManager:
     def get_chapter_verses(self, verse_indices: List[int]) -> List[str]:
         """Get multiple verses by indices"""
         lines = self.load_translation_file()
-        return [lines[i] if 0 <= i < 31170 else '' for i in verse_indices]
+        return [lines[i] if 0 <= i < 41899 else '' for i in verse_indices]
     
     def save_translation_file(self) -> bool:
         """Save entire translation file"""
-        try:
-            content = '\n'.join(self.lines)
-            content_bytes = io.BytesIO(content.encode('utf-8'))
-            self.storage.store_file(content_bytes, self.storage_path)
-            return True
-        except Exception as e:
-            print(f"Error saving translation file: {e}")
+        if self.lines is None:
             return False
+        
+        content = '\n'.join(self.lines)
+        content_bytes = io.BytesIO(content.encode('utf-8'))
+        self.storage.store_file(content_bytes, self.storage_path)
+        return True
     
     def calculate_progress(self) -> Tuple[int, float]:
         """Calculate translation progress"""
@@ -175,7 +167,7 @@ class TranslationFileManager:
         
         # Create empty file
         storage = get_storage()
-        empty_content = '\n'.join([''] * 31170)
+        empty_content = '\n'.join([''] * 41899)
         content_bytes = io.BytesIO(empty_content.encode('utf-8'))
         storage.store_file(content_bytes, storage_path)
         
@@ -197,7 +189,7 @@ class TranslationDatabaseManager:
     
     def save_verse(self, verse_index: int, text: str) -> bool:
         """Save single verse to database"""
-        if verse_index < 0 or verse_index >= 31170:
+        if verse_index < 0 or verse_index >= 41899:
             return False
         
         success = self.storage.store_verse(self.translation_id, verse_index, text)
@@ -217,7 +209,7 @@ class TranslationDatabaseManager:
     
     def get_verse(self, verse_index: int) -> str:
         """Get verse text at specific index"""
-        if verse_index < 0 or verse_index >= 31170:
+        if verse_index < 0 or verse_index >= 41899:
             return ''
         
         verses = self.storage.get_verses(self.translation_id, [verse_index])
@@ -242,7 +234,7 @@ class TranslationDatabaseManager:
             storage_type='database',
             storage_path=None,  # No file path needed
             translation_type='draft',
-            total_verses=31170,
+            total_verses=41899,
             translated_verses=0,
             progress_percentage=0.0
         )
@@ -264,14 +256,8 @@ class SourceTextManager:
     
     def _load_source_file(self):
         """Load source file using vref-utils"""
-        try:
-            # For now, we'll use the file path directly
-            # In production, you might need to download from storage first
-            if os.path.exists(self.file_path):
-                self.vref = Vref(self.file_path)
-        except Exception as e:
-            print(f"Error loading source file: {e}")
-            self.vref = None
+        if os.path.exists(self.file_path):
+            self.vref = Vref(self.file_path)
     
     def get_chapter_verses(self, book: str, chapter: int) -> List[Dict]:
         """Get source verses for a chapter"""
@@ -282,23 +268,19 @@ class SourceTextManager:
         verse_num = 1
         
         while True:
-            try:
-                ref = f"{book} {chapter}:{verse_num}"
-                verse_list = self.vref[ref]
-                
-                if len(verse_list) == 0:
-                    break
-                
-                verse = verse_list[0]
-                verses.append({
-                    'verse': verse_num,
-                    'reference': verse.reference,
-                    'text': verse.text
-                })
-                verse_num += 1
-                
-            except (KeyError, IndexError, Exception):
+            ref = f"{book} {chapter}:{verse_num}"
+            verse_list = self.vref[ref]
+            
+            if len(verse_list) == 0:
                 break
+            
+            verse = verse_list[0]
+            verses.append({
+                'verse': verse_num,
+                'reference': verse.reference,
+                'text': verse.text
+            })
+            verse_num += 1
         
         return verses
     
@@ -307,13 +289,10 @@ class SourceTextManager:
         if not self.vref:
             return None
         
-        try:
-            ref = f"{book} {chapter}:{verse}"
-            verse_list = self.vref[ref]
-            if len(verse_list) > 0:
-                return verse_list[0].text
-        except (KeyError, IndexError, Exception):
-            pass
+        ref = f"{book} {chapter}:{verse}"
+        verse_list = self.vref[ref]
+        if len(verse_list) > 0:
+            return verse_list[0].text
         
         return None 
 

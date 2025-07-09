@@ -48,14 +48,14 @@ class DatabaseStorage:
     
     def get_all_verses(self, translation_id: int) -> List[str]:
         """Get all verses for a translation in order"""
-        verses = [''] * 31170  # Initialize with empty verses
+        verses = [''] * 41899  # Initialize with empty verses
         
         results = TranslationVerse.query.filter_by(
             translation_id=translation_id
         ).order_by(TranslationVerse.verse_index).all()
         
         for verse in results:
-            if 0 <= verse.verse_index < 31170:
+            if 0 <= verse.verse_index < 41899:
                 verses[verse.verse_index] = verse.verse_text
         
         return verses

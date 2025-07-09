@@ -724,100 +724,7 @@ def _generate_translation_with_examples(text, target_language, examples, source_
 
 # ===== NEW TRANSLATION EDITOR ENDPOINTS =====
 
-@translation.route('/project/<int:project_id>/translations/<int:translation_id>/download')
-@login_required
-def download_translation(project_id, translation_id):
-    """Download a translation file"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-    translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
-    
-    try:
-        # Create a safe filename
-        safe_name = "".join(c for c in translation.name if c.isalnum() or c in (' ', '-', '_')).strip()
-        safe_name = safe_name.replace(' ', '_')
-        filename = f"{safe_name}.txt"
-        
-        # Get translation content based on storage type
-        if translation.storage_type == 'database':
-            # For database storage, reconstruct the file
-            translation_manager = _get_translation_manager(translation)
-            verses = translation_manager.load_translation_file()  # This gets all verses efficiently
-            content = '\n'.join(verses)
-            
-            return send_file(
-                io.BytesIO(content.encode('utf-8')), 
-                as_attachment=True, 
-                download_name=filename,
-                mimetype='text/plain'
-            )
-        else:
-            # For file storage, use existing logic
-            storage = get_storage()
-            file_content = storage.get_file(translation.storage_path)
-            
-            # For local storage, serve file directly with download headers
-            if hasattr(storage, 'base_path'):  # LocalStorage
-                return send_file(
-                    io.BytesIO(file_content), 
-                    as_attachment=True, 
-                    download_name=filename,
-                    mimetype='text/plain'
-                )
-            else:  # Cloud storage
-                # For cloud storage, redirect to a signed URL for download
-                return redirect(storage.get_file_url(translation.storage_path))
-    except Exception as e:
-        return jsonify({'error': f'Translation download failed: {str(e)}'}), 500
-
-@translation.route('/project/<int:project_id>/translations/<int:translation_id>/purpose', methods=['POST'])
-@login_required
-def update_translation_purpose(project_id, translation_id):
-    """Update the purpose description for a translation"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-    translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
-    
-    data = request.get_json()
-    description = data.get('description', '').strip()
-    
-    # Validate description length
-    if len(description) > 1000:
-        return jsonify({'error': 'Purpose description must be 1000 characters or less'}), 400
-    
-    # Update the translation description
-    translation.description = description if description else None
-    
-    try:
-        db.session.commit()
-        return jsonify({
-            'success': True,
-            'message': f'Updated purpose for {translation.name}'
-        })
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': f'Failed to update purpose: {str(e)}'}), 500
-
-@translation.route('/project/<int:project_id>/translations/<int:translation_id>', methods=['DELETE'])
-@login_required
-def delete_translation(project_id, translation_id):
-    """Delete a translation"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-    translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
-    
-    # Delete from storage (if file exists and is file-based)
-    if translation.storage_type == 'file' and translation.storage_path:
-        storage = get_storage()
-        try:
-            storage.delete_file(translation.storage_path)
-        except Exception as e:
-            # Log the error but continue with database deletion
-            print(f"Warning: Could not delete translation from storage: {e}")
-            # This is not a fatal error - the file might already be deleted
-    
-    # Delete translation from database
-    db.session.delete(translation)
-    db.session.commit()
-    
-    return '', 204  # No content response
+# Legacy translation routes removed - everything now uses unified Text schema
 
 @translation.route('/project/<int:project_id>/texts')
 @login_required
@@ -875,6 +782,84 @@ def list_all_texts(project_id):
     texts.sort(key=lambda x: x['created_at'], reverse=True)
     
     return jsonify({'texts': texts})
+
+@translation.route('/project/<int:project_id>/texts/<int:text_id>', methods=['DELETE'])
+@login_required
+def delete_text(project_id, text_id):
+    """Delete a unified Text record (new schema)"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    from models import Text
+    text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
+    
+    # Delete the text and all its verses
+    db.session.delete(text)
+    db.session.commit()
+    
+    return '', 204  # No content response
+
+@translation.route('/project/<int:project_id>/texts/<int:text_id>/purpose', methods=['POST'])
+@login_required
+def update_text_purpose(project_id, text_id):
+    """Update the purpose description for a unified Text record"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    from models import Text
+    text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
+    
+    data = request.get_json()
+    description = data.get('description', '').strip()
+    
+    # Validate description length
+    if len(description) > 1000:
+        return jsonify({'error': 'Purpose description must be 1000 characters or less'}), 400
+    
+    # Update the text description
+    text.description = description if description else None
+    
+    try:
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': f'Updated purpose for {text.name}'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to update purpose: {str(e)}'}), 500
+
+@translation.route('/project/<int:project_id>/texts/<int:text_id>/download')
+@login_required
+def download_text(project_id, text_id):
+    """Download a unified Text record"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    from models import Text
+    from utils.text_manager import TextManager
+    
+    text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
+    
+    try:
+        # Create a safe filename
+        safe_name = "".join(c for c in text.name if c.isalnum() or c in (' ', '-', '_')).strip()
+        safe_name = safe_name.replace(' ', '_')
+        filename = f"{safe_name}.txt"
+        
+        # Get text content using TextManager
+        text_manager = TextManager(text_id)
+        # Get all verses (0-31169) 
+        all_indices = list(range(41899))
+        verses = text_manager.get_verses(all_indices)
+        content = '\n'.join(verses)
+        
+        return send_file(
+            io.BytesIO(content.encode('utf-8')), 
+            as_attachment=True, 
+            download_name=filename,
+            mimetype='text/plain'
+        )
+        
+    except Exception as e:
+        return jsonify({'error': f'Text download failed: {str(e)}'}), 500
 
 
 @translation.route('/project/<int:project_id>/translations', methods=['POST'])
@@ -994,6 +979,19 @@ def get_chapter_verses(project_id, target_id, book, chapter):
             verse_indices = [v['index'] for v in chapter_verses]
             target_texts = translation_manager.get_chapter_verses(verse_indices)
             
+        elif target_id.startswith('text_'):
+            # NEW: Target is a unified Text record (new schema)
+            text_id = int(target_id.replace('text_', ''))
+            from models import Text
+            from utils.text_manager import TextManager
+            
+            target_text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
+            target_purpose = target_text.description or ''
+            
+            text_manager = TextManager(text_id)
+            verse_indices = [v['index'] for v in chapter_verses]
+            target_texts = text_manager.get_verses(verse_indices)
+            
         else:
             # Assume it's a direct translation ID (for backward compatibility)
             try:
@@ -1042,6 +1040,18 @@ def get_chapter_verses(project_id, target_id, book, chapter):
             source_manager = _get_translation_manager(source_translation)
             verse_indices = [v['index'] for v in chapter_verses]
             source_verses = source_manager.get_chapter_verses(verse_indices)
+        
+        elif source_id.startswith('text_'):
+            # NEW: Source is a unified Text record (new schema)
+            text_id = int(source_id.replace('text_', ''))
+            from models import Text
+            from utils.text_manager import TextManager
+            
+            source_text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
+            
+            text_manager = TextManager(text_id)
+            verse_indices = [v['index'] for v in chapter_verses]
+            source_verses = text_manager.get_verses(verse_indices)
         
         else:
             return jsonify({'error': 'Invalid source_id format'}), 400
@@ -1128,6 +1138,20 @@ def save_verse(project_id, target_id, verse_index):
             # Update progress
             translation.updated_at = datetime.utcnow()
             db.session.commit()
+            
+        elif target_id.startswith('text_'):
+            # NEW: Target is a unified Text record (new schema)
+            text_id = int(target_id.replace('text_', ''))
+            from models import Text
+            from utils.text_manager import TextManager
+            
+            target_text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
+            
+            text_manager = TextManager(text_id)
+            success = text_manager.save_verse(verse_index, verse_text)
+            
+            if not success:
+                return jsonify({'error': 'Failed to save verse'}), 500
             
         else:
             # Assume it's a direct translation ID (for backward compatibility)

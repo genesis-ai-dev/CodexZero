@@ -90,7 +90,7 @@ class Text(db.Model):
     description = db.Column(db.Text)
     
     # Progress tracking
-    total_verses = db.Column(db.Integer, default=31170)
+    total_verses = db.Column(db.Integer, default=41899)
     non_empty_verses = db.Column(db.Integer, default=0)
     progress_percentage = db.Column(db.Float, default=0.0)
     
@@ -321,7 +321,7 @@ class Translation(db.Model):
     storage_type = db.Column(db.String(20), default='file')  # 'file' or 'database'
     
     # Progress tracking
-    total_verses = db.Column(db.Integer, default=31170)
+    total_verses = db.Column(db.Integer, default=41899)
     non_empty_verses = db.Column(db.Integer, default=0)
     progress_percentage = db.Column(db.Float, default=0.0)
     

@@ -14,7 +14,7 @@ class TextManager:
     
     def get_verse(self, verse_index: int) -> str:
         """Get single verse text by index"""
-        if verse_index < 0 or verse_index >= 31170:
+        if verse_index < 0 or verse_index >= 41899:
             return ''
         
         verse = Verse.query.filter_by(
@@ -30,7 +30,7 @@ class TextManager:
             return []
         
         # Filter valid indices
-        valid_indices = [idx for idx in verse_indices if 0 <= idx < 31170]
+        valid_indices = [idx for idx in verse_indices if 0 <= idx < 41899]
         if not valid_indices:
             return [''] * len(verse_indices)
         
@@ -48,7 +48,7 @@ class TextManager:
     
     def save_verse(self, verse_index: int, text: str) -> bool:
         """Save single verse at specific index"""
-        if verse_index < 0 or verse_index >= 31170:
+        if verse_index < 0 or verse_index >= 41899:
             return False
         
         try:
@@ -86,7 +86,7 @@ class TextManager:
             verse_inserts = []
             
             # Get existing verses
-            indices = [idx for idx, _ in verse_data if 0 <= idx < 31170]
+            indices = [idx for idx, _ in verse_data if 0 <= idx < 41899]
             existing_verses = {
                 v.verse_index: v for v in 
                 Verse.query.filter(
@@ -97,7 +97,7 @@ class TextManager:
             
             # Categorize updates vs inserts
             for verse_index, text in verse_data:
-                if verse_index < 0 or verse_index >= 31170:
+                if verse_index < 0 or verse_index >= 41899:
                     continue
                 
                 if verse_index in existing_verses:

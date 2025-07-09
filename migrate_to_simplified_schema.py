@@ -32,7 +32,7 @@ def create_simplified_tables():
             text_type ENUM('source', 'draft', 'back_translation') NOT NULL,
             description TEXT,
             
-            total_verses INT DEFAULT 31170,
+            total_verses INT DEFAULT 41899,
             non_empty_verses INT DEFAULT 0,
             progress_percentage DECIMAL(5,2) DEFAULT 0.0,
             

@@ -158,6 +158,45 @@ def usfm_import(project_id):
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     return render_template('usfm_import.html', project=project)
 
+@files.route('/project/<int:project_id>/usfm-status')
+@login_required
+def usfm_status(project_id):
+    """Get USFM import status and progress stats"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    total_verses = 0
+    filled_verses = 0
+    
+    # Count from unified Text records (USFM uploads use this)
+    from models import Text, Verse
+    
+    source_texts = Text.query.filter_by(
+        project_id=project_id, 
+        text_type='source'
+    ).all()
+    
+    for text in source_texts:
+        # Count all verses for this text
+        verses = Verse.query.filter_by(text_id=text.id).all()
+        total_verses += len(verses)
+        # Count filled verses (non-empty text)
+        filled_verses += sum(1 for v in verses if v.verse_text and v.verse_text.strip())
+    
+    # Calculate completion percentage based on Protestant canon
+    completion_percentage = (filled_verses / 31170) * 100 if filled_verses > 0 else 0.0
+    
+    stats = {
+        'total_verses': total_verses,
+        'filled_verses': filled_verses,
+        'completion_percentage': completion_percentage
+    }
+    
+    return jsonify({
+        'success': True,
+        'stats': stats,
+        'uploaded_files': []  # Could be enhanced to track individual file info
+    })
+
 @files.route('/project/<int:project_id>/usfm-upload', methods=['POST'])
 @login_required
 def usfm_upload(project_id):
@@ -233,19 +272,42 @@ def usfm_upload(project_id):
     project_file = save_project_file(project_id, ebible_content, project_filename, 'ebible', 'text/plain')
     db.session.commit()
     
+
+    
+    # Calculate stats for response
+    from utils.usfm_parser import EBibleBuilder
+    vref_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'vref.txt')
+    builder = EBibleBuilder(vref_path)
+    stats = builder.get_completion_stats(ebible_lines)
+    
     result = {
         'success': True,
         'message': f'Processed {len([f for f in uploaded_file_info if f["status"] == "success"])} USFM file(s), stored {len(all_verses)} verses in database',
         'uploaded_files': uploaded_file_info,
         'verses_added': len(all_verses),
         'file_id': project_file.id,
-        'filename': project_filename
+        'filename': project_filename,
+        'stats': stats  # Include completion stats
     }
     
     if processing_errors:
         result['warnings'] = processing_errors
         
     return jsonify(result)
+
+@files.route('/project/<int:project_id>/usfm-complete', methods=['POST'])
+@login_required
+def usfm_complete(project_id):
+    """Complete USFM import process"""
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    
+    # For now, this just returns success since files are already processed
+    # Could be enhanced to perform final validation or consolidation
+    
+    return jsonify({
+        'success': True,
+        'message': 'USFM import completed successfully'
+    })
 
 
 @files.route('/project/<int:project_id>/upload-target-text', methods=['POST'])
