@@ -4,6 +4,7 @@ import uuid
 import chardet
 import io
 from typing import List, Dict, Optional, Tuple
+from datetime import datetime
 
 # Add project root to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -179,6 +180,78 @@ class TranslationFileManager:
         storage.store_file(content_bytes, storage_path)
         
         return storage_path
+
+
+class TranslationDatabaseManager:
+    """Manages translations stored in database"""
+    
+    def __init__(self, translation_id: int):
+        self.translation_id = translation_id
+        from storage.database import DatabaseStorage
+        self.storage = DatabaseStorage()
+        self._verse_ref_manager = VerseReferenceManager()
+    
+    def load_translation_file(self) -> List[str]:
+        """Load all verses from database (compatibility method)"""
+        return self.storage.get_all_verses(self.translation_id)
+    
+    def save_verse(self, verse_index: int, text: str) -> bool:
+        """Save single verse to database"""
+        if verse_index < 0 or verse_index >= 31170:
+            return False
+        
+        success = self.storage.store_verse(self.translation_id, verse_index, text)
+        
+        # Update translation progress
+        if success:
+            from models import db, Translation
+            translation = Translation.query.get(self.translation_id)
+            if translation:
+                count, percentage = self.storage.calculate_progress(self.translation_id)
+                translation.translated_verses = count
+                translation.progress_percentage = percentage
+                translation.updated_at = datetime.utcnow()
+                db.session.commit()
+        
+        return success
+    
+    def get_verse(self, verse_index: int) -> str:
+        """Get verse text at specific index"""
+        if verse_index < 0 or verse_index >= 31170:
+            return ''
+        
+        verses = self.storage.get_verses(self.translation_id, [verse_index])
+        return verses[0] if verses else ''
+    
+    def get_chapter_verses(self, verse_indices: List[int]) -> List[str]:
+        """Get multiple verses by indices"""
+        return self.storage.get_verses(self.translation_id, verse_indices)
+    
+    def calculate_progress(self) -> Tuple[int, float]:
+        """Calculate translation progress from database"""
+        return self.storage.calculate_progress(self.translation_id)
+    
+    @classmethod
+    def create_new_translation(cls, project_id: int, name: str) -> int:
+        """Create a new database-based translation and return its ID"""
+        from models import db, Translation
+        
+        translation = Translation(
+            project_id=project_id,
+            name=name,
+            storage_type='database',
+            storage_path=None,  # No file path needed
+            translation_type='draft',
+            total_verses=31170,
+            translated_verses=0,
+            progress_percentage=0.0
+        )
+        
+        db.session.add(translation)
+        db.session.flush()  # Get the ID
+        db.session.commit()
+        
+        return translation.id
 
 
 class SourceTextManager:

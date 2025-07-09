@@ -105,26 +105,6 @@ def handle_usfm_auto_upload(project_id, project, file_content, filename):
     vref_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'vref.txt')
     builder = EBibleBuilder(vref_path)
     
-    temp_dir = os.path.join('storage', 'temp_usfm')
-    os.makedirs(temp_dir, exist_ok=True)
-    
-    session_file_path = os.path.join(temp_dir, f'session_{project_id}_{current_user.id}.json')
-    ebible_file_path = os.path.join(temp_dir, f'ebible_{project_id}_{current_user.id}.txt')
-    
-    if os.path.exists(session_file_path):
-        with open(session_file_path, 'r', encoding='utf-8') as f:
-            usfm_session = json.load(f)
-    else:
-        usfm_session = {'uploaded_files': []}
-    
-    if os.path.exists(ebible_file_path):
-        with open(ebible_file_path, 'r', encoding='utf-8') as f:
-            existing_ebible_lines = [line.rstrip('\n') for line in f.readlines()]
-    else:
-        with open(vref_path, 'r') as f:
-            total_verses = sum(1 for line in f if line.strip())
-        existing_ebible_lines = [''] * total_verses
-    
     try:
         file_verses = parser.parse_file(file_content, filename)
     except ValueError as e:
@@ -132,32 +112,29 @@ def handle_usfm_auto_upload(project_id, project, file_content, filename):
     except Exception as e:
         return jsonify({'error': f'Error parsing USFM file "{filename}": {str(e)}'}), 500
     
-    updated_ebible_lines = builder.create_ebible_from_usfm_verses(file_verses, existing_ebible_lines)
-    stats = builder.get_completion_stats(updated_ebible_lines)
+    # Create eBible format from USFM verses
+    ebible_lines = builder.create_ebible_from_usfm_verses(file_verses)
+    ebible_content = '\n'.join(ebible_lines)
     
-    file_info = {
-        'filename': filename,
-        'verses_count': len(file_verses),
-        'books': list(set(ref.split()[0] for ref in file_verses.keys()))
-    }
+    # Generate descriptive filename
+    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+    safe_filename = "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_', '.')).strip()
+    project_filename = f"usfm_{safe_filename}_{timestamp}.txt"
     
-    usfm_session['uploaded_files'].append(file_info)
+    # Store directly in database using save_project_file
+    project_file = save_project_file(project_id, ebible_content, project_filename, 'ebible', 'text/plain')
+    db.session.commit()
     
-    with open(session_file_path, 'w', encoding='utf-8') as f:
-        json.dump(usfm_session, f)
-    
-    with open(ebible_file_path, 'w', encoding='utf-8') as f:
-        for line in updated_ebible_lines:
-            f.write(line + '\n')
+    stats = builder.get_completion_stats(ebible_lines)
     
     return jsonify({
         'success': True,
         'is_usfm': True,
-        'message': f'USFM file "{filename}" processed successfully',
-        'redirect_url': f'/project/{project_id}/usfm-import',
-        'uploaded_files': [file_info],
-        'stats': stats,
-        'verses_added': len(file_verses)
+        'message': f'USFM file "{filename}" processed and stored in database successfully',
+        'file_id': project_file.id,
+        'filename': project_filename,
+        'verses_added': len(file_verses),
+        'stats': stats
     })
 
 def handle_text_auto_upload(project_id, project, file_content, filename):
@@ -198,7 +175,7 @@ def usfm_upload(project_id):
     uploaded_file_info = []
     processing_errors = []
     
-    from utils.usfm_parser import USFMParser
+    from utils.usfm_parser import USFMParser, EBibleBuilder
     parser = USFMParser()
     
     for file in files:
@@ -238,45 +215,37 @@ def usfm_upload(project_id):
             error_msg += f' Errors: {"; ".join(processing_errors)}'
         return jsonify({'error': error_msg}), 400
     
-    # Save verses directly
-    verse_lines = [f"{ref}: {text}" for ref, text in sorted(all_verses.items())]
-    final_content = '\n'.join(verse_lines)
+    # Create eBible format from all verses
+    vref_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'vref.txt')
+    builder = EBibleBuilder(vref_path)
+    ebible_lines = builder.create_ebible_from_usfm_verses(all_verses)
+    ebible_content = '\n'.join(ebible_lines)
     
+    # Generate descriptive filename
     timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-    filename = f"usfm_verses_{timestamp}.txt"
+    if len(uploaded_file_info) == 1:
+        safe_filename = "".join(c for c in uploaded_file_info[0]['filename'] if c.isalnum() or c in (' ', '-', '_', '.')).strip()
+        project_filename = f"usfm_{safe_filename}_{timestamp}.txt"
+    else:
+        project_filename = f"usfm_combined_{len(uploaded_file_info)}_files_{timestamp}.txt"
     
-    project_file = save_project_file(project_id, final_content, filename, 'text', 'text/plain')
+    # Store directly in database using save_project_file
+    project_file = save_project_file(project_id, ebible_content, project_filename, 'ebible', 'text/plain')
     db.session.commit()
     
     result = {
         'success': True,
-        'message': f'Processed {len([f for f in uploaded_file_info if f["status"] == "success"])} file(s), extracted {len(all_verses)} verses',
+        'message': f'Processed {len([f for f in uploaded_file_info if f["status"] == "success"])} USFM file(s), stored {len(all_verses)} verses in database',
         'uploaded_files': uploaded_file_info,
         'verses_added': len(all_verses),
         'file_id': project_file.id,
-        'filename': filename
+        'filename': project_filename
     }
     
     if processing_errors:
         result['warnings'] = processing_errors
         
     return jsonify(result)
-
-@files.route('/project/<int:project_id>/usfm-status')
-@login_required
-def usfm_status(project_id):
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-    
-    # Return simple status since we now save directly to project files
-    return jsonify({
-        'stats': {
-            'total_verses': 0,
-            'filled_verses': 0,
-            'missing_verses': 0,
-            'completion_percentage': 0
-        },
-        'uploaded_files': []
-    })
 
 
 @files.route('/project/<int:project_id>/upload-target-text', methods=['POST'])

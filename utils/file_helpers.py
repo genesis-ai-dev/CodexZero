@@ -99,16 +99,19 @@ def save_project_file(project_id: int, file_data, filename: str, file_type: str,
         # Text data - convert to BytesIO
         file_obj = io.BytesIO(file_data.encode('utf-8'))
         file_size = len(file_data.encode('utf-8'))
+        file_content = file_data
         line_count = len(file_data.splitlines())
     else:
         # File upload - read content for size and line count
         content = file_data.read()
         file_size = len(content)
-        line_count = len(content.decode('utf-8').splitlines())
+        file_content = content.decode('utf-8')
+        line_count = len(file_content.splitlines())
         file_data.seek(0)
         file_obj = file_data
     
-    # Try to store file with error handling for storage connection issues
+    # For now, still store the file for backup/compatibility
+    # This can be removed later once we're confident in database storage
     try:
         storage.store_file(file_obj, storage_path)
     except Exception as e:
@@ -118,16 +121,45 @@ def save_project_file(project_id: int, file_data, filename: str, file_type: str,
         print(f"Full storage error: {traceback.format_exc()}")
         raise Exception(f"File storage unavailable. Please check storage configuration or contact support. Error: {str(e)}")
     
+    # Determine if this file should use database storage for verses
+    use_database_storage = False
+    if file_type in ['text', 'ebible', 'back_translation']:
+        # Don't store verses for training data files
+        if not filename.endswith('.jsonl') and not filename.endswith('.rtf'):
+            use_database_storage = True
+    
+    # Create project file record
     project_file = ProjectFile(
         project_id=project_id,
         original_filename=filename,
         storage_path=storage_path,
+        storage_type='database' if use_database_storage else 'file',
         file_type=file_type,
         content_type=content_type,
         file_size=file_size,
         line_count=line_count
     )
     db.session.add(project_file)
+    db.session.flush()  # Get the ID before bulk insert
+    
+    # Store verses in database if appropriate
+    if use_database_storage:
+        from models import ProjectFileVerse
+        lines = file_content.split('\n')
+        verses_data = []
+        
+        for i, line in enumerate(lines):
+            if line.strip():  # Only store non-empty lines
+                verses_data.append({
+                    'project_file_id': project_file.id,
+                    'verse_index': i,
+                    'verse_text': line.strip()
+                })
+        
+        # Bulk insert verses for better performance
+        if verses_data:
+            db.session.bulk_insert_mappings(ProjectFileVerse, verses_data)
+    
     return project_file
 
 

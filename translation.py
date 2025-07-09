@@ -10,16 +10,13 @@ from thefuzz import fuzz
 from datetime import datetime
 from typing import Tuple, List, Dict, Any
 
-from models import Project, Translation, ProjectFile, db
+from models import Project, Text, Verse, db
 from ai.bot import Chatbot, extract_translation_from_xml
-from ai.contextquery import ContextQuery, MemoryContextQuery
-from utils.translation_manager import VerseReferenceManager, TranslationFileManager
-from storage import get_storage
+from ai.contextquery import ContextQuery, MemoryContextQuery, DatabaseContextQuery
+from utils.text_manager import TextManager
+from utils.translation_manager import VerseReferenceManager
 
 translation = Blueprint('translation', __name__)
-
-# Create a lock for each file to prevent concurrent writes
-file_locks = {}
 
 def _parse_source_filenames(job):
     """Parse source filenames from job with proper error handling"""
@@ -52,7 +49,7 @@ def translate_page(project_id):
 
 
 
-def _get_translation_examples(project_id, source_file_id, target_file_id, query_text, exclude_verse_index=None):
+def _get_translation_examples(project_id, source_text_id, target_text_id, query_text, exclude_verse_index=None):
     """Get examples using source and target files with context query"""
     print(f"DEBUG: Getting examples for query: '{query_text}'")
     print(f"DEBUG: source_file_id: {source_file_id}, target_file_id: {target_file_id}")
@@ -60,26 +57,102 @@ def _get_translation_examples(project_id, source_file_id, target_file_id, query_
     if not query_text:
         return [], "No query text provided"
     
+    # Check if we're dealing with database translations
+    source_is_db = False
+    target_is_db = False
+    
+    if source_file_id.startswith('translation_'):
+        source_translation = Translation.query.filter_by(
+            id=int(source_file_id.replace('translation_', '')),
+            project_id=project_id
+        ).first()
+        source_is_db = source_translation and source_translation.storage_type == 'database'
+    
+    if target_file_id.startswith('translation_'):
+        target_translation = Translation.query.filter_by(
+            id=int(target_file_id.replace('translation_', '')),
+            project_id=project_id
+        ).first()
+        target_is_db = target_translation and target_translation.storage_type == 'database'
+    
+    # If both are database translations, use optimized approach
+    if source_is_db and target_is_db:
+        print("DEBUG: Using DatabaseContextQuery for both database-stored translations")
+        
+        from models import TranslationVerse
+        
+        # Get non-empty verses from source
+        source_verses = TranslationVerse.query.filter(
+            TranslationVerse.translation_id == int(source_file_id.replace('translation_', '')),
+            TranslationVerse.verse_text != ''
+        ).all()
+        source_data = [(v.verse_index, v.verse_text) for v in source_verses]
+        
+        # Get non-empty verses from target
+        target_verses = TranslationVerse.query.filter(
+            TranslationVerse.translation_id == int(target_file_id.replace('translation_', '')),
+            TranslationVerse.verse_text != ''
+        ).all()
+        target_data = [(v.verse_index, v.verse_text) for v in target_verses]
+        
+        print(f"DEBUG: Loaded {len(source_data)} source verses and {len(target_data)} target verses from database")
+        
+        # Use DatabaseContextQuery
+        try:
+            cq = DatabaseContextQuery(source_data, target_data)
+            print(f"DEBUG: Searching for query: '{query_text}' with coverage-based stopping")
+            results = cq.search_by_text(query_text, top_k=10, min_examples=3, coverage_threshold=0.9, exclude_idx=exclude_verse_index)
+            print(f"DEBUG: DatabaseContextQuery returned {len(results)} results")
+            
+            examples = []
+            for verse_id, source_text, target_text, coverage in results:
+                examples.append(target_text.strip())
+            
+            return examples, f"Found {len(examples)} examples using optimized database query"
+            
+        except Exception as e:
+            print(f"DEBUG: Error in DatabaseContextQuery: {e}")
+            return [], f"Error in context query: {str(e)}"
+    
     # Load source content
     source_lines = []
     if source_file_id.startswith('file_'):
         file_id = int(source_file_id.replace('file_', ''))
         project_file = ProjectFile.query.filter_by(id=file_id, project_id=project_id).first()
         if project_file:
-            storage = get_storage()
-            file_content = storage.get_file(project_file.storage_path)
-            content = simple_decode_utf8(file_content)
-            source_lines = content.split('\n')
-            print(f"DEBUG: Loaded source file with {len(source_lines)} lines")
+            # Get verses from database
+            verses = ProjectFileVerse.query.filter_by(project_file_id=project_file.id).all()
+            source_lines = [''] * 31170
+            for verse in verses:
+                if 0 <= verse.verse_index < 31170:
+                    source_lines[verse.verse_index] = verse.verse_text
+            print(f"DEBUG: Loaded {len(verses)} verses from database for source file")
         else:
             print(f"DEBUG: Source file not found: {file_id}")
     elif source_file_id.startswith('translation_'):
         translation_id = int(source_file_id.replace('translation_', ''))
         translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first()
         if translation:
-            translation_manager = TranslationFileManager(translation.storage_path)
-            source_lines = translation_manager.load_translation_file()
-            print(f"DEBUG: Loaded source translation with {len(source_lines)} lines")
+            if translation.storage_type == 'database':
+                # For database translations, only load non-empty verses for context query
+                from models import TranslationVerse
+                verses = TranslationVerse.query.filter(
+                    TranslationVerse.translation_id == translation_id,
+                    TranslationVerse.verse_text != ''
+                ).all()
+                
+                # Create sparse array with only non-empty verses
+                source_lines = [''] * 31170
+                for verse in verses:
+                    if 0 <= verse.verse_index < 31170:
+                        source_lines[verse.verse_index] = verse.verse_text
+                        
+                print(f"DEBUG: Loaded {len(verses)} non-empty verses from database for source translation")
+            else:
+                # File-based translation - load normally
+                translation_manager = _get_translation_manager(translation)
+                source_lines = translation_manager.load_translation_file()
+                print(f"DEBUG: Loaded source translation with {len(source_lines)} lines")
         else:
             print(f"DEBUG: Source translation not found: {translation_id}")
     
@@ -89,20 +162,39 @@ def _get_translation_examples(project_id, source_file_id, target_file_id, query_
         file_id = int(target_file_id.replace('file_', ''))
         project_file = ProjectFile.query.filter_by(id=file_id, project_id=project_id).first()
         if project_file:
-            storage = get_storage()
-            file_content = storage.get_file(project_file.storage_path)
-            content = simple_decode_utf8(file_content)
-            target_lines = content.split('\n')
-            print(f"DEBUG: Loaded target file with {len(target_lines)} lines")
+            # Get verses from database
+            verses = ProjectFileVerse.query.filter_by(project_file_id=project_file.id).all()
+            target_lines = [''] * 31170
+            for verse in verses:
+                if 0 <= verse.verse_index < 31170:
+                    target_lines[verse.verse_index] = verse.verse_text
+            print(f"DEBUG: Loaded {len(verses)} verses from database for target file")
         else:
             print(f"DEBUG: Target file not found: {file_id}")
     elif target_file_id.startswith('translation_'):
         translation_id = int(target_file_id.replace('translation_', ''))
         translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first()
         if translation:
-            translation_manager = TranslationFileManager(translation.storage_path)
-            target_lines = translation_manager.load_translation_file()
-            print(f"DEBUG: Loaded target translation with {len(target_lines)} lines")
+            if translation.storage_type == 'database':
+                # For database translations, only load non-empty verses for context query
+                from models import TranslationVerse
+                verses = TranslationVerse.query.filter(
+                    TranslationVerse.translation_id == translation_id,
+                    TranslationVerse.verse_text != ''
+                ).all()
+                
+                # Create sparse array with only non-empty verses
+                target_lines = [''] * 31170
+                for verse in verses:
+                    if 0 <= verse.verse_index < 31170:
+                        target_lines[verse.verse_index] = verse.verse_text
+                        
+                print(f"DEBUG: Loaded {len(verses)} non-empty verses from database for target translation")
+            else:
+                # File-based translation - load normally
+                translation_manager = _get_translation_manager(translation)
+                target_lines = translation_manager.load_translation_file()
+                print(f"DEBUG: Loaded target translation with {len(target_lines)} lines")
         else:
             print(f"DEBUG: Target translation not found: {translation_id}")
     
@@ -283,11 +375,13 @@ def _get_verse_content(project_id, file_id, verse_index):
         if not project_file:
             return ""
         
-        storage = get_storage()
-        file_content = storage.get_file(project_file.storage_path)
-        content = simple_decode_utf8(file_content)
-        lines = content.split('\n')
-        return lines[verse_index] if verse_index < len(lines) else ""
+        # Get verse from database
+        verse = ProjectFileVerse.query.filter_by(
+            project_file_id=project_file.id,
+            verse_index=verse_index
+        ).first()
+        
+        return verse.verse_text if verse else ""
         
     elif file_id.startswith('translation_'):
         translation_id = int(file_id.replace('translation_', ''))
@@ -295,9 +389,8 @@ def _get_verse_content(project_id, file_id, verse_index):
         if not translation:
             return ""
         
-        translation_manager = TranslationFileManager(translation.storage_path)
-        lines = translation_manager.load_translation_file()
-        return lines[verse_index] if verse_index < len(lines) else ""
+        translation_manager = _get_translation_manager(translation)
+        return translation_manager.get_verse(verse_index)
     
     return ""
 
@@ -731,28 +824,41 @@ def download_translation(project_id, translation_id):
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
     
-    storage = get_storage()
-    
     try:
-        # Get translation file content
-        file_content = storage.get_file(translation.storage_path)
-        
         # Create a safe filename
         safe_name = "".join(c for c in translation.name if c.isalnum() or c in (' ', '-', '_')).strip()
         safe_name = safe_name.replace(' ', '_')
         filename = f"{safe_name}.txt"
         
-        # For local storage, serve file directly with download headers
-        if hasattr(storage, 'base_path'):  # LocalStorage
+        # Get translation content based on storage type
+        if translation.storage_type == 'database':
+            # For database storage, reconstruct the file
+            translation_manager = _get_translation_manager(translation)
+            verses = translation_manager.load_translation_file()  # This gets all verses efficiently
+            content = '\n'.join(verses)
+            
             return send_file(
-                io.BytesIO(file_content), 
+                io.BytesIO(content.encode('utf-8')), 
                 as_attachment=True, 
                 download_name=filename,
                 mimetype='text/plain'
             )
-        else:  # Cloud storage
-            # For cloud storage, redirect to a signed URL for download
-            return redirect(storage.get_file_url(translation.storage_path))
+        else:
+            # For file storage, use existing logic
+            storage = get_storage()
+            file_content = storage.get_file(translation.storage_path)
+            
+            # For local storage, serve file directly with download headers
+            if hasattr(storage, 'base_path'):  # LocalStorage
+                return send_file(
+                    io.BytesIO(file_content), 
+                    as_attachment=True, 
+                    download_name=filename,
+                    mimetype='text/plain'
+                )
+            else:  # Cloud storage
+                # For cloud storage, redirect to a signed URL for download
+                return redirect(storage.get_file_url(translation.storage_path))
     except Exception as e:
         return jsonify({'error': f'Translation download failed: {str(e)}'}), 500
 
@@ -790,14 +896,15 @@ def delete_translation(project_id, translation_id):
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
     
-    # Delete from storage (if file exists)
-    storage = get_storage()
-    try:
-        storage.delete_file(translation.storage_path)
-    except Exception as e:
-        # Log the error but continue with database deletion
-        print(f"Warning: Could not delete translation from storage: {e}")
-        # This is not a fatal error - the file might already be deleted
+    # Delete from storage (if file exists and is file-based)
+    if translation.storage_type == 'file' and translation.storage_path:
+        storage = get_storage()
+        try:
+            storage.delete_file(translation.storage_path)
+        except Exception as e:
+            # Log the error but continue with database deletion
+            print(f"Warning: Could not delete translation from storage: {e}")
+            # This is not a fatal error - the file might already be deleted
     
     # Delete translation from database
     db.session.delete(translation)
@@ -861,7 +968,7 @@ def list_all_texts(project_id):
     # Add all translations
     translations = Translation.query.filter_by(project_id=project_id).all()
     for translation in translations:
-        translation_manager = TranslationFileManager(translation.storage_path)
+        translation_manager = _get_translation_manager(translation)
         translated_count, progress_percentage = translation_manager.calculate_progress()
         
         texts.append({
@@ -899,20 +1006,9 @@ def create_translation(project_id):
         return jsonify({'error': 'Translation name already exists'}), 400
     
     try:
-        # Create new translation file
-        storage_path = TranslationFileManager.create_new_translation_file(project_id, name)
-        
-        # Create database record - simple defaults
-        translation = Translation(
-            project_id=project_id,
-            name=name,
-            storage_path=storage_path,
-            translation_type='draft'  # default to draft
-        )
-        
-        db.session.add(translation)
-        db.session.flush()  # Ensure ID and default values are populated
-        db.session.commit()  # Save to database
+        # Create new database-based translation
+        translation_id = TranslationDatabaseManager.create_new_translation(project_id, name)
+        translation = Translation.query.get(translation_id)
         
         return jsonify({
             'success': True,
@@ -959,6 +1055,7 @@ def get_chapter_verses(project_id, target_id, book, chapter):
         # Get target text and purpose information - handle both translation IDs and file IDs
         target_texts = []
         target_purpose = ''
+        
         if target_id.startswith('file_'):
             # Target is a file (eBible or back translation)
             file_id = int(target_id.replace('file_', ''))
@@ -970,14 +1067,17 @@ def get_chapter_verses(project_id, target_id, book, chapter):
             # Get purpose description from file
             target_purpose = target_file.purpose_description or ''
             
-            storage = get_storage()
-            target_file_content = storage.get_file(target_file.storage_path)
-            content = simple_decode_utf8(target_file_content)
-            target_lines = content.split('\n')
-            
+            # Get verses from database - all files should use database storage
             verse_indices = [v['index'] for v in chapter_verses]
-            target_texts = [target_lines[i] if i < len(target_lines) else '' for i in verse_indices]
+            verses = ProjectFileVerse.query.filter(
+                ProjectFileVerse.project_file_id == target_file.id,
+                ProjectFileVerse.verse_index.in_(verse_indices)
+            ).all()
             
+            # Create a mapping for quick lookup
+            verse_map = {v.verse_index: v.verse_text for v in verses}
+            target_texts = [verse_map.get(idx, '') for idx in verse_indices]
+
         elif target_id.startswith('translation_'):
             # Target is a translation
             translation_id = int(target_id.replace('translation_', ''))
@@ -986,7 +1086,7 @@ def get_chapter_verses(project_id, target_id, book, chapter):
             # Get description from translation
             target_purpose = translation.description or ''
             
-            translation_manager = TranslationFileManager(translation.storage_path)
+            translation_manager = _get_translation_manager(translation)
             verse_indices = [v['index'] for v in chapter_verses]
             target_texts = translation_manager.get_chapter_verses(verse_indices)
             
@@ -999,14 +1099,15 @@ def get_chapter_verses(project_id, target_id, book, chapter):
                 # Get description from translation
                 target_purpose = translation.description or ''
                 
-                translation_manager = TranslationFileManager(translation.storage_path)
+                translation_manager = _get_translation_manager(translation)
                 verse_indices = [v['index'] for v in chapter_verses]
                 target_texts = translation_manager.get_chapter_verses(verse_indices)
             except ValueError:
                 return jsonify({'error': 'Invalid target_id format'}), 400
         
         # Get source text - handle both file and translation sources
-        source_lines = []
+        source_verses = []
+        
         if source_id.startswith('file_'):
             # eBible file source
             file_id = int(source_id.replace('file_', ''))
@@ -1015,11 +1116,17 @@ def get_chapter_verses(project_id, target_id, book, chapter):
                 project_id=project_id
             ).first_or_404()
             
-            storage = get_storage()
-            source_file_content = storage.get_file(source_file.storage_path)
-            content = simple_decode_utf8(source_file_content)
-            source_lines = content.split('\n')
+            # Get verses from database - all files should use database storage
+            verse_indices = [v['index'] for v in chapter_verses]
+            verses = ProjectFileVerse.query.filter(
+                ProjectFileVerse.project_file_id == source_file.id,
+                ProjectFileVerse.verse_index.in_(verse_indices)
+            ).all()
             
+            # Create a mapping for quick lookup
+            verse_map = {v.verse_index: v.verse_text for v in verses}
+            source_verses = [verse_map.get(idx, '') for idx in verse_indices]
+        
         elif source_id.startswith('translation_'):
             # Translation source
             source_translation_id = int(source_id.replace('translation_', ''))
@@ -1028,8 +1135,9 @@ def get_chapter_verses(project_id, target_id, book, chapter):
                 project_id=project_id
             ).first_or_404()
             
-            source_manager = TranslationFileManager(source_translation.storage_path)
-            source_lines = source_manager.load_translation_file()
+            source_manager = _get_translation_manager(source_translation)
+            verse_indices = [v['index'] for v in chapter_verses]
+            source_verses = source_manager.get_chapter_verses(verse_indices)
         
         else:
             return jsonify({'error': 'Invalid source_id format'}), 400
@@ -1037,7 +1145,7 @@ def get_chapter_verses(project_id, target_id, book, chapter):
         # Build response
         verses_data = []
         for i, verse_info in enumerate(chapter_verses):
-            source_text = source_lines[verse_info['index']] if verse_info['index'] < len(source_lines) else ''
+            source_text = source_verses[i] if i < len(source_verses) else ''
             target_text = target_texts[i] if i < len(target_texts) else ''
             
             verses_data.append({
@@ -1075,58 +1183,42 @@ def save_verse(project_id, target_id, verse_index):
     
     verse_text = data['text']
     
-    # CRITICAL: Strip newlines to maintain line alignment for context queries
-    # Replace any newlines with spaces and normalize whitespace
+    # Strip newlines to maintain line alignment for context queries
     verse_text = ' '.join(verse_text.split())
     
     try:
-        # Handle different target types - all are now editable
         if target_id.startswith('file_'):
-            # Target is a file (eBible or back translation) - now editable
+            # Target is a file - use database storage
             file_id = int(target_id.replace('file_', ''))
             target_file = ProjectFile.query.filter_by(
                 id=file_id,
                 project_id=project_id
             ).first_or_404()
             
-            # Get or create a lock for this file
-            file_path = target_file.storage_path
-            if file_path not in file_locks:
-                file_locks[file_path] = threading.Lock()
+            # Update or create verse in database
+            existing_verse = ProjectFileVerse.query.filter_by(
+                project_file_id=target_file.id,
+                verse_index=verse_index
+            ).first()
             
-            # Acquire the lock for this file
-            with file_locks[file_path]:
-                # Load file, update verse, and save back
-                storage = get_storage()
-                target_file_content = storage.get_file(target_file.storage_path)
-                content = simple_decode_utf8(target_file_content)
-                target_lines = content.split('\n')
-                
-                # Simple corruption check - Bible files should have many thousands of lines
-                if len(target_lines) < 30000:
-                    print(f"ERROR: File appears corrupted with only {len(target_lines)} lines")
-                    return jsonify({'error': f'Target file appears corrupted (only {len(target_lines)} lines). Please re-upload the file.'}), 500
-                
-                # Validate verse index
-                if verse_index < 0 or verse_index >= len(target_lines):
-                    return jsonify({'error': f'Invalid verse index: {verse_index}'}), 400
-                
-                # Update the specific verse (ensure no newlines in the text)
-                clean_verse_text = verse_text.replace('\n', ' ').replace('\r', ' ').strip()
-                target_lines[verse_index] = clean_verse_text
-                
-                # Save back to storage
-                updated_content = '\n'.join(target_lines)
-                import io
-                content_bytes = io.BytesIO(updated_content.encode('utf-8'))
-                storage.store_file(content_bytes, target_file.storage_path)
+            if existing_verse:
+                existing_verse.verse_text = verse_text
+            else:
+                new_verse = ProjectFileVerse(
+                    project_file_id=target_file.id,
+                    verse_index=verse_index,
+                    verse_text=verse_text
+                )
+                db.session.add(new_verse)
+            
+            db.session.commit()
             
         elif target_id.startswith('translation_'):
             # Target is a translation
             translation_id = int(target_id.replace('translation_', ''))
             translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
             
-            translation_manager = TranslationFileManager(translation.storage_path)
+            translation_manager = _get_translation_manager(translation)
             translation_manager.save_verse(verse_index, verse_text)
             
             # Update progress
@@ -1139,7 +1231,7 @@ def save_verse(project_id, target_id, verse_index):
                 translation_id = int(target_id)
                 translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
                 
-                translation_manager = TranslationFileManager(translation.storage_path)
+                translation_manager = _get_translation_manager(translation)
                 translation_manager.save_verse(verse_index, verse_text)
                 
                 # Update progress

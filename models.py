@@ -42,9 +42,8 @@ class Project(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    files = db.relationship('ProjectFile', backref='project', lazy=True, cascade='all, delete-orphan')
+    texts = db.relationship('Text', backref='project', lazy=True, cascade='all, delete-orphan')
     language_rules = db.relationship('LanguageRule', backref='project', lazy=True, cascade='all, delete-orphan')
-    translations = db.relationship('Translation', backref='project', lazy=True, cascade='all, delete-orphan')
     fine_tuning_jobs = db.relationship('FineTuningJob', backref='project', lazy=True, cascade='all, delete-orphan')
     verse_audio = db.relationship('VerseAudio', backref='project', lazy=True, cascade='all, delete-orphan')
     
@@ -78,47 +77,41 @@ class Project(db.Model):
     def __repr__(self):
         return f'<Project {self.target_language}>'
 
-class ProjectFile(db.Model):
-    __tablename__ = 'project_files'
+class Text(db.Model):
+    __tablename__ = 'texts'
     
     id = db.Column(db.Integer, primary_key=True)
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    text_type = db.Column(db.Enum('source', 'draft', 'back_translation'), nullable=False)
+    description = db.Column(db.Text)
     
-    # File details
-    original_filename = db.Column(db.String(255), nullable=False)
-    storage_path = db.Column(db.String(500), nullable=False)
-    file_type = db.Column(db.String(50), nullable=False)  # 'ebible', 'text', 'usfm', 'back_translation', etc.
-    content_type = db.Column(db.String(100), nullable=False)
-    file_size = db.Column(db.BigInteger, nullable=False)
-    line_count = db.Column(db.Integer, nullable=False, default=0)
+    # Progress tracking
+    total_verses = db.Column(db.Integer, default=31170)
+    non_empty_verses = db.Column(db.Integer, default=0)
+    progress_percentage = db.Column(db.Float, default=0.0)
     
-    # File purpose system (replaces pairing)
-    purpose_description = db.Column(db.Text, nullable=True)  # e.g., "Modern English reference translation"
-    file_purpose = db.Column(db.String(100), nullable=True)  # e.g., "reference", "target", "style_guide"
-    
-    # Legacy pairing relationship for back translations (deprecated)
-    paired_with_id = db.Column(db.Integer, db.ForeignKey('project_files.id'), nullable=True)
-    paired_with = db.relationship('ProjectFile', remote_side=[id], backref='back_translations')
-    
-    # File metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    def get_line_count(self):
-        """Get the cached line count from database"""
-        return self.line_count
-    
-    def get_purpose_display(self):
-        """Get a display-friendly purpose description"""
-        if self.purpose_description:
-            return self.purpose_description
-        elif self.file_purpose:
-            return self.file_purpose.replace('_', ' ').title()
-        else:
-            return "Reference text"
-    
-    def __repr__(self):
-        return f'<ProjectFile {self.original_filename}>'
+    # Relationships
+    verses = db.relationship('Verse', backref='text', lazy='dynamic', cascade='all, delete-orphan')
 
+class Verse(db.Model):
+    __tablename__ = 'verses'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    text_id = db.Column(db.Integer, db.ForeignKey('texts.id'), nullable=False)
+    verse_index = db.Column(db.Integer, nullable=False)
+    verse_text = db.Column(db.Text, nullable=False, default='')
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (
+        db.UniqueConstraint('text_id', 'verse_index', name='unique_text_verse'),
+        db.Index('idx_verse_lookup', 'text_id', 'verse_index'),
+    )
 
 
 class LanguageRule(db.Model):
@@ -139,34 +132,7 @@ class LanguageRule(db.Model):
     def __repr__(self):
         return f'<LanguageRule {self.title}>'
 
-class Translation(db.Model):
-    __tablename__ = 'translations'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
-    
-    # Translation details
-    name = db.Column(db.String(255), nullable=False)
-    storage_path = db.Column(db.String(500), nullable=False)
-    
-    # Type and source information
-    translation_type = db.Column(db.String(50), default='draft')  # 'draft', 'source', 'back_translation'
-    source_language = db.Column(db.String(100))  # Language code or name
-    target_language = db.Column(db.String(100))  # Language code or name
-    is_complete = db.Column(db.Boolean, default=False)  # Whether this translation is complete
-    
-    # Progress tracking
-    total_verses = db.Column(db.Integer, default=31170)  # Total verses in Bible
-    translated_verses = db.Column(db.Integer, default=0)
-    progress_percentage = db.Column(db.Float, default=0.0)
-    
-    # Metadata
-    description = db.Column(db.Text)  # Optional description
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    def __repr__(self):
-        return f'<Translation {self.name} ({self.translation_type})>'
+
 
 
 class VerseAudio(db.Model):

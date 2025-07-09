@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""Add translation_verses table for storing Bible translations in database"""
+
+import os
+import sys
+from datetime import datetime
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from flask import Flask
+from models import db
+from sqlalchemy import text
+
+def create_app():
+    app = Flask(__name__)
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///bible_app.db')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db.init_app(app)
+    return app
+
+def migrate():
+    app = create_app()
+    
+    with app.app_context():
+        print("Creating translation_verses table...")
+        
+        # Create the translation_verses table with MySQL syntax
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS translation_verses (
+                id INTEGER PRIMARY KEY AUTO_INCREMENT,
+                translation_id INTEGER NOT NULL,
+                verse_index INTEGER NOT NULL,
+                verse_text TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                
+                FOREIGN KEY (translation_id) REFERENCES translations(id) ON DELETE CASCADE,
+                UNIQUE KEY unique_translation_verse (translation_id, verse_index),
+                INDEX idx_translation_verses_lookup (translation_id, verse_index)
+            )
+        """))
+        
+        # Add storage_type column to translations table
+        try:
+            db.session.execute(text("SELECT storage_type FROM translations LIMIT 1"))
+            print("✓ storage_type column already exists")
+        except Exception:
+            print("Adding storage_type column to translations...")
+            db.session.execute(text("""
+                ALTER TABLE translations ADD COLUMN storage_type VARCHAR(20) DEFAULT 'file'
+            """))
+            print("✓ Added storage_type column")
+        
+        db.session.commit()
+        print("✓ Database schema updated successfully")
+
+if __name__ == '__main__':
+    migrate() 
