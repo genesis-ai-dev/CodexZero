@@ -80,6 +80,7 @@ class Project(db.Model):
         return f'<Project {self.target_language}>'
 
 class Text(db.Model):
+    """Unified model for all Bible text sources - replaces ProjectFile and Translation"""
     __tablename__ = 'texts'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -98,14 +99,22 @@ class Text(db.Model):
     
     # Relationships
     verses = db.relationship('Verse', backref='text', lazy='dynamic', cascade='all, delete-orphan')
+    
+    __table_args__ = (
+        db.Index('idx_project_texts', 'project_id', 'text_type'),
+    )
+    
+    def __repr__(self):
+        return f'<Text {self.name} ({self.text_type})>'
 
 class Verse(db.Model):
+    """Unified verse storage - replaces ProjectFileVerse and TranslationVerse"""
     __tablename__ = 'verses'
     
     id = db.Column(db.Integer, primary_key=True)
     text_id = db.Column(db.Integer, db.ForeignKey('texts.id'), nullable=False)
-    verse_index = db.Column(db.Integer, nullable=False)
-    verse_text = db.Column(db.Text, nullable=False, default='')
+    verse_index = db.Column(db.Integer, nullable=False)  # 0-31169
+    verse_text = db.Column(db.Text, nullable=False)
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -114,6 +123,9 @@ class Verse(db.Model):
         db.UniqueConstraint('text_id', 'verse_index', name='unique_text_verse'),
         db.Index('idx_verse_lookup', 'text_id', 'verse_index'),
     )
+    
+    def __repr__(self):
+        return f'<Verse {self.text_id}:{self.verse_index}>'
 
 
 class LanguageRule(db.Model):

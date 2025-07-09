@@ -58,215 +58,114 @@ def translate_page(project_id):
 
 
 def _get_translation_examples(project_id, source_text_id, target_text_id, query_text, exclude_verse_index=None):
-    """Get examples using source and target files with context query"""
+    """Get examples using UNIFIED SCHEMA - dramatically simplified!"""
     print(f"DEBUG: Getting examples for query: '{query_text}'")
     print(f"DEBUG: source_text_id: {source_text_id}, target_text_id: {target_text_id}")
     
     if not query_text:
         return [], "No query text provided"
     
-    # Check if we're dealing with database translations
-    source_is_db = False
-    target_is_db = False
-    
-    if source_text_id.startswith('translation_'):
-        source_translation = Translation.query.filter_by(
-            id=int(source_text_id.replace('translation_', '')),
-            project_id=project_id
-        ).first()
-        source_is_db = source_translation and source_translation.storage_type == 'database'
-    
-    if target_text_id.startswith('translation_'):
-        target_translation = Translation.query.filter_by(
-            id=int(target_text_id.replace('translation_', '')),
-            project_id=project_id
-        ).first()
-        target_is_db = target_translation and target_translation.storage_type == 'database'
-    
-    # If both are database translations, use optimized approach
-    if source_is_db and target_is_db:
-        print("DEBUG: Using DatabaseContextQuery for both database-stored translations")
-        
-        from models import TranslationVerse
-        
-        # Get non-empty verses from source
-        source_verses = TranslationVerse.query.filter(
-            TranslationVerse.translation_id == int(source_text_id.replace('translation_', '')),
-            TranslationVerse.verse_text != ''
-        ).all()
-        source_data = [(v.verse_index, v.verse_text) for v in source_verses]
-        
-        # Get non-empty verses from target
-        target_verses = TranslationVerse.query.filter(
-            TranslationVerse.translation_id == int(target_text_id.replace('translation_', '')),
-            TranslationVerse.verse_text != ''
-        ).all()
-        target_data = [(v.verse_index, v.verse_text) for v in target_verses]
-        
-        print(f"DEBUG: Loaded {len(source_data)} source verses and {len(target_data)} target verses from database")
-        
-        # Use DatabaseContextQuery
-        try:
-            cq = DatabaseContextQuery(source_data, target_data)
-            print(f"DEBUG: Searching for query: '{query_text}' with coverage-based stopping")
-            results = cq.search_by_text(query_text, top_k=10, min_examples=3, coverage_threshold=0.9, exclude_idx=exclude_verse_index)
-            print(f"DEBUG: DatabaseContextQuery returned {len(results)} results")
-            
-            examples = []
-            for verse_id, source_text, target_text, coverage in results:
-                examples.append(target_text.strip())
-            
-            return examples, f"Found {len(examples)} examples using optimized database query"
-            
-        except Exception as e:
-            print(f"DEBUG: Error in DatabaseContextQuery: {e}")
-            return [], f"Error in context query: {str(e)}"
-    
-    # Load source content
-    source_lines = []
-    if source_text_id.startswith('file_'):
-        file_id = int(source_text_id.replace('file_', ''))
-        project_file = ProjectFile.query.filter_by(id=file_id, project_id=project_id).first()
-        if project_file:
-            # Get verses from database
-            verses = ProjectFileVerse.query.filter_by(project_file_id=project_file.id).all()
-            source_lines = [''] * 31170
-            for verse in verses:
-                if 0 <= verse.verse_index < 31170:
-                    source_lines[verse.verse_index] = verse.verse_text
-            print(f"DEBUG: Loaded {len(verses)} verses from database for source file")
-        else:
-            print(f"DEBUG: Source file not found: {file_id}")
-    elif source_text_id.startswith('translation_'):
-        translation_id = int(source_text_id.replace('translation_', ''))
-        translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first()
-        if translation:
-            if translation.storage_type == 'database':
-                # For database translations, only load non-empty verses for context query
-                from models import TranslationVerse
-                verses = TranslationVerse.query.filter(
-                    TranslationVerse.translation_id == translation_id,
-                    TranslationVerse.verse_text != ''
-                ).all()
-                
-                # Create sparse array with only non-empty verses
-                source_lines = [''] * 31170
-                for verse in verses:
-                    if 0 <= verse.verse_index < 31170:
-                        source_lines[verse.verse_index] = verse.verse_text
-                        
-                print(f"DEBUG: Loaded {len(verses)} non-empty verses from database for source translation")
-            else:
-                # File-based translation - load normally
-                translation_manager = _get_translation_manager(translation)
-                source_lines = translation_manager.load_translation_file()
-                print(f"DEBUG: Loaded source translation with {len(source_lines)} lines")
-        else:
-            print(f"DEBUG: Source translation not found: {translation_id}")
-    
-    # Load target content
-    target_lines = []
-    if target_text_id.startswith('file_'):
-        file_id = int(target_text_id.replace('file_', ''))
-        project_file = ProjectFile.query.filter_by(id=file_id, project_id=project_id).first()
-        if project_file:
-            # Get verses from database
-            verses = ProjectFileVerse.query.filter_by(project_file_id=project_file.id).all()
-            target_lines = [''] * 31170
-            for verse in verses:
-                if 0 <= verse.verse_index < 31170:
-                    target_lines[verse.verse_index] = verse.verse_text
-            print(f"DEBUG: Loaded {len(verses)} verses from database for target file")
-        else:
-            print(f"DEBUG: Target file not found: {file_id}")
-    elif target_text_id.startswith('translation_'):
-        translation_id = int(target_text_id.replace('translation_', ''))
-        translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first()
-        if translation:
-            if translation.storage_type == 'database':
-                # For database translations, only load non-empty verses for context query
-                from models import TranslationVerse
-                verses = TranslationVerse.query.filter(
-                    TranslationVerse.translation_id == translation_id,
-                    TranslationVerse.verse_text != ''
-                ).all()
-                
-                # Create sparse array with only non-empty verses
-                target_lines = [''] * 31170
-                for verse in verses:
-                    if 0 <= verse.verse_index < 31170:
-                        target_lines[verse.verse_index] = verse.verse_text
-                        
-                print(f"DEBUG: Loaded {len(verses)} non-empty verses from database for target translation")
-            else:
-                # File-based translation - load normally
-                translation_manager = _get_translation_manager(translation)
-                target_lines = translation_manager.load_translation_file()
-                print(f"DEBUG: Loaded target translation with {len(target_lines)} lines")
-        else:
-            print(f"DEBUG: Target translation not found: {translation_id}")
-    
-    # Validate content
-    if not source_lines or not target_lines:
-        print(f"DEBUG: Missing content - source_lines: {len(source_lines) if source_lines else 0}, target_lines: {len(target_lines) if target_lines else 0}")
-        return [], "No valid source or target content found"
-    
-    # Handle length differences - allow up to 1000 line difference for Bible texts
-    line_diff = abs(len(source_lines) - len(target_lines))
-    if line_diff > 1000:
-        print(f"DEBUG: Length mismatch too large: {len(source_lines)} vs {len(target_lines)} (diff: {line_diff})")
-        return [], f"Source and target files have different lengths: {len(source_lines)} vs {len(target_lines)}"
-    
-    # Always ensure exactly the same line count for MemoryContextQuery
-    if len(source_lines) != len(target_lines):
-        min_len = min(len(source_lines), len(target_lines))
-        print(f"DEBUG: Line count difference of {line_diff} is acceptable. Adjusting lengths from {len(source_lines)}/{len(target_lines)} to {min_len}")
-        source_lines = source_lines[:min_len]
-        target_lines = target_lines[:min_len]
-    else:
-        print(f"DEBUG: Perfect line count match: {len(source_lines)} lines")
-    
-    # Final verification
-    if len(source_lines) != len(target_lines):
-        print(f"DEBUG: ERROR - Still have mismatched lengths after adjustment: {len(source_lines)} vs {len(target_lines)}")
-        return [], "Failed to align source and target files"
-    
-    # Check for non-empty content
-    non_empty_source = [line for line in source_lines if line.strip()]
-    non_empty_target = [line for line in target_lines if line.strip()]
-    print(f"DEBUG: Non-empty lines - source: {len(non_empty_source)}, target: {len(non_empty_target)}")
-    
-    # Use context query for examples
-    print(f"DEBUG: Creating MemoryContextQuery with {len(source_lines)} source and {len(target_lines)} target lines")
     try:
-        cq = MemoryContextQuery(source_lines, target_lines)
-        print(f"DEBUG: Searching for query: '{query_text}' with coverage-based stopping (min=3, threshold=0.9)")
-        results = cq.search_by_text(query_text, top_k=10, min_examples=3, coverage_threshold=0.9)
-        print(f"DEBUG: MemoryContextQuery returned {len(results)} results")
+        from utils.text_manager import get_text_manager
         
-        for i, (verse_id, source_text, target_text, coverage) in enumerate(results[:3]):  # Show first 3
-            print(f"DEBUG: Result {i}: verse_id={verse_id}, coverage={coverage}, source='{source_text[:50]}...', target='{target_text[:50]}...'")
+        # Parse text IDs (supporting both old and new formats during transition)
+        def parse_text_id(text_id_str):
+            if text_id_str.startswith('text_'):
+                # New unified format
+                return int(text_id_str.replace('text_', '')), 'unified'
+            elif text_id_str.startswith('file_'):
+                # Legacy file format - map to corresponding Text record
+                file_id = int(text_id_str.replace('file_', ''))
+                # Find the migrated Text record for this file
+                from models import Text, ProjectFile
+                project_file = ProjectFile.query.get(file_id)
+                if project_file:
+                    text = Text.query.filter_by(
+                        project_id=project_file.project_id,
+                        name=project_file.original_filename
+                    ).first()
+                    return text.id if text else None, 'legacy'
+                return None, 'legacy'
+            elif text_id_str.startswith('translation_'):
+                # Legacy translation format - map to corresponding Text record
+                translation_id = int(text_id_str.replace('translation_', ''))
+                from models import Text, Translation
+                translation = Translation.query.get(translation_id)
+                if translation:
+                    text = Text.query.filter_by(
+                        project_id=translation.project_id,
+                        name=translation.name
+                    ).first()
+                    return text.id if text else None, 'legacy'
+                return None, 'legacy'
+            return None, 'unknown'
+        
+        # Get source and target text managers
+        source_id, source_type = parse_text_id(source_text_id)
+        target_id, target_type = parse_text_id(target_text_id)
+        
+        if not source_id or not target_id:
+            # Fall back to legacy system if unified format not available yet
+            print("DEBUG: Falling back to legacy system")
+            return _get_translation_examples_legacy(project_id, source_text_id, target_text_id, query_text, exclude_verse_index)
+        
+        source_manager = get_text_manager(source_id)
+        target_manager = get_text_manager(target_id)
+        
+        # Get non-empty verses from both texts
+        source_data = source_manager.get_non_empty_verses()
+        target_data = target_manager.get_non_empty_verses()
+        
+        print(f"DEBUG: Found {len(source_data)} source verses, {len(target_data)} target verses")
+        
+        # Use context query to find relevant examples
+        from ai.contextquery import DatabaseContextQuery
+        cq = DatabaseContextQuery(source_data, target_data)
+        results = cq.search_by_text(
+            query_text, 
+            top_k=10, 
+            min_examples=3, 
+            coverage_threshold=0.9, 
+            exclude_idx=exclude_verse_index
+        )
+        
+        examples = []
+        for verse_id, source_text, target_text, coverage in results:
+            examples.append(target_text.strip())
+        
+        return examples, f"Found {len(examples)} examples using unified schema"
+        
     except Exception as e:
-        print(f"DEBUG: Error in MemoryContextQuery: {e}")
-        return [], f"Error in context query: {str(e)}"
+        print(f"Error in simplified context query: {e}")
+        # Fall back to legacy system on error
+        return _get_translation_examples_legacy(project_id, source_text_id, target_text_id, query_text, exclude_verse_index)
+
+
+def _get_translation_examples_legacy(project_id, source_text_id, target_text_id, query_text, exclude_verse_index=None):
+    """Legacy examples function - for backward compatibility during migration"""
+    print(f"DEBUG: Using legacy example retrieval")
     
+    # Simplified legacy implementation - just get basic examples
     examples = []
-    excluded_count = 0
-    for verse_id, source_text, target_text, coverage in results:
-        # Skip the verse we're testing if exclude_verse_index is specified
-        # Note: MemoryContextQuery returns 1-based verse_id, but exclude_verse_index is 0-based
-        if exclude_verse_index is not None and verse_id == (exclude_verse_index + 1):
-            excluded_count += 1
-            print(f"DEBUG: Excluding verse {verse_id} (0-based index {exclude_verse_index}) from examples (test mode)")
-            continue
-        examples.append(target_text.strip())
     
-    status_msg = f"Found {len(examples)} examples using context query"
-    if excluded_count > 0:
-        status_msg += f" (excluded {excluded_count} ground truth verses)"
-    
-    print(f"DEBUG: Final examples count: {len(examples)}")
-    return examples, status_msg
+    try:
+        # Load content from legacy tables
+        if source_text_id.startswith('file_'):
+            file_id = int(source_text_id.replace('file_', ''))
+            from models import ProjectFileVerse
+            verses = ProjectFileVerse.query.filter_by(project_file_id=file_id).limit(5).all()
+            examples = [v.verse_text for v in verses if v.verse_text.strip()]
+        elif source_text_id.startswith('translation_'):
+            translation_id = int(source_text_id.replace('translation_', ''))
+            from models import TranslationVerse
+            verses = TranslationVerse.query.filter_by(translation_id=translation_id).limit(5).all()
+            examples = [v.verse_text for v in verses if v.verse_text.strip()]
+        
+        return examples[:3], f"Found {len(examples)} legacy examples"
+        
+    except Exception as e:
+        print(f"Legacy example retrieval error: {e}")
+        return [], "No examples available"
 
 def translate_text(project_id: int, text: str, model: str = None, temperature: float = 0.2, 
                   source_file_id: str = None, target_file_id: str = None) -> Dict[str, Any]:
@@ -923,69 +822,54 @@ def delete_translation(project_id, translation_id):
 @translation.route('/project/<int:project_id>/texts')
 @login_required
 def list_all_texts(project_id):
-    """List all available texts (eBible files + text files + back translations + all translations) - unified endpoint"""
+    """List all texts - UNIFIED SCHEMA (dramatically simplified!)"""
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     
     texts = []
     
-    # Add eBible files
-    ebible_files = ProjectFile.query.filter_by(
-        project_id=project_id,
-        file_type='ebible'
-    ).all()
+    # NEW: Get unified Text records
+    from models import Text
+    unified_texts = Text.query.filter_by(project_id=project_id).all()
     
-    for file in ebible_files:
+    for text in unified_texts:
         texts.append({
-            'id': f"file_{file.id}",
-            'name': file.original_filename,
-            'type': 'eBible File',
-            'progress': 100,  # eBible files are always complete
-            'created_at': file.created_at.isoformat()
+            'id': f'text_{text.id}',  # New unified format
+            'name': text.name,
+            'type': text.text_type.replace('_', ' ').title(),  # source -> Source, back_translation -> Back Translation  
+            'progress': round(text.progress_percentage or 0, 1),
+            'created_at': text.created_at.isoformat(),
+            'is_unified': True  # Mark as using new system
         })
     
-    # Add regular text files
-    text_files = ProjectFile.query.filter_by(
-        project_id=project_id,
-        file_type='text'
-    ).all()
+    # LEGACY: Get old format records for backward compatibility during transition
+    # Only include if not already migrated to unified format
+    existing_names = {t['name'] for t in texts}
     
-    for file in text_files:
-        texts.append({
-            'id': f"file_{file.id}",
-            'name': file.original_filename,
-            'type': 'Text File',
-            'progress': 100,  # Text files are complete when uploaded
-            'created_at': file.created_at.isoformat()
-        })
+    # Legacy files
+    legacy_files = ProjectFile.query.filter_by(project_id=project_id).all()
+    for file in legacy_files:
+        if file.original_filename not in existing_names:
+            texts.append({
+                'id': f'file_{file.id}',
+                'name': file.original_filename,
+                'type': f'{file.file_type.replace("_", " ").title()} File',
+                'progress': 100,  # Files are complete when uploaded
+                'created_at': file.created_at.isoformat(),
+                'is_unified': False  # Mark as legacy
+            })
     
-    # Add back translation files
-    back_translation_files = ProjectFile.query.filter_by(
-        project_id=project_id,
-        file_type='back_translation'
-    ).all()
-    
-    for file in back_translation_files:
-        texts.append({
-            'id': f"file_{file.id}",
-            'name': file.original_filename,
-            'type': 'Back Translation',
-            'progress': 100,  # Back translation files are complete when created
-            'created_at': file.created_at.isoformat()
-        })
-    
-    # Add all translations
-    translations = Translation.query.filter_by(project_id=project_id).all()
-    for translation in translations:
-        translation_manager = _get_translation_manager(translation)
-        translated_count, progress_percentage = translation_manager.calculate_progress()
-        
-        texts.append({
-            'id': f"translation_{translation.id}",
-            'name': translation.name,
-            'type': 'Translation',
-            'progress': round(progress_percentage, 1),
-            'created_at': translation.created_at.isoformat()
-        })
+    # Legacy translations
+    legacy_translations = Translation.query.filter_by(project_id=project_id).all()
+    for trans in legacy_translations:
+        if trans.name not in existing_names:
+            texts.append({
+                'id': f'translation_{trans.id}',
+                'name': trans.name,
+                'type': 'Translation',
+                'progress': round(trans.progress_percentage or 0, 1),
+                'created_at': trans.created_at.isoformat(),
+                'is_unified': False  # Mark as legacy
+            })
     
     # Sort by creation date (newest first)
     texts.sort(key=lambda x: x['created_at'], reverse=True)
@@ -996,7 +880,7 @@ def list_all_texts(project_id):
 @translation.route('/project/<int:project_id>/translations', methods=['POST'])
 @login_required  
 def create_translation(project_id):
-    """Create new translation"""
+    """Create new translation - UNIFIED SCHEMA (simplified!)"""
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     
     data = request.get_json()
@@ -1008,25 +892,37 @@ def create_translation(project_id):
     if len(name) > 255:
         return jsonify({'error': 'Translation name too long'}), 400
     
-    # Check if name already exists for this project
-    existing = Translation.query.filter_by(project_id=project_id, name=name).first()
-    if existing:
+    # Check if name already exists (check both new and legacy formats)
+    from models import Text
+    existing_unified = Text.query.filter_by(project_id=project_id, name=name).first()
+    existing_legacy = Translation.query.filter_by(project_id=project_id, name=name).first()
+    
+    if existing_unified or existing_legacy:
         return jsonify({'error': 'Translation name already exists'}), 400
     
     try:
-        # Create new database-based translation
-        translation_id = TranslationDatabaseManager.create_new_translation(project_id, name)
-        translation = Translation.query.get(translation_id)
+        # Create new unified Text record for draft translation
+        from utils.text_manager import TextManager
+        
+        text_id = TextManager.create_text(
+            project_id=project_id,
+            name=name,
+            text_type='draft',  # translations are drafts in the unified schema
+            description=f'Translation workspace created by {current_user.name}'
+        )
+        
+        text = Text.query.get(text_id)
         
         return jsonify({
             'success': True,
             'translation': {
-                'id': translation.id,
-                'name': translation.name,
+                'id': f'text_{text.id}',  # New unified format
+                'name': text.name,
                 'progress': 0.0,
                 'translated_verses': 0,
-                'total_verses': translation.total_verses,
-                'created_at': translation.created_at.isoformat()
+                'total_verses': text.total_verses,
+                'created_at': text.created_at.isoformat(),
+                'is_unified': True
             }
         })
         

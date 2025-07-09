@@ -89,78 +89,100 @@ def validate_text_file(file_content: str, filename: str) -> dict:
 
 
 def save_project_file(project_id: int, file_data, filename: str, file_type: str, content_type: str):
-    """Helper to save any type of project file"""
-    storage = get_storage()
-    file_id = str(uuid.uuid4())
-    storage_path = f"projects/{project_id}/{file_type}/{file_id}_{filename}"
+    """
+    Save project file using UNIFIED SCHEMA - dramatically simplified!
+    
+    Bible texts (ebible, text, back_translation) -> Text + Verse records (database only)
+    Training files (jsonl, rtf) -> Legacy ProjectFile records (file storage)
+    """
     
     # Handle both uploaded files and text data
     if isinstance(file_data, str):
-        # Text data - convert to BytesIO
-        file_obj = io.BytesIO(file_data.encode('utf-8'))
-        file_size = len(file_data.encode('utf-8'))
         file_content = file_data
-        line_count = len(file_data.splitlines())
+        file_size = len(file_data.encode('utf-8'))
     else:
-        # File upload - read content for size and line count
+        # File upload - read content
         content = file_data.read()
         file_size = len(content)
         file_content = content.decode('utf-8')
-        line_count = len(file_content.splitlines())
         file_data.seek(0)
-        file_obj = file_data
     
-    # For now, still store the file for backup/compatibility
-    # This can be removed later once we're confident in database storage
-    try:
-        storage.store_file(file_obj, storage_path)
-    except Exception as e:
-        print(f"Storage connection failed: {e}")
-        # Log the full error for debugging
-        import traceback
-        print(f"Full storage error: {traceback.format_exc()}")
-        raise Exception(f"File storage unavailable. Please check storage configuration or contact support. Error: {str(e)}")
-    
-    # Determine if this file should use database storage for verses
-    use_database_storage = False
-    if file_type in ['text', 'ebible', 'back_translation']:
-        # Don't store verses for training data files
-        if not filename.endswith('.jsonl') and not filename.endswith('.rtf'):
-            use_database_storage = True
-    
-    # Create project file record
-    project_file = ProjectFile(
-        project_id=project_id,
-        original_filename=filename,
-        storage_path=storage_path,
-        storage_type='database' if use_database_storage else 'file',
-        file_type=file_type,
-        content_type=content_type,
-        file_size=file_size,
-        line_count=line_count
+    # Determine if this is Bible text data or training data
+    is_bible_text = (
+        file_type in ['text', 'ebible', 'back_translation'] and
+        not filename.endswith('.jsonl') and 
+        not filename.endswith('.rtf')
     )
-    db.session.add(project_file)
-    db.session.flush()  # Get the ID before bulk insert
     
-    # Store verses in database if appropriate
-    if use_database_storage:
-        from models import ProjectFileVerse
-        lines = file_content.split('\n')
-        verses_data = []
+    if is_bible_text:
+        # NEW UNIFIED APPROACH: Use Text + Verse tables
+        from utils.text_manager import TextManager
         
-        for i, line in enumerate(lines):
-            if line.strip():  # Only store non-empty lines
-                verses_data.append({
-                    'project_file_id': project_file.id,
-                    'verse_index': i,
-                    'verse_text': line.strip()
-                })
+        # Determine text_type for unified schema
+        if file_type == 'back_translation':
+            text_type = 'back_translation'
+        else:
+            text_type = 'source'  # ebible and text files are source material
         
-        # Bulk insert verses for better performance
-        if verses_data:
-            db.session.bulk_insert_mappings(ProjectFileVerse, verses_data)
+        # Create Text record
+        text_id = TextManager.create_text(
+            project_id=project_id,
+            name=filename,
+            text_type=text_type,
+            description=f"Uploaded {file_type} file"
+        )
+        
+        # Import verses 
+        success = TextManager.import_verses(text_id, file_content)
+        if not success:
+            raise Exception("Failed to import verses to database")
+        
+        # Return a compatibility object that matches ProjectFile interface
+        class UnifiedFileResult:
+            def __init__(self, text_id, filename):
+                self.id = text_id  # For compatibility with existing code
+                self.text_id = text_id  # New unified ID
+                self.original_filename = filename
+                self.storage_type = 'unified'  # Mark as using new system
+                self.file_type = file_type
+                self.is_unified = True
+        
+        return UnifiedFileResult(text_id, filename)
     
-    return project_file
+    else:
+        # LEGACY APPROACH: For non-Bible files (training data, etc.)
+        # Keep using ProjectFile + file storage for these
+        storage = get_storage()
+        file_id = str(uuid.uuid4())
+        storage_path = f"projects/{project_id}/{file_type}/{file_id}_{filename}"
+        
+        # Store file
+        if isinstance(file_data, str):
+            file_obj = io.BytesIO(file_data.encode('utf-8'))
+        else:
+            file_obj = file_data
+            
+        try:
+            storage.store_file(file_obj, storage_path)
+        except Exception as e:
+            print(f"Storage connection failed: {e}")
+            raise Exception(f"File storage unavailable: {str(e)}")
+        
+        # Create legacy project file record
+        project_file = ProjectFile(
+            project_id=project_id,
+            original_filename=filename,
+            storage_path=storage_path,
+            storage_type='file',
+            file_type=file_type,
+            content_type=content_type,
+            file_size=file_size,
+            line_count=len(file_content.splitlines())
+        )
+        db.session.add(project_file)
+        db.session.flush()
+        
+        return project_file
 
 
 def safe_decode_content(file_content):
