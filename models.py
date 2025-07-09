@@ -264,6 +264,8 @@ class ProjectFile(db.Model):
     # Optional pairing for back translations
     paired_with_id = db.Column(db.Integer, db.ForeignKey('project_files.id'), nullable=True)
     purpose = db.Column(db.String(100), nullable=True)  # Optional purpose description
+    purpose_description = db.Column(db.Text, nullable=True)  # Detailed purpose description
+    file_purpose = db.Column(db.String(100), nullable=True)  # Purpose category
     
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

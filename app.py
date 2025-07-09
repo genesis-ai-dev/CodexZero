@@ -65,21 +65,7 @@ def create_app():
             db.create_all()
             print("Database tables created successfully")
             
-            # TEMPORARY: Run migrations on next deploy - REMOVE AFTER DEPLOYMENT
-            try:
-                import migrations.add_translation_verses_table
-                import migrations.add_project_file_verses_table
-                print("Database schema migrations imported and executed")
-                
-                # Run data migrations
-                import migrate_translations_to_db
-                import migrate_project_files_to_db
-                
-                migrate_translations_to_db.run_migration()
-                migrate_project_files_to_db.run_migration()
-                print("Data migrations completed successfully")
-            except Exception as e:
-                print(f"Migration failed (may have already run): {e}")
+
             
         except Exception as e:
             print(f"Database connection failed during startup: {e}")
