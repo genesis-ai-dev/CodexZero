@@ -133,9 +133,11 @@ def main():
         with app.app_context():
             run_migration()
 
-# Auto-execute migration when imported
-try:
-    main()
-except Exception as e:
-    print(f"Project files migration failed: {e}")
-    # Don't crash the app if migration fails 
+# Migration will be called explicitly from app.py
+def run_migration():
+    """Run the project files migration"""
+    try:
+        main()
+    except Exception as e:
+        print(f"Project files migration failed: {e}")
+        # Don't crash the app if migration fails 

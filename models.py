@@ -43,6 +43,8 @@ class Project(db.Model):
     
     # Relationships
     texts = db.relationship('Text', backref='project', lazy=True, cascade='all, delete-orphan')
+    files = db.relationship('ProjectFile', backref='project', lazy=True, cascade='all, delete-orphan')
+    translations = db.relationship('Translation', backref='project', lazy=True, cascade='all, delete-orphan')
     language_rules = db.relationship('LanguageRule', backref='project', lazy=True, cascade='all, delete-orphan')
     fine_tuning_jobs = db.relationship('FineTuningJob', backref='project', lazy=True, cascade='all, delete-orphan')
     verse_audio = db.relationship('VerseAudio', backref='project', lazy=True, cascade='all, delete-orphan')
@@ -240,4 +242,97 @@ class FineTuningJob(db.Model):
         return self.display_name or f"Unnamed Model {self.id}"
     
     def __repr__(self):
-        return f'<FineTuningJob {self.id} ({self.status})>' 
+        return f'<FineTuningJob {self.id} ({self.status})>'
+
+
+# Legacy models - still in use by the application
+class ProjectFile(db.Model):
+    __tablename__ = 'project_files'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    
+    # File details
+    original_filename = db.Column(db.String(255), nullable=False)
+    storage_path = db.Column(db.String(500), nullable=False)
+    storage_type = db.Column(db.String(20), default='file')  # 'file' or 'database'
+    file_type = db.Column(db.String(50), nullable=False)  # 'ebible', 'text', 'back_translation', etc.
+    content_type = db.Column(db.String(100), nullable=False)
+    file_size = db.Column(db.BigInteger, nullable=False)
+    line_count = db.Column(db.Integer, default=0)
+    
+    # Optional pairing for back translations
+    paired_with_id = db.Column(db.Integer, db.ForeignKey('project_files.id'), nullable=True)
+    purpose = db.Column(db.String(100), nullable=True)  # Optional purpose description
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    paired_with = db.relationship('ProjectFile', remote_side=[id], backref='paired_files')
+    verses = db.relationship('ProjectFileVerse', backref='project_file', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def get_line_count(self):
+        """Get the line count for this file"""
+        return self.line_count or 0
+    
+    def __repr__(self):
+        return f'<ProjectFile {self.original_filename}>'
+
+
+class ProjectFileVerse(db.Model):
+    __tablename__ = 'project_file_verses'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    project_file_id = db.Column(db.Integer, db.ForeignKey('project_files.id'), nullable=False)
+    verse_index = db.Column(db.Integer, nullable=False)
+    verse_text = db.Column(db.Text, nullable=False, default='')
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        db.UniqueConstraint('project_file_id', 'verse_index', name='unique_file_verse'),
+        db.Index('idx_file_verses', 'project_file_id', 'verse_index'),
+    )
+
+
+class Translation(db.Model):
+    __tablename__ = 'translations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+    storage_type = db.Column(db.String(20), default='file')  # 'file' or 'database'
+    
+    # Progress tracking
+    total_verses = db.Column(db.Integer, default=31170)
+    non_empty_verses = db.Column(db.Integer, default=0)
+    progress_percentage = db.Column(db.Float, default=0.0)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    verses = db.relationship('TranslationVerse', backref='translation', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f'<Translation {self.name}>'
+
+
+class TranslationVerse(db.Model):
+    __tablename__ = 'translation_verses'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    translation_id = db.Column(db.Integer, db.ForeignKey('translations.id'), nullable=False)
+    verse_index = db.Column(db.Integer, nullable=False)
+    verse_text = db.Column(db.Text, nullable=False, default='')
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (
+        db.UniqueConstraint('translation_id', 'verse_index', name='unique_translation_verse'),
+        db.Index('idx_translation_verses', 'translation_id', 'verse_index'),
+    ) 

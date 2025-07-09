@@ -140,12 +140,14 @@ def main():
         with app.app_context():
             run_migration()
 
-# Auto-execute migration when imported
-try:
-    start_time = time.time()
-    main()
-    elapsed = time.time() - start_time
-    print(f"\n⏱️  Translation migration completed in {elapsed:.1f} seconds")
-except Exception as e:
-    print(f"Translation migration failed: {e}")
-    # Don't crash the app if migration fails 
+# Migration will be called explicitly from app.py
+def run_migration():
+    """Run the translation migration"""
+    try:
+        start_time = time.time()
+        main()
+        elapsed = time.time() - start_time
+        print(f"\n⏱️  Translation migration completed in {elapsed:.1f} seconds")
+    except Exception as e:
+        print(f"Translation migration failed: {e}")
+        # Don't crash the app if migration fails 

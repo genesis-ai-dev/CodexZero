@@ -74,9 +74,12 @@ def create_app():
                 # Run data migrations
                 import migrate_translations_to_db
                 import migrate_project_files_to_db
-                print("Data migrations imported and executed")
+                
+                migrate_translations_to_db.run_migration()
+                migrate_project_files_to_db.run_migration()
+                print("Data migrations completed successfully")
             except Exception as e:
-                print(f"Migration import failed (may have already run): {e}")
+                print(f"Migration failed (may have already run): {e}")
             
         except Exception as e:
             print(f"Database connection failed during startup: {e}")
