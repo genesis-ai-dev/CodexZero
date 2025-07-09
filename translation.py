@@ -14,9 +14,17 @@ from models import Project, Translation, ProjectFile, ProjectFileVerse, Translat
 from ai.bot import Chatbot, extract_translation_from_xml
 from ai.contextquery import ContextQuery, MemoryContextQuery, DatabaseContextQuery
 from utils.text_manager import TextManager
-from utils.translation_manager import VerseReferenceManager
+from utils.translation_manager import VerseReferenceManager, TranslationFileManager, TranslationDatabaseManager
+from storage import get_storage
 
 translation = Blueprint('translation', __name__)
+
+def _get_translation_manager(translation):
+    """Get appropriate translation manager based on storage type"""
+    if translation.storage_type == 'database':
+        return TranslationDatabaseManager(translation.id)
+    else:
+        return TranslationFileManager(translation.storage_path)
 
 def _parse_source_filenames(job):
     """Parse source filenames from job with proper error handling"""
@@ -52,7 +60,7 @@ def translate_page(project_id):
 def _get_translation_examples(project_id, source_text_id, target_text_id, query_text, exclude_verse_index=None):
     """Get examples using source and target files with context query"""
     print(f"DEBUG: Getting examples for query: '{query_text}'")
-    print(f"DEBUG: source_file_id: {source_file_id}, target_file_id: {target_file_id}")
+    print(f"DEBUG: source_text_id: {source_text_id}, target_text_id: {target_text_id}")
     
     if not query_text:
         return [], "No query text provided"
@@ -61,16 +69,16 @@ def _get_translation_examples(project_id, source_text_id, target_text_id, query_
     source_is_db = False
     target_is_db = False
     
-    if source_file_id.startswith('translation_'):
+    if source_text_id.startswith('translation_'):
         source_translation = Translation.query.filter_by(
-            id=int(source_file_id.replace('translation_', '')),
+            id=int(source_text_id.replace('translation_', '')),
             project_id=project_id
         ).first()
         source_is_db = source_translation and source_translation.storage_type == 'database'
     
-    if target_file_id.startswith('translation_'):
+    if target_text_id.startswith('translation_'):
         target_translation = Translation.query.filter_by(
-            id=int(target_file_id.replace('translation_', '')),
+            id=int(target_text_id.replace('translation_', '')),
             project_id=project_id
         ).first()
         target_is_db = target_translation and target_translation.storage_type == 'database'
@@ -83,14 +91,14 @@ def _get_translation_examples(project_id, source_text_id, target_text_id, query_
         
         # Get non-empty verses from source
         source_verses = TranslationVerse.query.filter(
-            TranslationVerse.translation_id == int(source_file_id.replace('translation_', '')),
+            TranslationVerse.translation_id == int(source_text_id.replace('translation_', '')),
             TranslationVerse.verse_text != ''
         ).all()
         source_data = [(v.verse_index, v.verse_text) for v in source_verses]
         
         # Get non-empty verses from target
         target_verses = TranslationVerse.query.filter(
-            TranslationVerse.translation_id == int(target_file_id.replace('translation_', '')),
+            TranslationVerse.translation_id == int(target_text_id.replace('translation_', '')),
             TranslationVerse.verse_text != ''
         ).all()
         target_data = [(v.verse_index, v.verse_text) for v in target_verses]
@@ -116,8 +124,8 @@ def _get_translation_examples(project_id, source_text_id, target_text_id, query_
     
     # Load source content
     source_lines = []
-    if source_file_id.startswith('file_'):
-        file_id = int(source_file_id.replace('file_', ''))
+    if source_text_id.startswith('file_'):
+        file_id = int(source_text_id.replace('file_', ''))
         project_file = ProjectFile.query.filter_by(id=file_id, project_id=project_id).first()
         if project_file:
             # Get verses from database
@@ -129,8 +137,8 @@ def _get_translation_examples(project_id, source_text_id, target_text_id, query_
             print(f"DEBUG: Loaded {len(verses)} verses from database for source file")
         else:
             print(f"DEBUG: Source file not found: {file_id}")
-    elif source_file_id.startswith('translation_'):
-        translation_id = int(source_file_id.replace('translation_', ''))
+    elif source_text_id.startswith('translation_'):
+        translation_id = int(source_text_id.replace('translation_', ''))
         translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first()
         if translation:
             if translation.storage_type == 'database':
@@ -158,8 +166,8 @@ def _get_translation_examples(project_id, source_text_id, target_text_id, query_
     
     # Load target content
     target_lines = []
-    if target_file_id.startswith('file_'):
-        file_id = int(target_file_id.replace('file_', ''))
+    if target_text_id.startswith('file_'):
+        file_id = int(target_text_id.replace('file_', ''))
         project_file = ProjectFile.query.filter_by(id=file_id, project_id=project_id).first()
         if project_file:
             # Get verses from database
@@ -171,8 +179,8 @@ def _get_translation_examples(project_id, source_text_id, target_text_id, query_
             print(f"DEBUG: Loaded {len(verses)} verses from database for target file")
         else:
             print(f"DEBUG: Target file not found: {file_id}")
-    elif target_file_id.startswith('translation_'):
-        translation_id = int(target_file_id.replace('translation_', ''))
+    elif target_text_id.startswith('translation_'):
+        translation_id = int(target_text_id.replace('translation_', ''))
         translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first()
         if translation:
             if translation.storage_type == 'database':
