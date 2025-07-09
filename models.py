@@ -156,7 +156,7 @@ class VerseAudio(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
     
     # Reference to the text (file or translation)
-    text_id = db.Column(db.String(50), nullable=False)  # 'file_123' or 'translation_456'
+    text_id = db.Column(db.String(100), nullable=False)  # Extended for iterations and future use
     verse_index = db.Column(db.Integer, nullable=False)  # 0-based line number
     
     # Audio file details

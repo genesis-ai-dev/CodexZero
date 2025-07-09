@@ -5,6 +5,7 @@
 {% from 'components/translation_modals.html' import translation_modals %}
 {% from 'components/translation_overlays.html' import translation_overlays %}
 {% from 'components/verse_cell.html' import verse_cell %}
+{% from 'components/audio_tuning_modal.html' import audio_tuning_modal %}
 {% include 'components/confidence_tooltip.html' %}
 
 {% block title %}Translation Editor - {{ project.target_language }} - CodexZero{% endblock %}
@@ -527,6 +528,9 @@ body.is-collecting-verses textarea {
     
     <!-- Include verse cell component -->
     {{ verse_cell() }}
+    
+    <!-- Include audio tuning modal -->
+    {{ audio_tuning_modal() }}
 </section>
 
 

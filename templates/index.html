@@ -26,41 +26,9 @@
     </div>
 </section>
 
-<section class="py-24 px-6 paper-cream">
-    <div class="max-w-6xl mx-auto">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
-            <div class="text-center">
-                <div class="w-16 h-16 paper-light marker-border rounded-lg mb-6 flex items-center justify-center mx-auto">
-                    <i class="fas fa-chart-line text-2xl" style="color: #2d2d2d;"></i>
-                </div>
-                <h3 class="text-xl font-bold mb-4" style="color: #2d2d2d;">Superior First Drafts</h3>
-                <p class="text-neutral-700 font-medium leading-relaxed">While zero drafts require extensive human refinement and post-editing, they often outperform human first drafts significantly</p>
-            </div>
-            <div class="text-center">
-                <div class="w-16 h-16 paper-light marker-border rounded-lg mb-6 flex items-center justify-center mx-auto">
-                    <i class="fas fa-comments text-2xl" style="color: #2d2d2d;"></i>
-                </div>
-                <h3 class="text-xl font-bold mb-4" style="color: #2d2d2d;">Freedom to Critique</h3>
-                <p class="text-neutral-700 font-medium leading-relaxed">Even when draft quality is low, zero drafts give your translation team something they can freely criticize and improve upon</p>
-            </div>
-            <div class="text-center">
-                <div class="w-16 h-16 paper-light marker-border rounded-lg mb-6 flex items-center justify-center mx-auto">
-                    <i class="fas fa-rocket text-2xl" style="color: #2d2d2d;"></i>
-                </div>
-                <h3 class="text-xl font-bold mb-4" style="color: #2d2d2d;">Reignite Stagnated Projects</h3>
-                <p class="text-neutral-700 font-medium leading-relaxed">CodexZero can leverage your past work to fill in the blanks and breathe new life into stalled translation projects</p>
-            </div>
-        </div>
-    </div>
-</section>
 
 <!-- Feature Slides Section -->
 <section class="feature-slides">
-    <div class="text-center py-16 px-6">
-        <h2 class="text-4xl font-bold mb-4" style="color: #2d2d2d;">Simple. Powerful. Free.</h2>
-        <p class="text-xl text-neutral-600 mb-16">Experience the future of Bible translation</p>
-    </div>
-
     <!-- Slide 1: Minutes to Get Started -->
     <div class="feature-slide">
         <div class="max-w-8xl mx-auto px-12 py-32">
@@ -70,7 +38,7 @@
                         <i class="fab fa-google text-4xl" style="color: #2d2d2d;"></i>
                     </div>
                     <h3 class="text-5xl lg:text-6xl font-bold mb-8" style="color: #2d2d2d;">
-                        Minutes to Get Started
+                        Take <b>late</b> out of Translate.
                     </h3>
                     <p class="text-2xl text-neutral-700 leading-relaxed mb-8">Sign in with your Google account and you're ready to go. No complex setup, no lengthy registration forms—just start your first translation project.</p>
                 </div>
@@ -81,8 +49,28 @@
         </div>
     </div>
 
-    <!-- Slide 2: Seamless Workflow -->
+    <!-- Slide 2: Audio Features -->
     <div class="feature-slide paper-cream">
+        <div class="max-w-8xl mx-auto px-12 py-32">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+                <div class="text-left lg:pr-16">
+                    <div class="w-24 h-24 paper-light marker-border rounded-lg mb-10 flex items-center justify-center">
+                        <i class="fas fa-volume-up text-4xl" style="color: #2d2d2d;"></i>
+                    </div>
+                    <h3 class="text-5xl lg:text-6xl font-bold mb-8" style="color: #2d2d2d;">
+                        Say More
+                    </h3>
+                    <p class="text-2xl text-neutral-700 leading-relaxed mb-8">Generate natural speech in many languages with precise control. Give simple instructions to adjust pronunciation, pace, and tone for exactly the sound you need.</p>
+                </div>
+                <div class="text-center">
+                    <img src="{{ url_for('static', filename='audio.png') }}" alt="Audio Generation Features" class="mx-auto rounded-2xl shadow-2xl w-full max-w-3xl transition-transform duration-500 hover:scale-105">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 3: Mobile Compatibility -->
+    <div class="feature-slide">
         <div class="max-w-8xl mx-auto px-12 py-32">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
                 <div class="text-center lg:order-first">
@@ -93,7 +81,7 @@
                         <i class="fas fa-mobile-alt text-4xl" style="color: #2d2d2d;"></i>
                     </div>
                     <h3 class="text-5xl lg:text-6xl font-bold mb-8" style="color: #2d2d2d;">
-                        Works on Mobile
+                        Pick up the phone.
                     </h3>
                     <p class="text-2xl text-neutral-700 leading-relaxed mb-8">Translate anywhere with full mobile compatibility. All features work seamlessly on your phone or tablet, so you can review and edit drafts on the go.</p>
                 </div>
@@ -101,8 +89,8 @@
         </div>
     </div>
 
-    <!-- Slide 3: Grows with Your Project -->
-    <div class="feature-slide">
+    <!-- Slide 4: Grows with Your Project -->
+    <div class="feature-slide paper-cream">
         <div class="max-w-8xl mx-auto px-12 py-32">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
                 <div class="text-left lg:pr-16">
@@ -110,7 +98,7 @@
                         <i class="fas fa-brain text-4xl" style="color: #2d2d2d;"></i>
                     </div>
                     <h3 class="text-5xl lg:text-6xl font-bold mb-8" style="color: #2d2d2d;">
-                        Grows with Your Project
+                        How to Train Your Model
                     </h3>
                     <p class="text-2xl text-neutral-700 leading-relaxed mb-8">Start with existing examples from your project to guide translations. As you work and provide feedback, you can create a specialized model trained specifically for your language and style.</p>
                 </div>
@@ -121,8 +109,8 @@
         </div>
     </div>
 
-    <!-- Slide 4: Completely Free -->
-    <div class="feature-slide paper-cream">
+    <!-- Slide 5: Import or Start Fresh -->
+    <div class="feature-slide">
         <div class="max-w-8xl mx-auto px-12 py-32">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
                 <div class="text-center lg:order-first">
@@ -133,9 +121,9 @@
                         <i class="fas fa-file-import text-4xl" style="color: #2d2d2d;"></i>
                     </div>
                     <h3 class="text-5xl lg:text-6xl font-bold mb-8" style="color: #2d2d2d;">
-                        Import or Start Fresh
+                        In with the new.
                     </h3>
-                    <p class="text-2xl text-neutral-700 leading-relaxed mb-8">Import existing work from Paratext or other sources to build on what you've already done. Or start completely from scratch with just the books you want to translate.</p>
+                    <p class="text-2xl text-neutral-700 leading-relaxed mb-8">Import existing work from Paratext or other sources to build on what you've already done. Not ready to completely switch? Export seamlessly back to your main app for editing.</p>
                 </div>
             </div>
         </div>

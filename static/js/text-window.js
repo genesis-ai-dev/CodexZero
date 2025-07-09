@@ -849,13 +849,13 @@ class TextWindow {
             <option value="echo">Echo</option>
             <option value="fable">Fable</option>
             <option value="nova">Nova</option>
-            <option value="onyx">Onyx</option>
+            <option value="onyx" selected>Onyx</option>
             <option value="sage">Sage</option>
             <option value="shimmer">Shimmer</option>
         `;
         
         // Set default voice from localStorage
-        const savedVoice = localStorage.getItem('preferredVoice') || 'alloy';
+        const savedVoice = localStorage.getItem('preferredVoice') || 'onyx';
         voiceSelect.value = savedVoice;
         
         // Save voice preference when changed and sync all dropdowns
@@ -888,18 +888,18 @@ class TextWindow {
         pauseBtn.title = 'Pause audio';
         pauseBtn.style.display = 'none';
         
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'delete-audio-btn w-7 h-7 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-red-100 hover:text-red-600 transition-all focus:outline-none';
-        deleteBtn.innerHTML = '<i class="fas fa-trash text-sm"></i>';
-        deleteBtn.title = 'Delete audio';
-        deleteBtn.style.display = 'none';
+        const tuningBtn = document.createElement('button');
+        tuningBtn.className = 'audio-tuning-btn w-7 h-7 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-blue-100 hover:text-blue-600 transition-all focus:outline-none';
+        tuningBtn.innerHTML = '<i class="fas fa-sliders-h text-sm"></i>';
+        tuningBtn.title = 'Audio settings';
+        tuningBtn.style.display = 'none';
         
         // Add all controls to the container
         container.appendChild(voiceSelect);
         container.appendChild(ttsBtn);
         container.appendChild(playBtn);
         container.appendChild(pauseBtn);
-        container.appendChild(deleteBtn);
+        container.appendChild(tuningBtn);
         
         // Store audio state on the container
         container._currentAudio = null;
@@ -914,7 +914,7 @@ class TextWindow {
         const ttsBtn = audioControls.querySelector('.tts-btn');
         const playBtn = audioControls.querySelector('.play-audio-btn');
         const pauseBtn = audioControls.querySelector('.pause-audio-btn');
-        const deleteBtn = audioControls.querySelector('.delete-audio-btn');
+        const tuningBtn = audioControls.querySelector('.audio-tuning-btn');
         
         ttsBtn.onclick = async (e) => {
             e.stopPropagation();
@@ -936,11 +936,9 @@ class TextWindow {
             this.pauseAudio(audioControls);
         };
         
-        deleteBtn.onclick = async (e) => {
+        tuningBtn.onclick = (e) => {
             e.stopPropagation();
-            if (confirm('Delete audio for this verse?')) {
-                await this.deleteAudio(verseData, audioControls);
-            }
+            this.openAudioTuningModal(verseData, textarea, audioControls);
         };
     }
     
@@ -950,28 +948,20 @@ class TextWindow {
         ttsBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i>';
         ttsBtn.disabled = true;
         
-        try {
-            const projectId = window.location.pathname.split('/')[2];
-            const response = await fetch(`/project/${projectId}/verse-audio/${this.id}/${verseData.index}/tts`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, voice })
-            });
-            
-            const data = await response.json();
-            if (data.success) {
-                audioControls._audioId = data.audio_id;
-                this.showAudioButtons(audioControls, true);
-                await this.playAudio(verseData, audioControls);
-            } else {
-                throw new Error(data.error);
-            }
-        } catch (error) {
-            alert('Failed to generate audio: ' + error.message);
-        } finally {
-            ttsBtn.innerHTML = '<i class="fas fa-microphone" style="font-size: 10px;"></i>';
-            ttsBtn.disabled = false;
-        }
+        const projectId = window.location.pathname.split('/')[2];
+        const response = await fetch(`/project/${projectId}/verse-audio/${this.id}/${verseData.index}/tts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, voice })
+        });
+        
+        const data = await response.json();
+        audioControls._audioId = data.audio_id;
+        this.showAudioButtons(audioControls, true);
+        this.playAudio(verseData, audioControls);
+        
+        ttsBtn.innerHTML = '<i class="fas fa-microphone" style="font-size: 10px;"></i>';
+        ttsBtn.disabled = false;
     }
     
     async playAudio(verseData, audioControls) {
@@ -1033,6 +1023,28 @@ class TextWindow {
         }
     }
     
+    openAudioTuningModal(verseData, textarea, audioControls) {
+        const originalText = textarea.value.trim();
+        if (!originalText) return;
+        
+        window.AudioTuningModal?.open({
+            projectId: window.location.pathname.split('/')[2],
+            textId: this.id,
+            verseIndex: verseData.index,
+            originalText,
+            onApply: (audioId) => {
+                if (audioId) {
+                    audioControls._audioId = audioId;
+                    this.showAudioButtons(audioControls, true);
+                    setTimeout(() => this.playAudio(verseData, audioControls), 300);
+                } else {
+                    this.showAudioButtons(audioControls, false);
+                    audioControls._audioId = null;
+                }
+            }
+        });
+    }
+    
     async deleteAudio(verseData, audioControls) {
         try {
             if (audioControls._currentAudio) {
@@ -1068,11 +1080,11 @@ class TextWindow {
     showAudioButtons(audioControls, hasAudio) {
         const playBtn = audioControls.querySelector('.play-audio-btn');
         const pauseBtn = audioControls.querySelector('.pause-audio-btn');
-        const deleteBtn = audioControls.querySelector('.delete-audio-btn');
+        const tuningBtn = audioControls.querySelector('.audio-tuning-btn');
         
         if (playBtn) playBtn.style.display = hasAudio ? 'flex' : 'none';
         if (pauseBtn) pauseBtn.style.display = 'none';
-        if (deleteBtn) deleteBtn.style.display = hasAudio ? 'flex' : 'none';
+        if (tuningBtn) tuningBtn.style.display = hasAudio ? 'flex' : 'none';
     }
     
     async checkExistingAudio(audioControls, verseData) {

@@ -42,12 +42,12 @@ class VerseCell {
         const playBtn = this.audioControls.querySelector('.play-audio-btn');
         const pauseBtn = this.audioControls.querySelector('.pause-audio-btn');
         const ttsBtn = this.audioControls.querySelector('.tts-btn');
-        const deleteBtn = this.audioControls.querySelector('.delete-audio-btn');
+        const tuningBtn = this.audioControls.querySelector('.audio-tuning-btn');
         const voiceSelect = this.audioControls.querySelector('.voice-selector');
         
         // Set default voice from localStorage
         if (voiceSelect) {
-            const savedVoice = localStorage.getItem('preferredVoice') || 'alloy';
+            const savedVoice = localStorage.getItem('preferredVoice') || 'onyx';
             voiceSelect.value = savedVoice;
             
             // Save voice preference when changed and sync all dropdowns
@@ -82,63 +82,41 @@ class VerseCell {
             });
         }
         
-        if (deleteBtn) {
-            deleteBtn.addEventListener('click', () => {
-                this.deleteAudio();
+        if (tuningBtn) {
+            tuningBtn.addEventListener('click', () => {
+                this.openAudioTuningModal();
             });
         }
     }
     
-    async generateTTS() {
+        async generateTTS() {
         const text = this.textarea.value.trim();
-        if (!text) {
-            alert('Please enter some text first');
-            return;
-        }
-        
+        if (!text) return;
+
         const ttsBtn = this.audioControls.querySelector('.tts-btn');
         const voiceSelect = this.audioControls.querySelector('.voice-selector');
-        const voice = voiceSelect ? voiceSelect.value : 'alloy';
+        const voice = voiceSelect?.value || 'onyx';
         
         const verseIndex = this.textarea.dataset.verseIndex;
         const textId = this.textarea.dataset.textId || 'default';
         const projectId = window.projectId || this.textarea.dataset.projectId;
-        
-        if (!projectId || !verseIndex) {
-            console.error('Missing project ID or verse index');
-            return;
-        }
-        
+
         ttsBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         ttsBtn.disabled = true;
         
-        try {
-            const response = await fetch(`/project/${projectId}/verse-audio/${textId}/${verseIndex}/tts`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    text: text,
-                    voice: voice
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.updateAudioControls(true);
-                this.playAudio();
-            } else {
-                alert('Failed to generate audio: ' + (data.error || 'Unknown error'));
-            }
-        } catch (error) {
-            console.error('TTS generation error:', error);
-            alert('Failed to generate audio');
-        } finally {
-            ttsBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-            ttsBtn.disabled = false;
-        }
+        const response = await fetch(`/project/${projectId}/verse-audio/${textId}/${verseIndex}/tts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, voice })
+        });
+        
+        const data = await response.json();
+        
+        this.updateAudioControls(true);
+        this.playAudio();
+        
+        ttsBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+        ttsBtn.disabled = false;
     }
     
     async playAudio() {
@@ -215,10 +193,30 @@ class VerseCell {
         }
     }
     
+    openAudioTuningModal() {
+        const originalText = this.textarea.value.trim();
+        if (!originalText) return;
+        
+        window.AudioTuningModal?.open({
+            projectId: window.projectId || this.textarea.dataset.projectId,
+            textId: this.textarea.dataset.textId || 'default',
+            verseIndex: this.textarea.dataset.verseIndex,
+            originalText,
+            onApply: (audioId) => {
+                if (audioId) {
+                    this.updateAudioControls(true);
+                    setTimeout(() => this.playAudio(), 300);
+                } else {
+                    this.updateAudioControls(false);
+                }
+            }
+        });
+    }
+    
     updateAudioControls(hasAudio) {
         const playBtn = this.audioControls.querySelector('.play-audio-btn');
         const pauseBtn = this.audioControls.querySelector('.pause-audio-btn');
-        const deleteBtn = this.audioControls.querySelector('.delete-audio-btn');
+        const tuningBtn = this.audioControls.querySelector('.audio-tuning-btn');
         
         if (playBtn) {
             playBtn.style.display = hasAudio ? 'flex' : 'none';
@@ -226,8 +224,8 @@ class VerseCell {
         if (pauseBtn) {
             pauseBtn.style.display = 'none';
         }
-        if (deleteBtn) {
-            deleteBtn.style.display = hasAudio ? 'flex' : 'none';
+        if (tuningBtn) {
+            tuningBtn.style.display = hasAudio ? 'flex' : 'none';
         }
     }
     
@@ -330,7 +328,7 @@ window.VerseCell = VerseCell;
                     <option value="echo">Echo</option>
                     <option value="fable">Fable</option>
                     <option value="nova">Nova</option>
-                    <option value="onyx">Onyx</option>
+                    <option value="onyx" selected>Onyx</option>
                     <option value="sage">Sage</option>
                     <option value="shimmer">Shimmer</option>
                 </select>
@@ -343,8 +341,8 @@ window.VerseCell = VerseCell;
                 <button class="pause-audio-btn w-6 h-6 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-gray-200 hover:text-gray-700 transition-all focus:outline-none" title="Pause audio" style="display: none;">
                     <i class="fas fa-pause" style="font-size: 10px;"></i>
                 </button>
-                <button class="delete-audio-btn w-6 h-6 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-red-100 hover:text-red-600 transition-all focus:outline-none" title="Delete audio" style="display: none;">
-                    <i class="fas fa-trash" style="font-size: 10px;"></i>
+                <button class="audio-tuning-btn w-6 h-6 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-blue-100 hover:text-blue-600 transition-all focus:outline-none" title="Audio settings" style="display: none;">
+                    <i class="fas fa-sliders-h" style="font-size: 10px;"></i>
                 </button>
             </div>
         </div>

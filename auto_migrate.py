@@ -66,9 +66,31 @@ def run_migrations(app):
                 db.session.commit()
                 print("✓ Database migrations completed successfully!")
                 
-                # Optionally run data migration in background
-                if os.getenv('AUTO_MIGRATE_DATA', 'false').lower() == 'true':
-                    print("Note: Set AUTO_MIGRATE_DATA=true to automatically migrate existing data")
+            # Check if text_id column needs to be expanded for audio iterations
+            try:
+                result = db.session.execute(text("""
+                    SELECT CHARACTER_MAXIMUM_LENGTH 
+                    FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'verse_audio' 
+                    AND COLUMN_NAME = 'text_id'
+                """)).scalar()
+                
+                if result and result < 100:
+                    print("Expanding text_id column in verse_audio table for iterations...")
+                    db.session.execute(text("""
+                        ALTER TABLE verse_audio 
+                        MODIFY COLUMN text_id VARCHAR(100) NOT NULL
+                    """))
+                    db.session.commit()
+                    print("✓ Expanded text_id column to support audio iterations")
+                    
+            except Exception as e:
+                print(f"Note: Could not check/update text_id column size: {e}")
+                
+            # Optionally run data migration in background
+            if os.getenv('AUTO_MIGRATE_DATA', 'false').lower() == 'true':
+                print("Note: Set AUTO_MIGRATE_DATA=true to automatically migrate existing data")
                 
         except Exception as e:
             print(f"Migration check/run failed: {e}")

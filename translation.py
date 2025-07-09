@@ -8,7 +8,7 @@ from flask import Blueprint, render_template, request, jsonify, send_file, redir
 from flask_login import login_required, current_user
 from thefuzz import fuzz
 from datetime import datetime
-from typing import Tuple, List, Dict, Any
+from typing import Tuple, List, Dict, Any, Optional
 
 from models import Project, Translation, ProjectFile, ProjectFileVerse, TranslationVerse, Text, Verse, db
 from ai.bot import Chatbot, extract_translation_from_xml
@@ -167,8 +167,8 @@ def _get_translation_examples_legacy(project_id, source_text_id, target_text_id,
         print(f"Legacy example retrieval error: {e}")
         return [], "No examples available"
 
-def translate_text(project_id: int, text: str, model: str = None, temperature: float = 0.2, 
-                  source_file_id: str = None, target_file_id: str = None) -> Dict[str, Any]:
+def translate_text(project_id: int, text: str, model: Optional[str] = None, temperature: float = 0.2, 
+                  source_file_id: Optional[str] = None, target_file_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Translate text using the specified model and project settings.
     Returns translation with metadata including confidence and examples used.
@@ -258,7 +258,7 @@ def _get_file_purpose(project_id: int, file_id: str) -> str:
     
     return ""
 
-def _get_translation_instructions(project_id: int, source_file_id: str, target_file_id: str, project) -> str:
+def _get_translation_instructions(project_id: int, source_file_id: str, target_file_id: str, project) -> Optional[str]:
     """Get translation instructions including target file purpose"""
     
     instruction_parts = []

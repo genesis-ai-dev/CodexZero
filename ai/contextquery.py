@@ -1,6 +1,6 @@
 import os
 import re
-from typing import List, Tuple, Dict, Set
+from typing import List, Tuple, Dict, Set, Optional
 from collections import Counter
 import math
 
@@ -366,11 +366,11 @@ class DatabaseContextQuery:
         
         return len(covered_words) / len(query_words)
     
-    def search_by_text(self, query_text: str, top_k: int = 5, min_examples: int = 3, coverage_threshold: float = 0.9, exclude_idx: int = -1) -> List[Tuple[int, str, str, float]]:
+    def search_by_text(self, query_text: str, top_k: int = 5, min_examples: int = 3, coverage_threshold: float = 0.9, exclude_idx: Optional[int] = None) -> List[Tuple[int, str, str, float]]:
         """Search for relevant verses using the query text"""
         results: List[Tuple[int, str, str, float]] = []
         query_branches = [self._normalize_text(query_text)]
-        used_indices = {exclude_idx} if exclude_idx >= 0 else set()
+        used_indices = {exclude_idx} if exclude_idx is not None and exclude_idx >= 0 else set()
         restart_count = 0
         
         print(f"DatabaseContextQuery: Starting search with query: {query_text}")

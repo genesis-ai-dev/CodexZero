@@ -359,4 +359,5 @@ def main():
             print(f"\n❌ Migration failed: {e}")
             raise
 
-main() 
+if __name__ == '__main__':
+    main()

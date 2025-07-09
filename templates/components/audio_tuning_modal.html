@@ -1,0 +1,487 @@
+{% macro audio_tuning_modal() %}
+<style>
+.slider::-webkit-slider-thumb {
+    appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: #3b82f6;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.slider::-moz-range-thumb {
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: #3b82f6;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.slider:disabled::-webkit-slider-thumb {
+    background: #9ca3af;
+    cursor: not-allowed;
+}
+
+.slider:disabled::-moz-range-thumb {
+    background: #9ca3af;
+    cursor: not-allowed;
+}
+</style>
+
+<div id="audio-tuning-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between p-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">Fine-tune Audio</h3>
+                <button id="close-audio-modal" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <!-- Original Text Display -->
+            <div class="p-4 bg-gray-50 border-b border-gray-200">
+                <div class="text-sm text-gray-600 mb-1">Original Text:</div>
+                <div id="original-text-display" class="text-gray-900 font-medium"></div>
+            </div>
+            
+            <!-- Chat-like Audio History -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="audio-iterations">
+                <!-- Audio iterations will be added here dynamically -->
+            </div>
+            
+            <!-- Input Section -->
+            <div class="border-t border-gray-200 p-4">
+                <div class="flex items-center space-x-2 mb-3">
+                    <select id="iteration-voice-select" class="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="alloy">Alloy</option>
+                        <option value="echo">Echo</option>
+                        <option value="fable">Fable</option>
+                        <option value="onyx" selected>Onyx</option>
+                        <option value="nova">Nova</option>
+                        <option value="shimmer">Shimmer</option>
+                    </select>
+                    <div class="text-sm text-gray-500">Voice for next iteration</div>
+                </div>
+                <div class="flex space-x-2">
+                    <input 
+                        type="text" 
+                        id="audio-prompt-input" 
+                        placeholder="Voice instructions (e.g., 'speak slowly and clearly', 'use a British accent', 'sound more excited')"
+                        class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                    <button 
+                        id="generate-iteration-btn" 
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <i class="fas fa-play text-sm"></i>
+                    </button>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                    Tip: Try instructions like "speak slowly", "British accent", "more enthusiastic", "professional tone"
+                </div>
+            </div>
+            
+            <!-- Footer Actions -->
+            <div class="flex justify-between items-center p-4 border-t border-gray-200 bg-gray-50">
+                <button 
+                    id="delete-audio-btn" 
+                    class="px-4 py-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                >
+                    <i class="fas fa-trash mr-2"></i>Delete Audio
+                </button>
+                <div class="flex space-x-2">
+                    <button 
+                        id="cancel-audio-modal" 
+                        class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        id="apply-audio-changes" 
+                        class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled
+                    >
+                        Apply & Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+class AudioTuningModal {
+    constructor() {
+        this.modal = document.getElementById('audio-tuning-modal');
+        this.iterationsContainer = document.getElementById('audio-iterations');
+        this.originalTextDisplay = document.getElementById('original-text-display');
+        this.promptInput = document.getElementById('audio-prompt-input');
+        this.generateBtn = document.getElementById('generate-iteration-btn');
+        this.voiceSelect = document.getElementById('iteration-voice-select');
+        this.applyBtn = document.getElementById('apply-audio-changes');
+        this.deleteBtn = document.getElementById('delete-audio-btn');
+        
+        this.currentData = null;
+        this.iterations = [];
+        this.selectedIteration = null;
+        
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        // Close modal events
+        document.getElementById('close-audio-modal').addEventListener('click', () => this.close());
+        document.getElementById('cancel-audio-modal').addEventListener('click', () => this.close());
+        
+        // Generate iteration
+        this.generateBtn.addEventListener('click', () => this.generateIteration());
+        this.promptInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.generateIteration();
+        });
+        
+        // Apply changes
+        this.applyBtn.addEventListener('click', () => this.applyChanges());
+        
+        // Delete audio
+        this.deleteBtn.addEventListener('click', () => this.deleteCurrentAudio());
+        
+        // Close on outside click
+        this.modal.addEventListener('click', (e) => {
+            if (e.target === this.modal) this.close();
+        });
+        
+        // Set default voice from localStorage
+        const savedVoice = localStorage.getItem('preferredVoice') || 'onyx';
+        this.voiceSelect.value = savedVoice;
+    }
+    
+    async open(data) {
+        this.currentData = data;
+        this.iterations = [];
+        this.selectedIteration = null;
+        
+        // Set original text
+        this.originalTextDisplay.textContent = data.originalText;
+        
+        // Clear iterations
+        this.iterationsContainer.innerHTML = '';
+        
+        // Load current audio as first iteration
+        await this.loadCurrentAudio();
+        
+        // Show modal
+        this.modal.classList.remove('hidden');
+        this.promptInput.focus();
+        
+        // Update apply button state
+        this.updateApplyButton();
+    }
+    
+    close() {
+        this.modal.classList.add('hidden');
+        this.currentData = null;
+        this.iterations = [];
+        this.selectedIteration = null;
+        this.promptInput.value = '';
+    }
+    
+    async loadCurrentAudio() {
+        const response = await fetch(`/project/${this.currentData.projectId}/verse-audio/${this.currentData.textId}/${this.currentData.verseIndex}/check`);
+        const data = await response.json();
+        
+        if (data.exists) {
+            this.addIteration({
+                audioId: data.audio_id,
+                prompt: 'Current audio',
+                voice: 'current',
+                timestamp: new Date(),
+                isCurrent: true
+            });
+            this.selectIteration(0);
+        }
+    }
+    
+    async generateIteration() {
+        const prompt = this.promptInput.value.trim();
+        const voice = this.voiceSelect.value;
+        
+        this.generateBtn.disabled = true;
+        this.generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-sm"></i>';
+        
+        // Send both the text and instructions to the gpt-4o-mini-tts model
+        const enhancedText = this.currentData.originalText;
+        
+        const response = await fetch(`/project/${this.currentData.projectId}/verse-audio/${this.currentData.textId}/${this.currentData.verseIndex}/tts-iterate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                text: enhancedText, 
+                voice: voice,
+                instructions: prompt || ''
+            })
+        });
+        
+        const data = await response.json();
+        
+        this.addIteration({
+            audioId: data.audio_id,
+            prompt: prompt || 'No instructions',
+            voice,
+            timestamp: new Date(),
+            isCurrent: false
+        });
+        
+        this.selectIteration(this.iterations.length - 1);
+        this.promptInput.value = '';
+        
+        this.generateBtn.disabled = false;
+        this.generateBtn.innerHTML = '<i class="fas fa-play text-sm"></i>';
+    }
+    
+    addIteration(iteration) {
+        this.iterations.push(iteration);
+        
+        const iterationEl = document.createElement('div');
+        iterationEl.className = 'border border-gray-200 rounded-lg p-3 cursor-pointer hover:bg-gray-50 transition-colors';
+        iterationEl.dataset.iterationIndex = this.iterations.length - 1;
+        
+        iterationEl.innerHTML = `
+            <div class="flex items-start justify-between mb-2">
+                <div class="flex items-center space-x-2">
+                    <div class="w-2 h-2 rounded-full ${iteration.isCurrent ? 'bg-green-500' : 'bg-blue-500'}"></div>
+                    <span class="text-sm font-medium">${iteration.isCurrent ? 'Current' : iteration.voice}</span>
+                    ${iteration.isCurrent ? '<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Original</span>' : ''}
+                </div>
+                <span class="text-xs text-gray-500">${iteration.timestamp.toLocaleTimeString()}</span>
+            </div>
+                         <div class="text-sm text-gray-700 mb-3">${iteration.prompt}</div>
+             
+             <!-- Audio Controls -->
+             <div class="audio-player bg-gray-50 rounded-lg p-3 mb-2" data-audio-id="${iteration.audioId}">
+                 <div class="flex items-center space-x-3 mb-2">
+                     <button class="play-pause-btn w-8 h-8 flex items-center justify-center bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors">
+                         <i class="fas fa-play text-xs"></i>
+                     </button>
+                     <div class="flex-1">
+                         <input type="range" class="audio-timeline w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider" 
+                                min="0" max="100" value="0" disabled>
+                     </div>
+                     <div class="text-xs text-gray-500 font-mono time-display">0:00 / 0:00</div>
+                 </div>
+                 <div class="flex items-center justify-between">
+                     <div class="text-xs text-gray-600">
+                         ${iteration.isCurrent ? 'Current Audio' : iteration.voice}
+                     </div>
+                     <button class="save-iteration-btn text-gray-500 hover:text-green-600 transition-colors" data-iteration-index="${this.iterations.length - 1}">
+                         <i class="fas fa-download text-sm"></i>
+                     </button>
+                 </div>
+             </div>
+        `;
+        
+        // Add event listeners
+        iterationEl.addEventListener('click', () => {
+            this.selectIteration(this.iterations.length - 1);
+        });
+        
+        const audioPlayer = iterationEl.querySelector('.audio-player');
+        const playPauseBtn = audioPlayer.querySelector('.play-pause-btn');
+        const timeline = audioPlayer.querySelector('.audio-timeline');
+        const timeDisplay = audioPlayer.querySelector('.time-display');
+        
+        this.setupAudioPlayer(audioPlayer, iteration.audioId, playPauseBtn, timeline, timeDisplay);
+        
+        iterationEl.querySelector('.save-iteration-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.downloadIteration(iteration.audioId);
+        });
+        
+        this.iterationsContainer.appendChild(iterationEl);
+    }
+    
+    selectIteration(index) {
+        this.selectedIteration = index;
+        
+        // Update visual selection
+        this.iterationsContainer.querySelectorAll('[data-iteration-index]').forEach((el, i) => {
+            if (i === index) {
+                el.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
+                el.classList.remove('hover:bg-gray-50');
+            } else {
+                el.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50');
+                el.classList.add('hover:bg-gray-50');
+            }
+        });
+        
+        this.updateApplyButton();
+    }
+    
+    updateApplyButton() {
+        if (this.selectedIteration !== null && this.iterations.length > 0) {
+            const selectedIteration = this.iterations[this.selectedIteration];
+            this.applyBtn.disabled = selectedIteration.isCurrent;
+            this.applyBtn.textContent = selectedIteration.isCurrent ? 'Current Audio Selected' : 'Apply & Close';
+        } else {
+            this.applyBtn.disabled = true;
+            this.applyBtn.textContent = 'Select an iteration';
+        }
+    }
+    
+    setupAudioPlayer(player, audioId, playPauseBtn, timeline, timeDisplay) {
+        let audio = null;
+        let isPlaying = false;
+        
+        const updateTimeDisplay = () => {
+            if (!audio) return;
+            const current = Math.floor(audio.currentTime);
+            const duration = Math.floor(audio.duration) || 0;
+            const formatTime = (seconds) => {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            };
+            timeDisplay.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
+            timeline.value = duration > 0 ? (audio.currentTime / duration) * 100 : 0;
+        };
+        
+        playPauseBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            
+            if (!audio) {
+                audio = new Audio(`/project/${this.currentData.projectId}/verse-audio/${audioId}/download`);
+                
+                audio.addEventListener('loadedmetadata', () => {
+                    timeline.disabled = false;
+                    updateTimeDisplay();
+                });
+                
+                audio.addEventListener('timeupdate', updateTimeDisplay);
+                
+                audio.addEventListener('ended', () => {
+                    isPlaying = false;
+                    playPauseBtn.innerHTML = '<i class="fas fa-play text-xs"></i>';
+                });
+            }
+            
+            if (isPlaying) {
+                audio.pause();
+                isPlaying = false;
+                playPauseBtn.innerHTML = '<i class="fas fa-play text-xs"></i>';
+            } else {
+                // Pause all other audio players first
+                document.querySelectorAll('.audio-player').forEach(otherPlayer => {
+                    if (otherPlayer !== player) {
+                        const btn = otherPlayer.querySelector('.play-pause-btn');
+                        if (btn.innerHTML.includes('pause')) {
+                            btn.click();
+                        }
+                    }
+                });
+                
+                audio.play();
+                isPlaying = true;
+                playPauseBtn.innerHTML = '<i class="fas fa-pause text-xs"></i>';
+            }
+        });
+        
+        timeline.addEventListener('input', (e) => {
+            if (audio && audio.duration) {
+                const newTime = (e.target.value / 100) * audio.duration;
+                audio.currentTime = newTime;
+            }
+        });
+    }
+    
+    async downloadIteration(audioId) {
+        try {
+            const url = `/project/${this.currentData.projectId}/verse-audio/${audioId}/download`;
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `audio_iteration_${audioId}.mp3`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error('Error downloading iteration:', error);
+            alert('Failed to download audio');
+        }
+    }
+    
+    async applyChanges() {
+        if (this.selectedIteration === null || this.iterations.length === 0) return;
+        
+        const selectedIteration = this.iterations[this.selectedIteration];
+        
+        if (!selectedIteration.isCurrent) {
+            // Apply the selected iteration as the new current audio
+            try {
+                const response = await fetch(`/project/${this.currentData.projectId}/verse-audio/${this.currentData.textId}/${this.currentData.verseIndex}/apply`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        audioId: selectedIteration.audioId
+                    })
+                });
+                
+                if (response.ok) {
+                    // Call the callback to update the parent
+                    if (this.currentData.onApply) {
+                        this.currentData.onApply(selectedIteration.audioId);
+                    }
+                } else {
+                    alert('Failed to apply changes');
+                    return;
+                }
+            } catch (error) {
+                console.error('Error applying changes:', error);
+                alert('Failed to apply changes');
+                return;
+            }
+        }
+        
+        this.close();
+    }
+    
+    async deleteCurrentAudio() {
+        if (!confirm('Delete all audio for this verse?')) return;
+        
+        try {
+            const checkResponse = await fetch(`/project/${this.currentData.projectId}/verse-audio/${this.currentData.textId}/${this.currentData.verseIndex}/check`);
+            const checkData = await checkResponse.json();
+            
+            if (checkData.exists) {
+                const deleteResponse = await fetch(`/project/${this.currentData.projectId}/verse-audio/${checkData.audio_id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (deleteResponse.ok) {
+                    // Update parent to remove audio controls
+                    if (this.currentData.onApply) {
+                        this.currentData.onApply(null);
+                    }
+                    this.close();
+                } else {
+                    alert('Failed to delete audio');
+                }
+            }
+        } catch (error) {
+            console.error('Error deleting audio:', error);
+            alert('Failed to delete audio');
+        }
+    }
+}
+
+// Initialize the modal when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    if (!window.AudioTuningModal) {
+        window.AudioTuningModal = new AudioTuningModal();
+    }
+});
+</script>
+{% endmacro %} 
