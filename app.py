@@ -1,5 +1,5 @@
 import os
-from flask import Flask, send_file, request, jsonify
+from flask import Flask, send_file, request, jsonify, render_template
 from flask_login import LoginManager, login_required
 from datetime import datetime
 import asyncio
@@ -35,6 +35,39 @@ def create_app():
     @login_manager.user_loader
     def load_user(user_id):
         return db.session.get(User, int(user_id))
+    
+    # Security headers
+    @app.after_request
+    def add_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' cdn.tailwindcss.com cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdn.tailwindcss.com cdnjs.cloudflare.com fonts.googleapis.com; font-src 'self' fonts.gstatic.com cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self';"
+        return response
+    
+    # Error handlers to prevent information disclosure
+    @app.errorhandler(404)
+    def not_found_error(error):
+        return render_template('base.html', error_title='Page Not Found', 
+                             error_message='The requested page could not be found.'), 404
+    
+    @app.errorhandler(403)
+    def forbidden_error(error):
+        return render_template('base.html', error_title='Access Forbidden', 
+                             error_message='You do not have permission to access this resource.'), 403
+    
+    @app.errorhandler(500)
+    def internal_error(error):
+        db.session.rollback()
+        if app.config.get('DEBUG'):
+            # In debug mode, show the actual error
+            return render_template('base.html', error_title='Server Error', 
+                                 error_message=str(error)), 500
+        else:
+            # In production, show generic message
+            return render_template('base.html', error_title='Server Error', 
+                                 error_message='An internal server error occurred. Please try again later.'), 500
     
     # Register blueprints
     app.register_blueprint(auth, url_prefix='/auth')

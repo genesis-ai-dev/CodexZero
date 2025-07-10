@@ -50,11 +50,25 @@ def decode_id(encoded_value, prefix=''):
         return None
 
 def admin_required(f):
-    """Decorator to require admin access"""
+    """Decorator to require admin access with additional verification"""
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.email != 'danieljlosey@gmail.com':
+        if not current_user.is_authenticated:
+            flash('Authentication required.', 'error')
+            return redirect(url_for('auth.login'))
+        
+        # Check admin email
+        if current_user.email != 'danieljlosey@gmail.com':
             flash('Access denied. Admin privileges required.', 'error')
             return redirect(url_for('main.index'))
+        
+        # Additional verification: check recent login (within 4 hours)
+        if current_user.last_login:
+            from datetime import timedelta
+            session_timeout = timedelta(hours=4)
+            if datetime.utcnow() - current_user.last_login > session_timeout:
+                flash('Admin session expired. Please log in again.', 'warning')
+                return redirect(url_for('auth.logout'))
+        
         return f(*args, **kwargs)
     decorated_function.__name__ = f.__name__
     return decorated_function

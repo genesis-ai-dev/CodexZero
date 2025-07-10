@@ -6,6 +6,7 @@ from models import db, Project, ProjectFile, Translation
 from utils.file_helpers import save_project_file
 from utils.project_helpers import save_language_rules, import_ulb_automatically
 from utils.project_access import ProjectAccess, require_project_access
+from utils import sanitize_text_input, validate_and_sanitize_request, error_response, success_response
 from storage import get_storage
 
 projects = Blueprint('projects', __name__)
@@ -31,9 +32,9 @@ def new_project():
 @login_required
 def create_project():
     """Create a new project with optional file upload"""
-    target_language = request.form.get('target_language', '').strip()
-    audience = request.form.get('audience', '').strip()
-    style = request.form.get('style', '').strip()
+    target_language = sanitize_text_input(request.form.get('target_language', ''), max_length=100)
+    audience = sanitize_text_input(request.form.get('audience', ''), max_length=200)
+    style = sanitize_text_input(request.form.get('style', ''), max_length=200)
     
     # Create project
     project = Project(
@@ -243,9 +244,9 @@ def update_project(project_id):
     require_project_access(project_id, 'editor')
     project = Project.query.get_or_404(project_id)
     
-    project.target_language = request.form.get('target_language', project.target_language).strip()
-    project.audience = request.form.get('audience', project.audience).strip()
-    project.style = request.form.get('style', project.style).strip()
+    project.target_language = sanitize_text_input(request.form.get('target_language', project.target_language), max_length=100)
+    project.audience = sanitize_text_input(request.form.get('audience', project.audience), max_length=200)
+    project.style = sanitize_text_input(request.form.get('style', project.style), max_length=200)
     project.updated_at = datetime.utcnow()
     
     # Handle language rules
@@ -327,18 +328,20 @@ def update_instructions(project_id):
     require_project_access(project_id, 'editor')
     project = Project.query.get_or_404(project_id)
     
-    data = request.get_json()
-    instructions = data.get('instructions', '').strip()
+    # Validate and sanitize input
+    is_valid, data, error_msg = validate_and_sanitize_request({
+        'instructions': {'max_length': 4000}
+    })
     
-    if len(instructions) > 4000:
-        return jsonify({'error': 'Instructions must be 4000 characters or less'}), 400
+    if not is_valid:
+        return error_response(error_msg)
     
-    project.instructions = instructions if instructions else None
+    project.instructions = data['instructions'] if data['instructions'] else None
     project.updated_at = datetime.utcnow()
     
     db.session.commit()
     
-    return jsonify({'success': True})
+    return success_response('Instructions updated successfully')
 
 
 @projects.route('/api/project/<int:project_id>')

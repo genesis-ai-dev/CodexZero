@@ -25,4 +25,5 @@ class Config:
     # Security settings - relaxed for development
     SESSION_COOKIE_SECURE = not DEVELOPMENT_MODE  # False in development
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'Lax' 
+    SESSION_COOKIE_SAMESITE = 'Strict'
+    PERMANENT_SESSION_LIFETIME = 24 * 60 * 60  # 24 hours 

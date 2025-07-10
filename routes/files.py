@@ -3,16 +3,63 @@ import json
 import re
 import chardet
 from datetime import datetime
-from flask import Blueprint, request, jsonify, render_template, send_from_directory
+from flask import Blueprint, request, jsonify, render_template, send_from_directory, abort, redirect
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
+import mimetypes
 
 from models import db, Project, ProjectFile, FineTuningJob
 from utils.file_helpers import save_project_file, detect_usfm_content, validate_text_file
 from utils.project_access import require_project_access
+from utils import process_file_upload, error_response, success_response, create_timestamped_filename, safe_filename_from_original
 from storage import get_storage
 
 files = Blueprint('files', __name__)
+
+# Define allowed file types with their MIME types
+ALLOWED_FILE_TYPES = {
+    '.txt': ['text/plain'],
+    '.usfm': ['text/plain', 'application/octet-stream'],
+    '.sfm': ['text/plain', 'application/octet-stream']
+}
+
+def validate_file_security(file):
+    """Validate file for security issues"""
+    if not file or not file.filename:
+        return False, "No file provided"
+    
+    filename = secure_filename(file.filename)
+    if not filename:
+        return False, "Invalid filename"
+    
+    # Check file extension
+    file_ext = os.path.splitext(filename)[1].lower()
+    if file_ext not in ALLOWED_FILE_TYPES:
+        return False, f"File type {file_ext} not allowed"
+    
+    # Check MIME type
+    file.seek(0)  # Reset file pointer
+    file_content = file.read(1024)  # Read first 1KB for MIME detection
+    file.seek(0)  # Reset file pointer
+    
+    detected_mime = mimetypes.guess_type(filename)[0]
+    if detected_mime and detected_mime not in ALLOWED_FILE_TYPES[file_ext]:
+        return False, f"MIME type {detected_mime} not allowed for {file_ext} files"
+    
+    # Basic content validation for text files
+    if file_ext in ['.txt', '.usfm', '.sfm']:
+        try:
+            # Try to decode as text
+            file_content.decode('utf-8')
+        except UnicodeDecodeError:
+            try:
+                # Try other encodings
+                chardet.detect(file_content)
+            except:
+                return False, "File content is not valid text"
+    
+    return True, "File validation passed"
+
 
 def read_file_content(file_obj, filename):
     """Read file content with encoding detection"""
@@ -73,8 +120,9 @@ def upload_file_auto_detect(project_id):
             return jsonify({'error': 'No file provided'}), 400
         
         file = request.files['file']
-        if not file.filename:
-            return jsonify({'error': 'No file selected'}), 400
+        is_valid, message = validate_file_security(file)
+        if not is_valid:
+            return jsonify({'error': message}), 400
         
         if not file.filename.lower().endswith('.txt'):
             return jsonify({'error': 'Only .txt files are allowed for direct upload. Use the USFM importer for .usfm/.sfm files.'}), 400
@@ -111,18 +159,17 @@ def handle_usfm_auto_upload(project_id, project, file_content, filename):
     try:
         file_verses = parser.parse_file(file_content, filename)
     except ValueError as e:
-        return jsonify({'error': f'Invalid USFM file "{filename}": {str(e)}'}), 400
+        return error_response(f'Invalid USFM file "{filename}": {str(e)}')
     except Exception as e:
-        return jsonify({'error': f'Error parsing USFM file "{filename}": {str(e)}'}), 500
+        return error_response(f'Error parsing USFM file "{filename}": {str(e)}', 500)
     
     # Create eBible format from USFM verses
     ebible_lines = builder.create_ebible_from_usfm_verses(file_verses)
     ebible_content = '\n'.join(ebible_lines)
     
     # Generate descriptive filename
-    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-    safe_filename = "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_', '.')).strip()
-    project_filename = f"usfm_{safe_filename}_{timestamp}.txt"
+    safe_base = safe_filename_from_original(filename)
+    project_filename = f"usfm_{safe_base}_{create_timestamped_filename()}"
     
     # Store directly in database using save_project_file
     project_file = save_project_file(project_id, ebible_content, project_filename, 'ebible', 'text/plain')
@@ -143,17 +190,18 @@ def handle_usfm_auto_upload(project_id, project, file_content, filename):
 def handle_text_auto_upload(project_id, project, file_content, filename):
     validation = validate_text_file(file_content, filename)
     if not validation['valid']:
-        return jsonify({'error': validation['error']}), 400
+        return error_response(validation['error'])
     
     project_file = save_project_file(project_id, file_content, filename, 'text', 'text/plain')
     db.session.commit()
     
-    return jsonify({
-        'success': True,
-        'is_usfm': False,
-        'message': f'Text file "{filename}" uploaded successfully',
-        'line_count': validation['line_count']
-    })
+    return success_response(
+        f'Text file "{filename}" uploaded successfully',
+        {
+            'is_usfm': False,
+            'line_count': validation['line_count']
+        }
+    )
 
 @files.route('/project/<int:project_id>/usfm-import')
 @login_required
@@ -209,11 +257,11 @@ def usfm_upload(project_id):
     project = Project.query.get_or_404(project_id)
     
     if 'usfm_files' not in request.files:
-        return jsonify({'error': 'No files provided'}), 400
+        return error_response('No files provided')
     
     files = request.files.getlist('usfm_files')
     if not files:
-        return jsonify({'error': 'No files selected'}), 400
+        return error_response('No files selected')
     
     # Process all files as USFM content
     all_verses = {}
@@ -224,7 +272,15 @@ def usfm_upload(project_id):
     parser = USFMParser()
     
     for file in files:
-        if not file.filename:
+        is_valid, message = validate_file_security(file)
+        if not is_valid:
+            processing_errors.append(f'{file.filename}: {message}')
+            uploaded_file_info.append({
+                'filename': file.filename or 'unknown',
+                'verses_count': 0,
+                'status': 'error',
+                'error': message
+            })
             continue
             
         try:
@@ -267,12 +323,11 @@ def usfm_upload(project_id):
     ebible_content = '\n'.join(ebible_lines)
     
     # Generate descriptive filename
-    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
     if len(uploaded_file_info) == 1:
-        safe_filename = "".join(c for c in uploaded_file_info[0]['filename'] if c.isalnum() or c in (' ', '-', '_', '.')).strip()
-        project_filename = f"usfm_{safe_filename}_{timestamp}.txt"
+        safe_base = safe_filename_from_original(uploaded_file_info[0]['filename'])
+        project_filename = f"usfm_{safe_base}"
     else:
-        project_filename = f"usfm_combined_{len(uploaded_file_info)}_files_{timestamp}.txt"
+        project_filename = f"usfm_combined_{len(uploaded_file_info)}_files_{create_timestamped_filename()}"
     
     # Store directly in database using save_project_file
     project_file = save_project_file(project_id, ebible_content, project_filename, 'ebible', 'text/plain')
@@ -425,11 +480,28 @@ def update_file_purpose(project_id, file_id):
     })
 
 @files.route('/uploads/<path:filename>')
+@login_required
 def serve_upload(filename):
+    # Extract project ID from filename path to check access
+    # Expected format: projects/{project_id}/...
+    path_parts = filename.split('/')
+    if len(path_parts) >= 2 and path_parts[0] == 'projects':
+        try:
+            project_id = int(path_parts[1])
+            require_project_access(project_id, 'viewer')
+        except (ValueError, IndexError):
+            abort(404)
+    else:
+        # For non-project files, require authentication only
+        pass
+    
     storage = get_storage()
     
     if hasattr(storage, 'base_path'):
-        file_data = storage.get_file(filename)
-        return send_from_directory(storage.base_path, filename)
+        try:
+            file_data = storage.get_file(filename)
+            return send_from_directory(storage.base_path, filename)
+        except FileNotFoundError:
+            abort(404)
     else:
         return redirect(storage.get_file_url(filename)) 

@@ -3,6 +3,7 @@ from flask_login import login_required, current_user
 
 from models import db, Project, User
 from utils.project_access import ProjectAccess, require_project_access
+from utils import validate_and_sanitize_request, error_response, success_response
 
 members = Blueprint('members', __name__)
 
@@ -28,37 +29,39 @@ def add_member(project_id):
     """Add a new member to the project"""
     require_project_access(project_id, 'owner')
     
-    data = request.get_json()
-    email = data.get('email', '').strip().lower()
-    role = data.get('role', 'viewer')
+    # Validate and sanitize input
+    is_valid, data, error_msg = validate_and_sanitize_request({
+        'email': {'max_length': 254, 'required': True},
+        'role': {'max_length': 20, 'choices': ['viewer', 'editor', 'owner'], 'default': 'viewer'}
+    })
     
-    if not email:
-        return jsonify({'success': False, 'error': 'Email is required'}), 400
+    if not is_valid:
+        return error_response(error_msg)
     
-    if role not in ['viewer', 'editor', 'owner']:
-        return jsonify({'success': False, 'error': 'Invalid role'}), 400
+    email = data['email'].lower()
     
     # Check if user exists
     user = User.query.filter_by(email=email).first()
     if not user:
-        return jsonify({'success': False, 'error': 'User not found. They need to create an account first.'}), 404
+        return error_response('User not found. They need to create an account first.', 404)
     
     # Add member using centralized system
-    success = ProjectAccess.add_member(project_id, email, role, current_user.id)
+    success = ProjectAccess.add_member(project_id, email, data['role'], current_user.id)
     
     if success:
-        return jsonify({
-            'success': True, 
-            'message': f'{user.name or email} added as {role}',
-            'member': {
-                'id': user.id,
-                'name': user.name or email,
-                'email': user.email,
-                'role': role
+        return success_response(
+            f'{user.name or email} added as {data["role"]}',
+            {
+                'member': {
+                    'id': user.id,
+                    'name': user.name or email,
+                    'email': user.email,
+                    'role': data['role']
+                }
             }
-        })
+        )
     else:
-        return jsonify({'success': False, 'error': 'User is already a member or could not be added'}), 400
+        return error_response('User is already a member or could not be added')
 
 
 @members.route('/project/<int:project_id>/members/<int:user_id>/role', methods=['POST'])
@@ -71,18 +74,15 @@ def update_member_role(project_id, user_id):
     new_role = data.get('role')
     
     if new_role not in ['viewer', 'editor', 'owner']:
-        return jsonify({'success': False, 'error': 'Invalid role'}), 400
+        return error_response('Invalid role')
     
     success = ProjectAccess.update_member_role(project_id, user_id, new_role, current_user.id)
     
     if success:
         user = User.query.get(user_id)
-        return jsonify({
-            'success': True, 
-            'message': f'{user.name or user.email} role updated to {new_role}'
-        })
+        return success_response(f'{user.name or user.email} role updated to {new_role}')
     else:
-        return jsonify({'success': False, 'error': 'Could not update role. Cannot demote the last owner.'}), 400
+        return error_response('Could not update role. Cannot demote the last owner.')
 
 
 @members.route('/project/<int:project_id>/members/<int:user_id>', methods=['DELETE'])
@@ -95,12 +95,9 @@ def remove_member(project_id, user_id):
     
     if success:
         user = User.query.get(user_id)
-        return jsonify({
-            'success': True, 
-            'message': f'{user.name or user.email} removed from project'
-        })
+        return success_response(f'{user.name or user.email} removed from project')
     else:
-        return jsonify({'success': False, 'error': 'Could not remove member. Cannot remove the last owner.'}), 400
+        return error_response('Could not remove member. Cannot remove the last owner.')
 
 
 @members.route('/api/users/search')

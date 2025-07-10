@@ -1,6 +1,7 @@
 import os
 from flask import Blueprint, render_template, redirect, url_for, current_app, flash
 from flask_login import current_user
+from datetime import datetime
 
 main = Blueprint('main', __name__)
 
@@ -32,13 +33,12 @@ def health():
         db.session.execute(text('SELECT 1'))
         db_status = "OK"
     except Exception as e:
-        db_status = f"ERROR: {str(e)}"
+        db_status = "ERROR"
     
     return {
         "status": "OK" if db_status == "OK" else "DEGRADED",
         "database": db_status,
-        "database_url": os.environ.get('DATABASE_URL', 'Not set')[:50] + "..." if os.environ.get('DATABASE_URL') else 'Not set',
-        "storage_type": os.environ.get('STORAGE_TYPE', 'Not set')
+        "timestamp": datetime.utcnow().isoformat()
     }
 
 
