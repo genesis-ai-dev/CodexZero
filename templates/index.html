@@ -40,7 +40,7 @@
                     <h3 class="text-5xl lg:text-6xl font-bold mb-8" style="color: #2d2d2d;">
                         Take <b>late</b> out of Translate.
                     </h3>
-                    <p class="text-2xl text-neutral-700 leading-relaxed mb-8">Sign in with your Google account and you're ready to go. No complex setup, no lengthy registration forms—just start your first translation project.</p>
+                    <p class="text-2xl text-neutral-700 leading-relaxed mb-8">Sign in with your Google and start translating in seconds.</p>
                 </div>
                 <div class="text-center">
                     <img src="{{ url_for('static', filename='desktoplayout.png') }}" alt="CodexZero Desktop Interface" class="mx-auto rounded-2xl shadow-2xl w-full max-w-3xl transition-transform duration-500 hover:scale-105">
@@ -128,53 +128,24 @@
             </div>
         </div>
     </div>
-</section>
 
-<!-- Features Overview -->
-<section class="py-24 px-6">
-    <div class="max-w-4xl mx-auto text-center">
-        <h2 class="text-3xl font-bold mb-12" style="color: #2d2d2d;">Everything You Need</h2>
-        
-        <div class="max-w-3xl mx-auto text-left space-y-4 mb-12">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <h4 class="font-semibold text-neutral-800 mb-2">
-                        <i class="fas fa-check-circle text-green-600 mr-2"></i>
-                        Accept/Reject Drafts
-                    </h4>
-                    <p class="text-sm text-neutral-600">AI generates a draft for each verse. Accept, reject, or directly edit each translation as needed.</p>
+    <!-- Slide 6: Team Collaboration -->
+    <div class="feature-slide paper-cream">
+        <div class="max-w-8xl mx-auto px-12 py-32">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+                <div class="text-left lg:pr-16">
+                    <div class="w-24 h-24 paper-light marker-border rounded-lg mb-10 flex items-center justify-center">
+                        <i class="fas fa-users text-4xl" style="color: #2d2d2d;"></i>
+                    </div>
+                    <h3 class="text-5xl lg:text-6xl font-bold mb-8" style="color: #2d2d2d;">
+                        Feeling Alone?
+                    </h3>
+                    <p class="text-2xl text-neutral-700 leading-relaxed mb-8">Work with your team seamlessly. Invite collaborators, assign roles, and track progress together. Translation is better with friends!</p>
                 </div>
-                <div>
-                    <h4 class="font-semibold text-neutral-800 mb-2">
-                        <i class="fas fa-palette text-blue-600 mr-2"></i>
-                        Quality Indicators
-                    </h4>
-                    <p class="text-sm text-neutral-600">Green words appear in similar examples elsewhere. Red words are completely new, helping you focus on quality.</p>
-                </div>
-                <div>
-                    <h4 class="font-semibold text-neutral-800 mb-2">
-                        <i class="fas fa-compass text-purple-600 mr-2"></i>
-                        Simple Navigation
-                    </h4>
-                    <p class="text-sm text-neutral-600">Intuitive interface lets you move through chapters and verses without complexity.</p>
-                </div>
-                <div>
-                    <h4 class="font-semibold text-neutral-800 mb-2">
-                        <i class="fas fa-graduation-cap text-orange-600 mr-2"></i>
-                        Custom Models
-                    </h4>
-                    <p class="text-sm text-neutral-600">As your project grows, train custom fine-tuned models specific to your language for even higher quality.</p>
+                <div class="text-center">
+                    <img src="{{ url_for('static', filename='members.png') }}" alt="Team Collaboration Features" class="mx-auto rounded-2xl shadow-2xl w-full max-w-3xl transition-transform duration-500 hover:scale-105">
                 </div>
             </div>
-        </div>
-        
-        <div class="mt-12">
-            {% if not current_user.is_authenticated %}
-                <a href="{{ url_for('auth.login') }}" class="btn-marker text-lg inline-block">
-                    <i class="fab fa-google mr-2"></i>
-                    Try CodexZero Now
-                </a>
-            {% endif %}
         </div>
     </div>
 </section>
@@ -237,7 +208,18 @@
     
     .feature-slide {
         min-height: auto;
-        padding: 4rem 0;
+        padding: 3rem 0;
+    }
+    
+    .feature-slide .max-w-8xl {
+        padding-left: 3rem;
+        padding-right: 3rem;
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    
+    .feature-slide .gap-20 {
+        gap: 2.5rem;
     }
 }
 
@@ -246,21 +228,91 @@
         font-size: 4.5rem;
     }
     
+    .feature-slide {
+        padding: 2rem 0;
+    }
+    
     .feature-slide h3 {
-        font-size: 3rem !important;
+        font-size: 2.5rem !important;
+        line-height: 1.1 !important;
+        margin-bottom: 1.5rem !important;
     }
     
     .feature-slide p {
-        font-size: 1.25rem !important;
+        font-size: 1.125rem !important;
+        line-height: 1.6 !important;
+        margin-bottom: 2rem !important;
     }
     
     .feature-slide .max-w-8xl {
-        padding-left: 2rem;
-        padding-right: 2rem;
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+        padding-top: 1.5rem;
+        padding-bottom: 1.5rem;
     }
     
     .feature-slide .gap-20 {
-        gap: 3rem;
+        gap: 2rem;
+    }
+    
+    .feature-slide .grid {
+        text-align: center;
+    }
+    
+    .feature-slide .text-left {
+        text-align: center !important;
+    }
+    
+    .feature-slide .lg\\:pr-16,
+    .feature-slide .lg\\:pl-16 {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+    
+    .feature-slide img {
+        max-width: 90% !important;
+        height: auto !important;
+        margin: 0 auto 1rem auto !important;
+    }
+    
+    /* Consistent mobile order - image first, then text for ALL slides */
+    .feature-slide .grid {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .feature-slide .text-center {
+        order: 1;
+        margin-bottom: 1.5rem;
+    }
+    
+    .feature-slide .text-left {
+        order: 2;
+    }
+    
+    /* Override any desktop ordering on mobile */
+    .feature-slide .lg\\:order-first {
+        order: 1 !important;
+    }
+    
+    /* Special handling for mobile image in slide 3 */
+    .feature-slide img[alt="CodexZero Mobile Interface"] {
+        max-height: 400px !important;
+        width: auto !important;
+        max-width: 250px !important;
+    }
+    
+    /* Icon container adjustments */
+    .feature-slide .w-24.h-24 {
+        width: 4rem !important;
+        height: 4rem !important;
+        margin-bottom: 1.5rem !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+    
+    .feature-slide .w-24.h-24 i {
+        font-size: 2rem !important;
     }
 }
 
@@ -270,15 +322,43 @@
     }
     
     .feature-slide h3 {
-        font-size: 2.25rem !important;
+        font-size: 2rem !important;
+        margin-bottom: 1rem !important;
     }
     
     .feature-slide p {
-        font-size: 1.125rem !important;
+        font-size: 1rem !important;
+        margin-bottom: 1.5rem !important;
+    }
+    
+    .feature-slide .max-w-8xl {
+        padding-left: 1rem;
+        padding-right: 1rem;
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+    
+    .feature-slide .gap-20 {
+        gap: 1.5rem;
     }
     
     .feature-slide img {
-        max-width: 100% !important;
+        max-width: 95% !important;
+    }
+    
+    .feature-slide img[alt="CodexZero Mobile Interface"] {
+        max-height: 350px !important;
+        max-width: 200px !important;
+    }
+    
+    .feature-slide .w-24.h-24 {
+        width: 3rem !important;
+        height: 3rem !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    .feature-slide .w-24.h-24 i {
+        font-size: 1.5rem !important;
     }
 }
 </style>

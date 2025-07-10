@@ -306,6 +306,19 @@ class TranslationUI {
             } else {
                 newAddBtn.classList.add('hidden');
                 newNewTranslationBtn.classList.remove('hidden');
+                
+                // Update button text based on user permissions
+                if (window.translationEditor && !window.translationEditor.canEdit) {
+                    newNewTranslationBtn.textContent = 'View Only Mode';
+                    newNewTranslationBtn.disabled = true;
+                    newNewTranslationBtn.style.opacity = '0.5';
+                    newNewTranslationBtn.title = 'Editor access required to create translations';
+                } else {
+                    newNewTranslationBtn.textContent = '+ New Translation';
+                    newNewTranslationBtn.disabled = false;
+                    newNewTranslationBtn.style.opacity = '1';
+                    newNewTranslationBtn.title = '';
+                }
             }
         });
 
@@ -318,6 +331,12 @@ class TranslationUI {
         });
 
         newNewTranslationBtn.addEventListener('click', () => {
+            // Check if user can edit before allowing new translation creation
+            if (window.translationEditor && !window.translationEditor.canEdit) {
+                alert('Editor access required to create new translations. You can only view existing translations.');
+                return;
+            }
+            
             const newTranslationModal = document.getElementById('new-translation-modal');
             newTranslationModal.dataset.isPrimary = isPrimary.toString();
             

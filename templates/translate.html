@@ -1242,13 +1242,16 @@ class TranslationEditor {
     }
     
     renderEmptyPrimaryState(container) {
+        const buttonText = this.canEdit ? 'Create or Load Translation' : 'Load Translation';
+        const descriptionText = this.canEdit ? 'Create a new translation or load an existing one' : 'Load an existing translation to view';
+        
         container.innerHTML = `
             <div class="text-gray-500 text-center py-20 flex flex-col items-center">
                 <button id="add-primary-text-btn" class="mb-4 px-6 py-3 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border-2 border-dashed border-green-300 hover:border-green-400 rounded-lg transition-all duration-200 flex items-center gap-2">
                     <i class="fas fa-plus"></i>
-                    Create or Load Translation
+                    ${buttonText}
                 </button>
-                <p class="text-sm">Create a new translation or load an existing one</p>
+                <p class="text-sm">${descriptionText}</p>
             </div>
         `;
         
@@ -1535,7 +1538,6 @@ class TranslationEditor {
         // Disable save buttons
         const saveBtn = document.getElementById('save-changes-btn');
         const mobileSaveBtn = document.getElementById('mobile-save-button');
-        const newTranslationBtn = document.getElementById('new-translation-btn');
         
         if (saveBtn) {
             saveBtn.disabled = true;
@@ -1547,12 +1549,6 @@ class TranslationEditor {
             mobileSaveBtn.disabled = true;
             mobileSaveBtn.innerHTML = '<i class="fas fa-eye mr-2"></i> View Only';
             mobileSaveBtn.style.opacity = '0.5';
-        }
-        
-        if (newTranslationBtn) {
-            newTranslationBtn.disabled = true;
-            newTranslationBtn.style.opacity = '0.5';
-            newTranslationBtn.title = 'Editor access required to create translations';
         }
         
         // Add a visual indicator
