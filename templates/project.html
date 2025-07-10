@@ -90,6 +90,14 @@
                         Translate
                     </a>
                     
+                    {% if project.has_member_access(current_user.id, 'owner') %}
+                    <a href="{{ url_for('members.project_members', project_id=project.id) }}"
+                       class="px-4 py-2 paper-light text-neutral-700 border border-neutral-300 font-bold hover:bg-neutral-100 transition-colors">
+                        <i class="fas fa-users mr-2"></i>
+                        Members
+                    </a>
+                    {% endif %}
+                    
                     <a href="{{ url_for('projects.edit_project', project_id=project.id) }}"
                        class="px-4 py-2 paper-light text-neutral-700 border border-neutral-300 font-bold hover:bg-neutral-100 transition-colors">
                         <i class="fas fa-edit mr-2"></i>

@@ -109,9 +109,11 @@ def list_corpus_files():
 def import_corpus_file(project_id):
     """Import a corpus file into the project"""
     from models import db, Project
+    from utils.project_access import require_project_access
     from utils.file_helpers import save_project_file
     
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, 'editor')
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     corpus_filename = data.get('filename')

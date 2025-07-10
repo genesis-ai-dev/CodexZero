@@ -7,6 +7,7 @@ import openai
 import os
 
 from models import Project, VerseAudio, db
+from utils.project_access import require_project_access
 from storage import get_storage
 
 audio = Blueprint('audio', __name__)
@@ -15,7 +16,8 @@ audio = Blueprint('audio', __name__)
 @audio.route('/project/<int:project_id>/verse-audio/<text_id>/<int:verse_index>/tts', methods=['POST'])
 @login_required 
 def generate_tts(project_id, text_id, verse_index):
-    Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     text = data.get('text', '').strip()
@@ -67,7 +69,8 @@ def generate_tts(project_id, text_id, verse_index):
 @login_required
 def upload_verse_audio(project_id, text_id, verse_index):
     """Upload audio for a verse"""
-    Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     file = request.files.get('audio')
     if not file or not file.filename:
@@ -104,7 +107,8 @@ def upload_verse_audio(project_id, text_id, verse_index):
 @login_required
 def download_verse_audio(project_id, audio_id):
     """Download audio file"""
-    Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     audio = VerseAudio.query.filter_by(id=audio_id, project_id=project_id).first_or_404()
     
     storage = get_storage()
@@ -119,7 +123,8 @@ def download_verse_audio(project_id, audio_id):
 @login_required
 def check_verse_audio(project_id, text_id, verse_index):
     """Check if audio exists for a verse"""
-    Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     audio = VerseAudio.query.filter_by(project_id=project_id, text_id=text_id, verse_index=verse_index).first()
     
     if audio:
@@ -132,7 +137,8 @@ def check_verse_audio(project_id, text_id, verse_index):
 @login_required
 def delete_verse_audio(project_id, audio_id):
     """Delete audio file"""
-    Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     audio = VerseAudio.query.filter_by(id=audio_id, project_id=project_id).first_or_404()
     
     get_storage().delete_file(audio.storage_path)
@@ -144,7 +150,8 @@ def delete_verse_audio(project_id, audio_id):
 @audio.route('/project/<int:project_id>/verse-audio/<text_id>/<int:verse_index>/tts-iterate', methods=['POST'])
 @login_required 
 def generate_tts_iteration(project_id, text_id, verse_index):
-    Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     text = data.get('text', '').strip()
@@ -193,7 +200,8 @@ def generate_tts_iteration(project_id, text_id, verse_index):
 @audio.route('/project/<int:project_id>/verse-audio/<text_id>/<int:verse_index>/apply', methods=['POST'])
 @login_required
 def apply_audio_iteration(project_id, text_id, verse_index):
-    Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     audio_id = data.get('audioId')

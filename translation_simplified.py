@@ -15,6 +15,7 @@ from ai.bot import Chatbot, extract_translation_from_xml
 from ai.contextquery import DatabaseContextQuery
 from utils.text_manager import TextManager
 from utils.translation_manager import VerseReferenceManager
+from utils.project_access import require_project_access
 
 translation = Blueprint('translation', __name__)
 
@@ -31,7 +32,8 @@ def _parse_source_filenames(job):
 @translation.route('/project/<int:project_id>/translate')
 @login_required
 def translate_page(project_id):
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     # Load book chapters data
     book_chapters_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'book_chapters.json')
@@ -187,7 +189,8 @@ def translate():
 @login_required
 def list_all_texts(project_id):
     """List all available texts (unified endpoint)"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     texts = []
     all_texts = Text.query.filter_by(project_id=project_id).all()
@@ -207,7 +210,8 @@ def list_all_texts(project_id):
 @login_required  
 def create_translation(project_id):
     """Create a new translation"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     name = data.get('name', '').strip()
@@ -228,7 +232,8 @@ def create_translation(project_id):
 @login_required
 def get_chapter_verses(project_id, target_id, book, chapter):
     """Get verses for a specific chapter"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     text_id = int(target_id.replace('text_', ''))
     
@@ -259,7 +264,8 @@ def get_chapter_verses(project_id, target_id, book, chapter):
 @login_required
 def save_verse(project_id, target_id, verse_index):
     """Save a single verse"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     if not data or 'text' not in data:
@@ -282,7 +288,8 @@ def save_verse(project_id, target_id, verse_index):
 @login_required
 def download_translation(project_id, translation_id):
     """Download translation as text file"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     text = Text.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
     
     # Get all verses
@@ -306,7 +313,8 @@ def download_translation(project_id, translation_id):
 @login_required
 def delete_translation(project_id, translation_id):
     """Delete a translation"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     text = Text.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
     
     db.session.delete(text)

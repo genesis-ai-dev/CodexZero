@@ -14,6 +14,7 @@ from models import Project, Translation, ProjectFile, ProjectFileVerse, Translat
 from ai.bot import Chatbot, extract_translation_from_xml
 from ai.contextquery import ContextQuery, MemoryContextQuery, DatabaseContextQuery
 from utils.text_manager import TextManager
+from utils.project_access import require_project_access
 from utils.translation_manager import VerseReferenceManager, TranslationFileManager, TranslationDatabaseManager
 from storage import get_storage
 
@@ -40,7 +41,8 @@ def _parse_source_filenames(job):
 @translation.route('/project/<int:project_id>/translate')
 @login_required
 def translate_page(project_id):
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     # Load book chapters data
     import json
@@ -743,7 +745,8 @@ def _generate_translation_with_examples(text, target_language, examples, source_
 @login_required
 def list_all_texts(project_id):
     """List all texts - UNIFIED SCHEMA (dramatically simplified!)"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     texts = []
     
@@ -800,7 +803,8 @@ def list_all_texts(project_id):
 @login_required
 def delete_text(project_id, text_id):
     """Delete a unified Text record (new schema)"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     from models import Text
     text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
@@ -815,7 +819,8 @@ def delete_text(project_id, text_id):
 @login_required
 def update_text_purpose(project_id, text_id):
     """Update the purpose description for a unified Text record"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     from models import Text
     text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
@@ -844,7 +849,8 @@ def update_text_purpose(project_id, text_id):
 @login_required
 def download_text(project_id, text_id):
     """Download a unified Text record"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     from models import Text
     from utils.text_manager import TextManager
@@ -879,7 +885,8 @@ def download_text(project_id, text_id):
 @login_required  
 def create_translation(project_id):
     """Create new translation - UNIFIED SCHEMA (simplified!)"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     name = data.get('name', '').strip()
@@ -934,7 +941,8 @@ def create_translation(project_id):
 @login_required
 def update_translation_purpose(project_id, translation_id):
     """Update the purpose description for a legacy Translation record"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
     
     data = request.get_json()
@@ -962,7 +970,8 @@ def update_translation_purpose(project_id, translation_id):
 @login_required
 def get_chapter_verses(project_id, target_id, book, chapter):
     """Get all verses for a specific chapter"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     source_id = request.args.get('source_id')
     if not source_id:
@@ -1124,7 +1133,8 @@ def get_chapter_verses(project_id, target_id, book, chapter):
 @login_required
 def save_verse(project_id, target_id, verse_index):
     """Save a single verse"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     if not data or 'text' not in data:

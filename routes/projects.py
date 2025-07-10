@@ -5,6 +5,7 @@ from flask_login import current_user, login_required
 from models import db, Project, ProjectFile, Translation
 from utils.file_helpers import save_project_file
 from utils.project_helpers import save_language_rules, import_ulb_automatically
+from utils.project_access import ProjectAccess, require_project_access
 from storage import get_storage
 
 projects = Blueprint('projects', __name__)
@@ -14,7 +15,8 @@ projects = Blueprint('projects', __name__)
 @login_required
 def dashboard():
     """User dashboard showing their projects"""
-    projects_list = Project.query.filter_by(user_id=current_user.id).order_by(Project.updated_at.desc()).all()
+    # Use new multi-member access system
+    projects_list = current_user.get_accessible_projects()
     return render_template('dashboard.html', projects=projects_list)
 
 
@@ -35,7 +37,8 @@ def create_project():
     
     # Create project
     project = Project(
-        user_id=current_user.id,
+        user_id=current_user.id,  # Keep for legacy compatibility
+        created_by=current_user.id,  # Track original creator
         target_language=target_language,
         audience=audience,
         style=style
@@ -43,6 +46,17 @@ def create_project():
     
     db.session.add(project)
     db.session.flush()
+    
+    # Add creator as owner in new member system
+    from models import ProjectMember
+    owner_member = ProjectMember(
+        project_id=project.id,
+        user_id=current_user.id,
+        role='owner',
+        invited_by=current_user.id,
+        accepted_at=datetime.utcnow()
+    )
+    db.session.add(owner_member)
     
     # Handle language rules
     language_rules = request.form.get('language_rules', '')
@@ -123,8 +137,9 @@ def create_project():
 @login_required
 def view_project(project_id):
     """View a specific project"""
-    print(f"DEBUG: view_project called for project_id={project_id}")
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    # Use centralized permission system
+    require_project_access(project_id, 'viewer')
+    project = Project.query.get_or_404(project_id)
     
     # Use unified approach like translate page - get both new and legacy records
     from models import Text, Verse, ProjectFile, Translation
@@ -216,7 +231,8 @@ def view_project(project_id):
 @login_required
 def edit_project(project_id):
     """Show edit project form"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, 'editor')
+    project = Project.query.get_or_404(project_id)
     return render_template('edit_project.html', project=project)
 
 
@@ -224,7 +240,8 @@ def edit_project(project_id):
 @login_required
 def update_project(project_id):
     """Update an existing project"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first()
+    require_project_access(project_id, 'editor')
+    project = Project.query.get_or_404(project_id)
     
     project.target_language = request.form.get('target_language', project.target_language).strip()
     project.audience = request.form.get('audience', project.audience).strip()
@@ -307,7 +324,8 @@ def update_project(project_id):
 @login_required
 def update_instructions(project_id):
     """Update project instructions via AJAX"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, 'editor')
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     instructions = data.get('instructions', '').strip()
@@ -327,7 +345,8 @@ def update_instructions(project_id):
 @login_required
 def get_project_info(project_id):
     """Get project information for API calls"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, 'viewer')
+    project = Project.query.get_or_404(project_id)
     
     return jsonify({
         'id': project.id,
@@ -343,7 +362,8 @@ def get_project_info(project_id):
 def get_translation_models(project_id):
     """Get available translation models for a project"""
     try:
-        project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+        require_project_access(project_id, 'viewer')
+        project = Project.query.get_or_404(project_id)
         
         models = project.get_available_translation_models()
         current_model = project.get_current_translation_model()
@@ -366,7 +386,8 @@ def get_translation_models(project_id):
 def set_translation_model(project_id):
     """Set the translation model for a project"""
     try:
-        project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+        require_project_access(project_id, 'editor')
+        project = Project.query.get_or_404(project_id)
         
         data = request.get_json()
         model_id = data.get('model_id')

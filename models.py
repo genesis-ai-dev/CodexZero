@@ -14,8 +14,20 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
     
-    # Relationship to projects
-    projects = db.relationship('Project', backref='user', lazy=True, cascade='all, delete-orphan')
+    # Legacy relationship to projects (will be deprecated)
+    projects = db.relationship('Project', foreign_keys='Project.user_id', overlaps="user,legacy_owner")
+    
+    def get_accessible_projects(self):
+        """Get all projects user has access to (any role)"""
+        from utils.project_access import ProjectAccess
+        project_ids = ProjectAccess.get_accessible_projects(self.id)
+        return Project.query.filter(Project.id.in_(project_ids)).order_by(Project.updated_at.desc()).all()
+    
+    def get_owned_projects(self):
+        """Get projects where user is an owner"""
+        from utils.project_access import ProjectAccess
+        project_ids = ProjectAccess.get_projects_with_role(self.id, 'owner')
+        return Project.query.filter(Project.id.in_(project_ids)).order_by(Project.updated_at.desc()).all()
     
     def __repr__(self):
         return f'<User {self.email}>'
@@ -24,7 +36,8 @@ class Project(db.Model):
     __tablename__ = 'projects'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # Legacy owner field
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # Original creator
     
     # Project details
     target_language = db.Column(db.String(100), nullable=False)
@@ -48,6 +61,11 @@ class Project(db.Model):
     language_rules = db.relationship('LanguageRule', backref='project', lazy=True, cascade='all, delete-orphan')
     fine_tuning_jobs = db.relationship('FineTuningJob', backref='project', lazy=True, cascade='all, delete-orphan')
     verse_audio = db.relationship('VerseAudio', backref='project', lazy=True, cascade='all, delete-orphan')
+    members = db.relationship('ProjectMember', backref='project', lazy=True, cascade='all, delete-orphan')
+    
+    # Relationships with proper overlaps handling
+    user = db.relationship('User', foreign_keys=[user_id], overlaps="legacy_owner,projects")
+    creator = db.relationship('User', foreign_keys=[created_by], overlaps="created_projects")
     
     def get_available_translation_models(self):
         """Get available translation models including fine-tuned ones"""
@@ -76,8 +94,59 @@ class Project(db.Model):
         """Get the currently selected translation model or default"""
         return self.translation_model or self.get_default_translation_model()
     
+    def has_member_access(self, user_id: int, required_role: str = 'viewer') -> bool:
+        """Check if user has required access to this project"""
+        from utils.project_access import ProjectAccess
+        return ProjectAccess.has_permission(self.id, user_id, required_role)
+    
+    def get_user_role(self, user_id: int) -> str:
+        """Get user's role in this project"""
+        from utils.project_access import ProjectAccess
+        return ProjectAccess.get_user_role(self.id, user_id)
+    
+    def get_members(self):
+        """Get all members with their user details"""
+        from utils.project_access import ProjectAccess
+        return ProjectAccess.get_project_members(self.id)
+    
     def __repr__(self):
         return f'<Project {self.target_language}>'
+
+
+class ProjectMember(db.Model):
+    __tablename__ = 'project_members'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    role = db.Column(db.Enum('owner', 'editor', 'viewer'), nullable=False, default='viewer')
+    
+    # Invitation tracking
+    invited_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    invited_at = db.Column(db.DateTime, default=datetime.utcnow)
+    accepted_at = db.Column(db.DateTime, nullable=True)
+    
+    # Metadata
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = db.relationship('User', foreign_keys=[user_id], backref='project_memberships')
+    inviter = db.relationship('User', foreign_keys=[invited_by], backref='sent_invitations')
+    
+    __table_args__ = (
+        db.UniqueConstraint('project_id', 'user_id', name='unique_project_user'),
+        db.Index('idx_project_members_project', 'project_id'),
+        db.Index('idx_project_members_user', 'user_id'),
+    )
+    
+    @property
+    def is_accepted(self) -> bool:
+        """Check if membership is accepted"""
+        return self.accepted_at is not None
+    
+    def __repr__(self):
+        return f'<ProjectMember {self.user_id}:{self.project_id} ({self.role})>'
 
 class Text(db.Model):
     """Unified model for all Bible text sources - replaces ProjectFile and Translation"""

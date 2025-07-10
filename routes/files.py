@@ -9,6 +9,7 @@ from werkzeug.utils import secure_filename
 
 from models import db, Project, ProjectFile, FineTuningJob
 from utils.file_helpers import save_project_file, detect_usfm_content, validate_text_file
+from utils.project_access import require_project_access
 from storage import get_storage
 
 files = Blueprint('files', __name__)
@@ -34,7 +35,8 @@ def read_file_content(file_obj, filename):
 @files.route('/project/<int:project_id>/files/<int:file_id>', methods=['DELETE'])
 @login_required
 def delete_project_file(project_id, file_id):
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, 'editor')
+    project = Project.query.get_or_404(project_id)
     project_file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
     
     fine_tuning_jobs = FineTuningJob.query.filter(
@@ -62,7 +64,8 @@ def delete_project_file(project_id, file_id):
 @files.route('/project/<int:project_id>/upload', methods=['POST'])
 @login_required
 def upload_file_auto_detect(project_id):
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, 'editor')
+    project = Project.query.get_or_404(project_id)
     upload_method = request.form.get('upload_method', 'file')
     
     if upload_method == 'file':
@@ -155,14 +158,16 @@ def handle_text_auto_upload(project_id, project, file_content, filename):
 @files.route('/project/<int:project_id>/usfm-import')
 @login_required
 def usfm_import(project_id):
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, 'viewer')
+    project = Project.query.get_or_404(project_id)
     return render_template('usfm_import.html', project=project)
 
 @files.route('/project/<int:project_id>/usfm-status')
 @login_required
 def usfm_status(project_id):
     """Get USFM import status and progress stats"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, 'viewer')
+    project = Project.query.get_or_404(project_id)
     
     total_verses = 0
     filled_verses = 0
@@ -200,7 +205,8 @@ def usfm_status(project_id):
 @files.route('/project/<int:project_id>/usfm-upload', methods=['POST'])
 @login_required
 def usfm_upload(project_id):
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, 'editor')
+    project = Project.query.get_or_404(project_id)
     
     if 'usfm_files' not in request.files:
         return jsonify({'error': 'No files provided'}), 400
@@ -299,7 +305,8 @@ def usfm_upload(project_id):
 @login_required
 def usfm_complete(project_id):
     """Complete USFM import process"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, 'editor')
+    project = Project.query.get_or_404(project_id)
     
     # For now, this just returns success since files are already processed
     # Could be enhanced to perform final validation or consolidation
@@ -313,7 +320,8 @@ def usfm_complete(project_id):
 @files.route('/project/<int:project_id>/upload-target-text', methods=['POST'])
 @login_required
 def upload_target_text(project_id):
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, 'editor')
+    project = Project.query.get_or_404(project_id)
     
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
@@ -359,7 +367,8 @@ def upload_target_text(project_id):
 @files.route('/project/<int:project_id>/files')
 @login_required
 def project_files(project_id):
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, 'viewer')
+    project = Project.query.get_or_404(project_id)
     
     files = ProjectFile.query.filter_by(project_id=project.id).order_by(ProjectFile.created_at.desc()).all()
     
@@ -380,7 +389,8 @@ def project_files(project_id):
 @files.route('/project/<int:project_id>/files/<int:file_id>/download')
 @login_required  
 def download_project_file(project_id, file_id):
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, 'viewer')
+    project = Project.query.get_or_404(project_id)
     project_file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
     
     storage = get_storage()
@@ -395,7 +405,8 @@ def download_project_file(project_id, file_id):
 @files.route('/project/<int:project_id>/files/<int:file_id>/purpose', methods=['POST'])
 @login_required
 def update_file_purpose(project_id, file_id):
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, 'editor')
+    project = Project.query.get_or_404(project_id)
     project_file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
     
     purpose_description = request.json.get('purpose_description', '').strip()

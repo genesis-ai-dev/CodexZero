@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_login import current_user, login_required
 
 from models import db, Project, ProjectFile, FineTuningJob
+from utils.project_access import require_project_access
 from ai.fine_tuning import FineTuningService
 
 fine_tuning = Blueprint('fine_tuning', __name__)
@@ -17,7 +18,8 @@ fine_tuning = Blueprint('fine_tuning', __name__)
 @login_required
 def get_fine_tuning_jobs(project_id):
     """Get all fine-tuning jobs for a project"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     try:
         ft_service = FineTuningService()
@@ -31,7 +33,8 @@ def get_fine_tuning_jobs(project_id):
 @login_required
 def preview_training_example(project_id):
     """Preview a training example from the file pair"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     source_file_id = data.get('source_file_id')
@@ -59,7 +62,8 @@ def preview_training_example(project_id):
 @login_required
 def create_fine_tuning_job(project_id):
     """Create a new fine-tuning job"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     source_file_id = data.get('source_file_id')
@@ -121,7 +125,8 @@ def create_fine_tuning_job(project_id):
 @login_required
 def get_fine_tuning_job_status(project_id, job_id):
     """Get the status of a specific fine-tuning job"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     # Verify job belongs to this project
     job = FineTuningJob.query.filter_by(id=job_id, project_id=project_id).first()
@@ -140,7 +145,8 @@ def get_fine_tuning_job_status(project_id, job_id):
 @login_required
 def get_fine_tuning_models(project_id):
     """Get available models for fine-tuning"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     try:
         ft_service = FineTuningService()
@@ -154,7 +160,8 @@ def get_fine_tuning_models(project_id):
 @login_required
 def estimate_fine_tuning_cost(project_id):
     """Estimate the cost of fine-tuning with given files"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     source_file_id = data.get('source_file_id')
@@ -189,7 +196,8 @@ def estimate_fine_tuning_cost(project_id):
 @login_required
 def preview_instruction_training_example(project_id):
     """Simple instruction fine-tuning preview without complex progress tracking"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     source_file_id = data.get('source_file_id')
@@ -327,7 +335,8 @@ def preview_instruction_training_example(project_id):
 def get_instruction_preview_progress(project_id, progress_id):
     """Get progress for instruction fine-tuning preview"""
     print(f"Progress request: project_id={project_id}, progress_id={progress_id}")
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     ft_service = FineTuningService()
     print(f"Progress cache keys: {list(ft_service.progress_cache.keys())}")
@@ -345,7 +354,8 @@ def get_instruction_preview_progress(project_id, progress_id):
 @login_required
 def create_instruction_fine_tuning_job(project_id):
     """Create a new instruction fine-tuning job (original endpoint)"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     source_file_id = data.get('source_file_id')
@@ -506,7 +516,8 @@ def create_instruction_fine_tuning_job(project_id):
 @login_required
 def estimate_instruction_fine_tuning_cost(project_id):
     """Simple estimate for instruction fine-tuning cost without processing examples"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     data = request.get_json()
     source_file_id = data.get('source_file_id')
@@ -551,7 +562,8 @@ def estimate_instruction_fine_tuning_cost(project_id):
 @login_required
 def rename_fine_tuning_model(project_id, job_id):
     """Rename a fine-tuned model"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     # Verify job belongs to this project
     job = FineTuningJob.query.filter_by(id=job_id, project_id=project_id).first_or_404()
@@ -582,7 +594,8 @@ def rename_fine_tuning_model(project_id, job_id):
 @login_required
 def toggle_model_visibility(project_id, job_id):
     """Toggle the visibility of a fine-tuned model"""
-    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
     
     # Verify job belongs to this project
     job = FineTuningJob.query.filter_by(id=job_id, project_id=project_id).first_or_404()

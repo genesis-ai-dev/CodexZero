@@ -15,6 +15,7 @@ from routes.api import api
 from routes.fine_tuning import fine_tuning
 from routes.admin import admin
 from routes.audio import audio
+from routes.members import members
 from ai.bot import Chatbot
 
 def create_app():
@@ -45,6 +46,7 @@ def create_app():
     app.register_blueprint(fine_tuning)
     app.register_blueprint(admin)
     app.register_blueprint(audio)
+    app.register_blueprint(members)
     
     # Static file serving routes
     @app.route('/static/<path:filename>')
@@ -65,8 +67,20 @@ def create_app():
             db.create_all()
             print("Database tables created successfully")
             
-
-            
+            # Run migrations if needed
+            try:
+                from sqlalchemy import text
+                # Check if project_members table exists
+                result = db.session.execute(text("SHOW TABLES LIKE 'project_members'")).fetchone()
+                if not result:
+                    print("Running project members migration...")
+                    from migrations.add_project_members import migrate, migrate_existing_projects
+                    migrate()
+                    migrate_existing_projects()
+                    print("✓ Migration completed successfully")
+            except Exception as e:
+                print(f"Migration check failed (this is normal for new installations): {e}")
+                
         except Exception as e:
             print(f"Database connection failed during startup: {e}")
             print("App will start without database initialization")
