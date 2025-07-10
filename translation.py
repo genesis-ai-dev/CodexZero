@@ -41,7 +41,7 @@ def _parse_source_filenames(job):
 @translation.route('/project/<int:project_id>/translate')
 @login_required
 def translate_page(project_id):
-    require_project_access(project_id, "editor")
+    require_project_access(project_id, "viewer")  # Allow viewers to see the page
     project = Project.query.get_or_404(project_id)
     
     # Load book chapters data
@@ -52,9 +52,13 @@ def translate_page(project_id):
     with open(book_chapters_path, 'r') as f:
         book_chapters = json.load(f)
     
+    # Get user's role for permission checking in the frontend
+    user_role = project.get_user_role(current_user.id)
+    
     return render_template('translate.html', 
                          project=project,
-                         book_chapters=book_chapters)
+                         book_chapters=book_chapters,
+                         user_role=user_role)
 
 
 
@@ -412,6 +416,7 @@ def _get_char_ngrams(text, n):
 
 
 @translation.route('/translate', methods=['POST'])
+@login_required
 def translate():
     try:
         data = request.get_json()
@@ -420,6 +425,10 @@ def translate():
         project_id = data.get('project_id')
         source_file_id = data.get('source_file_id')
         target_file_id = data.get('target_file_id')
+        
+        # Check if user has edit permission for translation requests
+        if project_id:
+            require_project_access(project_id, "editor")
         
         # New parameters for model configuration
         temperature = data.get('temperature', 0.2)  # Default to 0.2 for more consistent translations

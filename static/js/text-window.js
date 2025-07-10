@@ -709,10 +709,19 @@ class TextWindow {
         textarea.value = verseData.target_text || verseData.source_text || '';
         textarea.draggable = false;
         
+        // Disable editing for viewers
+        if (window.translationEditor && !window.translationEditor.canEdit) {
+            textarea.disabled = true;
+            textarea.style.backgroundColor = '#f9fafb';
+            textarea.style.cursor = 'not-allowed';
+            textarea.placeholder = 'Read-only mode - Editor access required to edit';
+            textarea.title = 'Editor access required to edit translations';
+        }
+        
         verseWrapper.appendChild(textarea);
         
-        // Only add sparkle translate button for primary windows
-        if (this.type === 'primary') {
+        // Only add sparkle translate button for primary windows and if user can edit
+        if (this.type === 'primary' && window.translationEditor?.canEdit) {
             // Add audio controls first
             this.createAudioControls(controlsContainer, verseData, textarea);
             
@@ -727,15 +736,17 @@ class TextWindow {
             controlsContainer.appendChild(sparkleButton);
         }
         
-        // Create drag handle
-        const dragHandle = document.createElement('div');
-        dragHandle.className = `w-7 h-7 bg-gray-100 border border-gray-300 rounded-sm cursor-move flex items-center justify-center transition-all duration-200 hover:bg-gray-200 hover:border-gray-400 sparkle-drag-handle`;
-        dragHandle.innerHTML = '<i class="fas fa-arrows-alt text-sm text-gray-500"></i>';
-        dragHandle.title = 'Drag to translate';
-        dragHandle.draggable = true;
-        
-        this.addDragListeners(dragHandle, verseData);
-        controlsContainer.appendChild(dragHandle);
+        // Create drag handle (only for editors)
+        if (window.translationEditor?.canEdit) {
+            const dragHandle = document.createElement('div');
+            dragHandle.className = `w-7 h-7 bg-gray-100 border border-gray-300 rounded-sm cursor-move flex items-center justify-center transition-all duration-200 hover:bg-gray-200 hover:border-gray-400 sparkle-drag-handle`;
+            dragHandle.innerHTML = '<i class="fas fa-arrows-alt text-sm text-gray-500"></i>';
+            dragHandle.title = 'Drag to translate';
+            dragHandle.draggable = true;
+            
+            this.addDragListeners(dragHandle, verseData);
+            controlsContainer.appendChild(dragHandle);
+        }
         
         // Initialize verse cell behavior after DOM is ready, but only if no audio controls exist
         setTimeout(() => {
