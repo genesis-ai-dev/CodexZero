@@ -96,6 +96,18 @@ def create_app():
                     """))
                     db.session.commit()
                     print("✓ Added created_by column successfully")
+                
+                # Ensure existing projects have owner memberships
+                print("Ensuring existing projects have owner memberships...")
+                db.session.execute(text("""
+                    INSERT INTO project_members (project_id, user_id, role, invited_by, accepted_at)
+                    SELECT p.id, p.user_id, 'owner', p.user_id, p.created_at
+                    FROM projects p
+                    LEFT JOIN project_members pm ON p.id = pm.project_id AND p.user_id = pm.user_id
+                    WHERE pm.id IS NULL
+                """))
+                db.session.commit()
+                print("✓ Ensured all existing projects have owner memberships")
                     
             except Exception as e:
                 print(f"Migration check failed (this is normal for new installations): {e}")
