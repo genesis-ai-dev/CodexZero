@@ -61,57 +61,11 @@ def create_app():
         response.headers['Cache-Control'] = 'public, max-age=86400'  # Cache for 1 day
         return response
     
-    # Create database tables (only if database is accessible)
+    # Create database tables
     with app.app_context():
         try:
             db.create_all()
             print("Database tables created successfully")
-            
-            # Run migrations if needed
-            try:
-                from sqlalchemy import text
-                # Check if project_members table exists
-                result = db.session.execute(text("SHOW TABLES LIKE 'project_members'")).fetchone()
-                if not result:
-                    print("Running project members migration...")
-                    from migrations.add_project_members import migrate, migrate_existing_projects
-                    migrate()
-                    migrate_existing_projects()
-                    print("✓ Migration completed successfully")
-                
-                # Check if created_by column exists in projects table
-                try:
-                    db.session.execute(text("SELECT created_by FROM projects LIMIT 1"))
-                except Exception:
-                    print("Adding missing created_by column to projects table...")
-                    db.session.execute(text("""
-                        ALTER TABLE projects 
-                        ADD COLUMN created_by INT,
-                        ADD FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-                    """))
-                    db.session.execute(text("""
-                        UPDATE projects 
-                        SET created_by = user_id 
-                        WHERE created_by IS NULL
-                    """))
-                    db.session.commit()
-                    print("✓ Added created_by column successfully")
-                
-                # Ensure existing projects have owner memberships
-                print("Ensuring existing projects have owner memberships...")
-                db.session.execute(text("""
-                    INSERT INTO project_members (project_id, user_id, role, invited_by, accepted_at)
-                    SELECT p.id, p.user_id, 'owner', p.user_id, p.created_at
-                    FROM projects p
-                    LEFT JOIN project_members pm ON p.id = pm.project_id AND p.user_id = pm.user_id
-                    WHERE pm.id IS NULL
-                """))
-                db.session.commit()
-                print("✓ Ensured all existing projects have owner memberships")
-                    
-            except Exception as e:
-                print(f"Migration check failed (this is normal for new installations): {e}")
-                
         except Exception as e:
             print(f"Database connection failed during startup: {e}")
             print("App will start without database initialization")
