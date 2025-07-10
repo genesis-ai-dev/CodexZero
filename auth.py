@@ -107,9 +107,12 @@ def callback():
     
     # Verify state parameter
     if request.args.get('state') != session.get('state'):
-        flash('Invalid state parameter', 'error')
-        current_app.logger.warning("OAuth state parameter mismatch")
-        return redirect(url_for('main.index'))
+        current_app.logger.warning("OAuth state parameter mismatch - attempting to clear session and retry")
+        # Clear potentially stale session data
+        session.pop('state', None)
+        session.pop('redirect_uri', None)
+        # Redirect to login to start fresh OAuth flow instead of showing error
+        return redirect(url_for('auth.login'))
     
     # Extract the base redirect URI from the current request
     # This ensures it matches exactly what Google is expecting
