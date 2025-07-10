@@ -78,6 +78,25 @@ def create_app():
                     migrate()
                     migrate_existing_projects()
                     print("✓ Migration completed successfully")
+                
+                # Check if created_by column exists in projects table
+                try:
+                    db.session.execute(text("SELECT created_by FROM projects LIMIT 1"))
+                except Exception:
+                    print("Adding missing created_by column to projects table...")
+                    db.session.execute(text("""
+                        ALTER TABLE projects 
+                        ADD COLUMN created_by INT,
+                        ADD FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+                    """))
+                    db.session.execute(text("""
+                        UPDATE projects 
+                        SET created_by = user_id 
+                        WHERE created_by IS NULL
+                    """))
+                    db.session.commit()
+                    print("✓ Added created_by column successfully")
+                    
             except Exception as e:
                 print(f"Migration check failed (this is normal for new installations): {e}")
                 
