@@ -195,9 +195,12 @@ class VerseCell {
     
     openAudioTuningModal() {
         const originalText = this.textarea.value.trim();
-        if (!originalText) return;
+        if (!originalText) {
+            console.warn('No text available for audio tuning');
+            return;
+        }
         
-        window.AudioTuningModal?.open({
+        const modalData = {
             projectId: window.projectId || this.textarea.dataset.projectId,
             textId: this.textarea.dataset.textId || 'default',
             verseIndex: this.textarea.dataset.verseIndex,
@@ -210,7 +213,18 @@ class VerseCell {
                     this.updateAudioControls(false);
                 }
             }
-        });
+        };
+        
+        console.log('Opening AudioTuningModal with data:', modalData);
+        console.log('AudioTuningModal instance:', window.AudioTuningModal);
+        
+        if (!window.AudioTuningModal) {
+            console.error('AudioTuningModal not available');
+            alert('Audio tuning modal is not available. Please refresh the page.');
+            return;
+        }
+        
+        window.AudioTuningModal.open(modalData);
     }
     
     updateAudioControls(hasAudio) {

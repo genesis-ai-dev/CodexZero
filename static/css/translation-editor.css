@@ -1,0 +1,170 @@
+/* Translation Editor Styles - Extracted from template */
+
+/* Global overrides for translation page */
+body.translation-page {
+    overflow: hidden;
+}
+
+body.translation-page footer,
+body.translation-page .footer,
+body.translation-page #footer {
+    display: none !important;
+}
+
+body.translation-page main,
+body.translation-page .main-content,
+body.translation-page #main-content {
+    height: 100vh !important;
+    max-height: 100vh !important;
+}
+
+
+
+/* Drag and Drop Features */
+.verse-collected {
+    transform: scale(0.98);
+    opacity: 0.5;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    border-style: dashed !important;
+}
+
+.drop-target-hint {
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5), inset 0 0 20px rgba(16, 185, 129, 0.1);
+    background-color: #f0fdf4 !important;
+    transition: box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.sparkle-translate-btn,
+.sparkle-drag-handle {
+    transition: all 0.2s ease;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    min-width: 44px;
+    min-height: 44px;
+}
+
+.sparkle-translate-btn:hover,
+.sparkle-drag-handle:hover {
+    background: rgba(255, 255, 255, 0.95);
+    filter: drop-shadow(0 0 6px rgba(147, 51, 234, 0.6));
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 767px) {
+    /* Hide sitewide navigation on translation page */
+    body.translation-page nav:first-of-type {
+        display: none !important;
+    }
+    
+    body.translation-page main {
+        padding-top: 0 !important;
+    }
+    
+    .main-content-wrapper {
+        margin-top: 0 !important;
+    }
+    
+    /* Reduce overall paddings */
+    .translation-sidebar {
+        padding: 0.5rem;
+    }
+    
+    #text-workspace {
+        margin: 0;
+    }
+    
+    /* Tighten empty states */
+    .py-8 {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    
+    .translation-sidebar {
+        width: 80vw;
+    }
+
+    .sidebar-backdrop {
+        background: rgba(0, 0, 0, 0.5);
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 40;
+        display: none;
+    }
+
+    .sidebar-backdrop:not(.hidden) {
+        display: block;
+    }
+
+    /* Full-screen modals on mobile */
+    #new-translation-modal > div,
+    #text-selection-modal > div,
+    #audio-tuning-modal > div {
+        width: 100vw;
+        height: 100vh;
+        max-width: none;
+        max-height: none;
+        border-radius: 0;
+        margin: 0;
+        padding: 1rem;
+    }
+
+    /* Adjust padding and sizes for mobile */
+    .p-6 {
+        padding: 1rem;
+    }
+
+    .p-4 {
+        padding: 0.75rem;
+    }
+
+    /* Make buttons and interactive elements larger for touch */
+    button, .btn {
+        min-height: 44px;
+        padding: 0.75rem 1rem;
+    }
+
+    /* Adjust modal content for mobile */
+    .modal-content {
+        padding: 1rem;
+    }
+
+    /* Hide desktop-only elements */
+    .hidden-mobile {
+        display: none;
+    }
+
+    /* Stack elements vertically on mobile */
+    .mobile-stack {
+        flex-direction: column;
+    }
+
+    /* Reduce font sizes slightly for mobile */
+    .text-sm {
+        font-size: 0.825rem;
+    }
+
+    /* Ensure touch targets are large enough */
+    textarea {
+        min-height: 2.5rem;
+        padding: 0.75rem;
+    }
+}
+
+/* General modal adjustments */
+.fixed.inset-0 {
+    overflow-y: auto;
+}
+
+/* Improve touch targets */
+button, select, input {
+    min-height: 44px;
+    min-width: 44px;
+}
+
+ 

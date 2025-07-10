@@ -3,65 +3,21 @@ class TextWindow {
     constructor(id, data, type, title, targetLanguage = null) {
         this.id = id;
         this.data = data;
-        this.type = type; // 'primary' or 'reference' 
+        this.type = type;
         this.title = title;
         this.targetLanguage = targetLanguage; 
         this.element = null;
-        this.colorTheme = this.getStoredColorTheme();
-        
-        console.log('TextWindow created:', {
-            id: this.id,
-            type: this.type,
-            title: this.title,
-            targetLanguage: this.targetLanguage
-        });
+        this.themeManager = new ThemeManager(id);
+        this.audioManager = new AudioManager(id);
     }
     
-    getStoredColorTheme() {
-        const storageKey = `text_window_color_${this.id}`;
-        return localStorage.getItem(storageKey) || 'theme-default';
-    }
-    
-    setColorTheme(theme) {
-        this.colorTheme = theme;
-        const storageKey = `text_window_color_${this.id}`;
-        localStorage.setItem(storageKey, theme);
-        this.updateElementTheme();
-    }
-    
-    updateElementTheme() {
-        if (!this.element) return;
-        
-        const themeClasses = this.getThemeClasses();
-        const headerThemeClasses = this.getHeaderThemeClasses();
-        
-        this.element.className = `flex flex-col border rounded-sm overflow-hidden bg-white min-h-15 flex-1 transition-all duration-200 ${themeClasses}`;
-        
-        const header = this.element.querySelector('[data-window-header]');
-        if (header) {
-            header.className = `px-4 py-3 text-sm font-bold border-b flex items-center justify-between flex-shrink-0 uppercase tracking-wider cursor-grab active:cursor-grabbing ${headerThemeClasses}`;
-        }
-        
-        const colorOptions = this.element.querySelectorAll('[data-theme-option]');
-        colorOptions.forEach(option => {
-            const themeClass = option.getAttribute('data-theme-option');
-            const isSelected = themeClass === this.colorTheme;
-            
-            if (isSelected) {
-                option.classList.add('border-gray-800', 'border-2');
-                option.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-white text-xs font-bold drop-shadow">✓</div>';
-            } else {
-                option.classList.remove('border-gray-800', 'border-2');
-                option.innerHTML = '';
-            }
-        });
-    }
+
     
     render(container) {
         const textWindow = document.createElement('div');
-        textWindow.className = `flex flex-col border border-gray-800 rounded-sm overflow-hidden bg-white min-h-15 flex-1 transition-all duration-200 ${this.getThemeClasses()}`;
+        textWindow.className = `flex flex-col border rounded-sm overflow-hidden bg-white min-h-15 flex-1 transition-all duration-200 ${this.themeManager.getThemeClasses()}`;
         textWindow.dataset.textId = this.id;
-        textWindow.dataset.windowId = this.id; // Add this for hover detection
+        textWindow.dataset.windowId = this.id;
         
         textWindow.appendChild(this.createHeader());
         textWindow.appendChild(this.createContent());
@@ -69,228 +25,19 @@ class TextWindow {
         container.appendChild(textWindow);
         this.element = textWindow;
         
-        // Add drop listeners to the entire window element
         this.addWindowDropListeners(textWindow);
-        
-        // Add purpose functionality event listeners
-        this.addPurposeEventListeners();
+        PurposeManager.setupPurposeListeners(textWindow);
         
         return textWindow;
     }
     
-    addPurposeEventListeners() {
-        if (!this.element) return;
-        
-        // Add click listener for save buttons
-        this.element.addEventListener('click', (e) => {
-            if (e.target.closest('.save-purpose-btn')) {
-                const btn = e.target.closest('.save-purpose-btn');
-                const fileId = btn.getAttribute('data-file-id');
-                const purposeInput = this.element.querySelector(`.purpose-input[data-file-id="${fileId}"]`);
-                if (purposeInput) {
-                    this.saveFilePurpose(fileId, purposeInput, btn);
-                }
-            } else if (e.target.closest('.save-translation-purpose-btn')) {
-                const btn = e.target.closest('.save-translation-purpose-btn');
-                const translationId = btn.getAttribute('data-translation-id');
-                const purposeInput = this.element.querySelector(`.translation-purpose-input[data-translation-id="${translationId}"]`);
-                if (purposeInput) {
-                    this.saveTranslationPurpose(translationId, purposeInput, btn);
-                }
-            }
-        });
-        
-        // Add input listener for character counting
-        this.element.addEventListener('input', (e) => {
-            if (e.target.classList.contains('purpose-input')) {
-                const charCounter = e.target.parentElement.querySelector('.char-counter');
-                if (charCounter) {
-                    const length = e.target.value.length;
-                    charCounter.textContent = `${length}/1,000`;
-                    
-                    if (length > 1000) {
-                        charCounter.style.color = '#dc2626';
-                        e.target.style.borderColor = '#dc2626';
-                    } else {
-                        charCounter.style.color = '#6b7280';
-                        e.target.style.borderColor = '';
-                    }
-                }
-            } else if (e.target.classList.contains('translation-purpose-input')) {
-                const charCounter = e.target.parentElement.querySelector('.translation-char-counter');
-                if (charCounter) {
-                    const length = e.target.value.length;
-                    charCounter.textContent = `${length}/1,000`;
-                    
-                    if (length > 1000) {
-                        charCounter.style.color = '#dc2626';
-                        e.target.style.borderColor = '#dc2626';
-                    } else {
-                        charCounter.style.color = '#6b7280';
-                        e.target.style.borderColor = '';
-                    }
-                }
-            }
-        });
-    }
+
     
-    saveFilePurpose(fileId, purposeInput, button) {
-        const purposeDescription = purposeInput.value.trim();
-        
-        if (purposeDescription.length > 1000) {
-            alert('Purpose description must be 1000 characters or less');
-            return;
-        }
-        
-        // Get project ID from URL
-        const projectId = window.location.pathname.split('/')[2];
-        
-        // Visual feedback
-        purposeInput.style.opacity = '0.6';
-        purposeInput.disabled = true;
-        button.disabled = true;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
-        
-        // Determine the correct route based on the original ID type
-        let url, requestBody;
-        
-        if (this.id.startsWith('text_')) {
-            // Use unified text route
-            url = `/project/${projectId}/texts/${fileId}/purpose`;
-            requestBody = { description: purposeDescription };
-        } else {
-            // Use legacy file route
-            url = `/project/${projectId}/files/${fileId}/purpose`;
-            requestBody = { 
-                purpose_description: purposeDescription,
-                file_purpose: purposeDescription ? 'custom' : null
-            };
-        }
-        
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Show success feedback
-                purposeInput.style.borderColor = '#10b981';
-                button.innerHTML = '<i class="fas fa-check mr-1"></i>Saved!';
-                
-                // Reset after 2 seconds
-                setTimeout(() => {
-                    purposeInput.style.borderColor = '';
-                    button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
-                }, 2000);
-            } else {
-                alert('Failed to save purpose: ' + (data.error || 'Unknown error'));
-                purposeInput.style.borderColor = '#ef4444';
-                button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
-            }
-        })
-        .catch(error => {
-            console.error('Save error:', error);
-            alert('Failed to save purpose: ' + error.message);
-            purposeInput.style.borderColor = '#ef4444';
-            button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
-        })
-        .finally(() => {
-            purposeInput.style.opacity = '1';
-            purposeInput.disabled = false;
-            button.disabled = false;
-        });
-    }
-    
-    saveTranslationPurpose(translationId, purposeInput, button) {
-        const purposeDescription = purposeInput.value.trim();
-        
-        if (purposeDescription.length > 1000) {
-            alert('Purpose description must be 1000 characters or less');
-            return;
-        }
-        
-        // Get project ID from URL
-        const projectId = window.location.pathname.split('/')[2];
-        
-        // Visual feedback
-        purposeInput.style.opacity = '0.6';
-        purposeInput.disabled = true;
-        button.disabled = true;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
-        
-        fetch(`/project/${projectId}/translations/${translationId}/purpose`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-                description: purposeDescription
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Show success feedback
-                purposeInput.style.borderColor = '#10b981';
-                button.innerHTML = '<i class="fas fa-check mr-1"></i>Saved!';
-                
-                // Reset after 2 seconds
-                setTimeout(() => {
-                    purposeInput.style.borderColor = '';
-                    button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
-                }, 2000);
-            } else {
-                alert('Failed to save purpose: ' + (data.error || 'Unknown error'));
-                purposeInput.style.borderColor = '#ef4444';
-                button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
-            }
-        })
-        .catch(error => {
-            console.error('Save error:', error);
-            alert('Failed to save purpose: ' + error.message);
-            purposeInput.style.borderColor = '#ef4444';
-            button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
-        })
-        .finally(() => {
-            purposeInput.style.opacity = '1';
-            purposeInput.disabled = false;
-            button.disabled = false;
-        });
-    }
-    
-    getThemeClasses() {
-        const themeMap = {
-            'theme-default': 'border-gray-800',
-            'theme-blue': 'border-blue-600',
-            'theme-green': 'border-green-600',
-            'theme-purple': 'border-purple-600',
-            'theme-orange': 'border-orange-600',
-            'theme-pink': 'border-pink-600',
-            'theme-teal': 'border-teal-600'
-        };
-        return themeMap[this.colorTheme] || 'border-gray-800';
-    }
-    
-    getHeaderThemeClasses() {
-        const headerThemeMap = {
-            'theme-default': 'bg-stone-100 text-gray-800 border-b-gray-800',
-            'theme-blue': 'bg-blue-50 text-blue-600 border-b-blue-600',
-            'theme-green': 'bg-green-50 text-green-600 border-b-green-600',
-            'theme-purple': 'bg-purple-50 text-purple-600 border-b-purple-600',
-            'theme-orange': 'bg-orange-50 text-orange-600 border-b-orange-600',
-            'theme-pink': 'bg-pink-50 text-pink-600 border-b-pink-600',
-            'theme-teal': 'bg-teal-50 text-teal-600 border-b-teal-600'
-        };
-        return headerThemeMap[this.colorTheme] || 'bg-stone-100 text-gray-800 border-b-gray-800';
-    }
+
     
     createHeader() {
         const header = document.createElement('div');
-        header.className = `px-4 py-3 text-sm font-bold border-b border-gray-800 flex items-center justify-between flex-shrink-0 bg-stone-100 uppercase tracking-wider cursor-grab active:cursor-grabbing ${this.getHeaderThemeClasses()}`;
+        header.className = `px-4 py-3 text-sm font-bold border-b flex items-center justify-between flex-shrink-0 uppercase tracking-wider cursor-grab active:cursor-grabbing ${this.themeManager.getHeaderThemeClasses()}`;
         header.draggable = true;
         header.setAttribute('data-window-header', 'true');
         
@@ -302,7 +49,7 @@ class TextWindow {
                    <i class="fas fa-times text-xs"></i>
                </button>`;
         
-        const colorPicker = this.createColorPicker();
+        const colorPicker = this.themeManager.createColorPicker();
         
         header.innerHTML = `
             <div class="flex items-center">
@@ -723,7 +470,7 @@ class TextWindow {
         // Only add sparkle translate button for primary windows and if user can edit
         if (this.type === 'primary' && window.translationEditor?.canEdit) {
             // Add audio controls first
-            this.createAudioControls(controlsContainer, verseData, textarea);
+            this.audioManager.createAudioControls(controlsContainer, verseData, textarea);
             
             const sparkleButton = document.createElement('button');
             sparkleButton.className = 'w-7 h-7 bg-transparent border-0 cursor-pointer flex items-center justify-center transition-all duration-200 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded-sm sparkle-translate-btn';
@@ -871,269 +618,13 @@ class TextWindow {
         });
     }
     
-    createAudioControls(container, verseData, textarea) {
-        const voiceSelect = document.createElement('select');
-        voiceSelect.className = 'voice-selector text-xs px-2 py-1 h-7 border border-gray-300 bg-gray-100 text-gray-500 rounded-sm hover:bg-gray-200 hover:text-gray-700 transition-all focus:outline-none cursor-pointer';
-        voiceSelect.style.minWidth = '70px';
-        voiceSelect.innerHTML = `
-            <option value="alloy">Alloy</option>
-            <option value="ash">Ash</option>
-            <option value="ballad">Ballad</option>
-            <option value="coral">Coral</option>
-            <option value="echo">Echo</option>
-            <option value="fable">Fable</option>
-            <option value="nova">Nova</option>
-            <option value="onyx" selected>Onyx</option>
-            <option value="sage">Sage</option>
-            <option value="shimmer">Shimmer</option>
-        `;
-        
-        // Set default voice from localStorage
-        const savedVoice = localStorage.getItem('preferredVoice') || 'onyx';
-        voiceSelect.value = savedVoice;
-        
-        // Save voice preference when changed and sync all dropdowns
-        voiceSelect.addEventListener('change', () => {
-            const selectedVoice = voiceSelect.value;
-            localStorage.setItem('preferredVoice', selectedVoice);
-            
-            // Update all other voice selectors on the page
-            document.querySelectorAll('.voice-selector').forEach(selector => {
-                if (selector !== voiceSelect) {
-                    selector.value = selectedVoice;
-                }
-            });
-        });
-        
-        const ttsBtn = document.createElement('button');
-        ttsBtn.className = 'tts-btn w-7 h-7 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-gray-200 hover:text-gray-700 transition-all focus:outline-none';
-        ttsBtn.innerHTML = '<i class="fas fa-microphone text-sm"></i>';
-        ttsBtn.title = 'Generate audio';
-        
-        const playBtn = document.createElement('button');
-        playBtn.className = 'play-audio-btn w-7 h-7 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-gray-200 hover:text-gray-700 transition-all focus:outline-none';
-        playBtn.innerHTML = '<i class="fas fa-play text-sm"></i>';
-        playBtn.title = 'Play audio';
-        playBtn.style.display = 'none';
-        
-        const pauseBtn = document.createElement('button');
-        pauseBtn.className = 'pause-audio-btn w-7 h-7 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-gray-200 hover:text-gray-700 transition-all focus:outline-none';
-        pauseBtn.innerHTML = '<i class="fas fa-pause text-sm"></i>';
-        pauseBtn.title = 'Pause audio';
-        pauseBtn.style.display = 'none';
-        
-        const tuningBtn = document.createElement('button');
-        tuningBtn.className = 'audio-tuning-btn w-7 h-7 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-blue-100 hover:text-blue-600 transition-all focus:outline-none';
-        tuningBtn.innerHTML = '<i class="fas fa-sliders-h text-sm"></i>';
-        tuningBtn.title = 'Audio settings';
-        tuningBtn.style.display = 'none';
-        
-        // Add all controls to the container
-        container.appendChild(voiceSelect);
-        container.appendChild(ttsBtn);
-        container.appendChild(playBtn);
-        container.appendChild(pauseBtn);
-        container.appendChild(tuningBtn);
-        
-        // Store audio state on the container
-        container._currentAudio = null;
-        container._audioId = null;
-        
-        this.setupAudioListeners(verseData, textarea, container);
-        this.checkExistingAudio(container, verseData);
-    }
+
     
-    setupAudioListeners(verseData, textarea, audioControls) {
-        const voiceSelect = audioControls.querySelector('.voice-selector');
-        const ttsBtn = audioControls.querySelector('.tts-btn');
-        const playBtn = audioControls.querySelector('.play-audio-btn');
-        const pauseBtn = audioControls.querySelector('.pause-audio-btn');
-        const tuningBtn = audioControls.querySelector('.audio-tuning-btn');
-        
-        ttsBtn.onclick = async (e) => {
-            e.stopPropagation();
-            const text = textarea.value.trim();
-            if (!text) {
-                alert('Please enter some text first');
-                return;
-            }
-            await this.generateAudio(verseData, text, voiceSelect.value, audioControls);
-        };
-        
-        playBtn.onclick = async (e) => {
-            e.stopPropagation();
-            await this.playAudio(verseData, audioControls);
-        };
-        
-        pauseBtn.onclick = (e) => {
-            e.stopPropagation();
-            this.pauseAudio(audioControls);
-        };
-        
-        tuningBtn.onclick = (e) => {
-            e.stopPropagation();
-            this.openAudioTuningModal(verseData, textarea, audioControls);
-        };
-    }
+
     
-    async generateAudio(verseData, text, voice, audioControls) {
-        const ttsBtn = audioControls.querySelector('.tts-btn');
-        
-        ttsBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i>';
-        ttsBtn.disabled = true;
-        
-        const projectId = window.location.pathname.split('/')[2];
-        const response = await fetch(`/project/${projectId}/verse-audio/${this.id}/${verseData.index}/tts`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, voice })
-        });
-        
-        const data = await response.json();
-        audioControls._audioId = data.audio_id;
-        this.showAudioButtons(audioControls, true);
-        this.playAudio(verseData, audioControls);
-        
-        ttsBtn.innerHTML = '<i class="fas fa-microphone" style="font-size: 10px;"></i>';
-        ttsBtn.disabled = false;
-    }
+
     
-    async playAudio(verseData, audioControls) {
-        const playBtn = audioControls.querySelector('.play-audio-btn');
-        const pauseBtn = audioControls.querySelector('.pause-audio-btn');
-        
-        if (audioControls._currentAudio && !audioControls._currentAudio.paused) {
-            this.pauseAudio(audioControls);
-            return;
-        }
-        
-        try {
-            let audioId = audioControls._audioId;
-            if (!audioId) {
-                const projectId = window.location.pathname.split('/')[2];
-                const response = await fetch(`/project/${projectId}/verse-audio/${this.id}/${verseData.index}/check`);
-                const data = await response.json();
-                if (!data.exists) {
-                    alert('No audio available. Generate audio first.');
-                    return;
-                }
-                audioId = data.audio_id;
-                audioControls._audioId = audioId;
-            }
-            
-            const projectId = window.location.pathname.split('/')[2];
-            const audioUrl = `/project/${projectId}/verse-audio/${audioId}/download`;
-            audioControls._currentAudio = new Audio(audioUrl);
-            
-            audioControls._currentAudio.play();
-            playBtn.style.display = 'none';
-            pauseBtn.style.display = 'flex';
-            
-            audioControls._currentAudio.onended = () => {
-                playBtn.style.display = 'flex';
-                pauseBtn.style.display = 'none';
-                audioControls._currentAudio = null;
-            };
-            
-            audioControls._currentAudio.onerror = () => {
-                playBtn.style.display = 'flex';
-                pauseBtn.style.display = 'none';
-                audioControls._currentAudio = null;
-                alert('Failed to play audio');
-            };
-        } catch (error) {
-            alert('Failed to play audio: ' + error.message);
-        }
-    }
-    
-    pauseAudio(audioControls) {
-        const playBtn = audioControls.querySelector('.play-audio-btn');
-        const pauseBtn = audioControls.querySelector('.pause-audio-btn');
-        
-        if (audioControls._currentAudio && !audioControls._currentAudio.paused) {
-            audioControls._currentAudio.pause();
-            playBtn.style.display = 'flex';
-            pauseBtn.style.display = 'none';
-        }
-    }
-    
-    openAudioTuningModal(verseData, textarea, audioControls) {
-        const originalText = textarea.value.trim();
-        if (!originalText) return;
-        
-        window.AudioTuningModal?.open({
-            projectId: window.location.pathname.split('/')[2],
-            textId: this.id,
-            verseIndex: verseData.index,
-            originalText,
-            onApply: (audioId) => {
-                if (audioId) {
-                    audioControls._audioId = audioId;
-                    this.showAudioButtons(audioControls, true);
-                    setTimeout(() => this.playAudio(verseData, audioControls), 300);
-                } else {
-                    this.showAudioButtons(audioControls, false);
-                    audioControls._audioId = null;
-                }
-            }
-        });
-    }
-    
-    async deleteAudio(verseData, audioControls) {
-        try {
-            if (audioControls._currentAudio) {
-                audioControls._currentAudio.pause();
-                audioControls._currentAudio = null;
-            }
-            
-            let audioId = audioControls._audioId;
-            if (!audioId) {
-                const projectId = window.location.pathname.split('/')[2];
-                const response = await fetch(`/project/${projectId}/verse-audio/${this.id}/${verseData.index}/check`);
-                const data = await response.json();
-                if (!data.exists) return;
-                audioId = data.audio_id;
-            }
-            
-            const projectId = window.location.pathname.split('/')[2];
-            const response = await fetch(`/project/${projectId}/verse-audio/${audioId}`, {
-                method: 'DELETE'
-            });
-            
-            if (response.ok) {
-                this.showAudioButtons(audioControls, false);
-                audioControls._audioId = null;
-            } else {
-                alert('Failed to delete audio');
-            }
-        } catch (error) {
-            alert('Failed to delete audio: ' + error.message);
-        }
-    }
-    
-    showAudioButtons(audioControls, hasAudio) {
-        const playBtn = audioControls.querySelector('.play-audio-btn');
-        const pauseBtn = audioControls.querySelector('.pause-audio-btn');
-        const tuningBtn = audioControls.querySelector('.audio-tuning-btn');
-        
-        if (playBtn) playBtn.style.display = hasAudio ? 'flex' : 'none';
-        if (pauseBtn) pauseBtn.style.display = 'none';
-        if (tuningBtn) tuningBtn.style.display = hasAudio ? 'flex' : 'none';
-    }
-    
-    async checkExistingAudio(audioControls, verseData) {
-        try {
-            const projectId = window.location.pathname.split('/')[2];
-            const response = await fetch(`/project/${projectId}/verse-audio/${this.id}/${verseData.index}/check`);
-            const data = await response.json();
-            if (data.exists) {
-                audioControls._audioId = data.audio_id;
-                this.showAudioButtons(audioControls, true);
-            }
-        } catch (error) {
-            // No existing audio - this is fine
-        }
-    }
+
     
     addWindowDropListeners(windowElement) {
         windowElement.addEventListener('dragover', (e) => {

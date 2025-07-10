@@ -5,7 +5,6 @@ class TranslationConfidence {
     }
     
     displayTranslationWithConfidence(textarea, translation, confidence, verseIndex, translationEditor) {
-        // Ensure we have confidence data
         if (!confidence?.segments?.length) {
             confidence = {
                 segments: [{
