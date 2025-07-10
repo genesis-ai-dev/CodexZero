@@ -102,9 +102,13 @@ def login():
 @auth.route("/callback")
 def callback():
     """Handle Google OAuth callback"""
+    # Debug logging for production troubleshooting
+    current_app.logger.info(f"OAuth callback received. State param: {request.args.get('state')}, Session state: {session.get('state')}")
+    
     # Verify state parameter
     if request.args.get('state') != session.get('state'):
         flash('Invalid state parameter', 'error')
+        current_app.logger.warning("OAuth state parameter mismatch")
         return redirect(url_for('main.index'))
     
     # Extract the base redirect URI from the current request
@@ -156,7 +160,12 @@ def callback():
     user.last_login = datetime.utcnow()
     db.session.commit()
     
+    # Log successful authentication
+    current_app.logger.info(f"User authenticated: {user.email} (ID: {user.id})")
+    
     login_user(user, remember=True)
+    current_app.logger.info(f"Flask-Login login_user called for user ID: {user.id}")
+    
     flash(f'Welcome, {user.name}!', 'success')
     
     # Redirect to next page or home
