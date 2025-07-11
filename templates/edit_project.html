@@ -7,50 +7,50 @@
 {% endblock %}
 
 {% block content %}
-<section class="min-h-screen flex items-center justify-center px-6 py-12 bg-gradient-to-br from-neutral-50 to-neutral-100">
+<section class="min-h-screen flex items-center justify-center px-4 sm:px-6 py-8 sm:py-12 bg-gradient-to-br from-neutral-50 to-neutral-100">
     <div class="w-full max-w-4xl">
         <!-- Header -->
-        <div class="text-center mb-16">
-            <div class="mb-8">
+        <div class="text-center mb-8 sm:mb-16">
+            <div class="mb-6 sm:mb-8">
                 <a href="{{ url_for('projects.view_project', project_id=project.id) }}" class="inline-flex items-center text-sm text-neutral-600 hover:text-neutral-900 transition-colors">
                     <i class="fas fa-arrow-left mr-2"></i>
                     Back to Project
                 </a>
             </div>
             
-            <h1 class="text-6xl font-bold tracking-tight mb-6 bg-gradient-to-r from-neutral-900 to-neutral-700 bg-clip-text text-transparent">
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-4 sm:mb-6 bg-gradient-to-r from-neutral-900 to-neutral-700 bg-clip-text text-transparent">
                 Edit Project
             </h1>
-            <p class="text-xl text-neutral-600 font-medium max-w-2xl mx-auto leading-relaxed">
+            <p class="text-lg sm:text-xl text-neutral-600 font-medium max-w-2xl mx-auto leading-relaxed px-4">
                 Update your project details
             </p>
         </div>
         
         <!-- Main Form Card -->
-        <div class="bg-white rounded-2xl shadow-xl border border-neutral-200 overflow-hidden">
-            <div class="p-12">
-                <form method="POST" action="{{ url_for('projects.update_project', project_id=project.id) }}" enctype="multipart/form-data" class="space-y-12">
+        <div class="bg-white rounded-xl sm:rounded-2xl shadow-xl border border-neutral-200 overflow-hidden mx-2 sm:mx-0">
+            <div class="p-6 sm:p-8 lg:p-12">
+                <form method="POST" action="{{ url_for('projects.update_project', project_id=project.id) }}" enctype="multipart/form-data" class="space-y-8 sm:space-y-12">
                     <!-- Translation Goals -->
                     <div class="text-center max-w-3xl mx-auto">
-                        <div class="text-3xl leading-relaxed space-y-12 font-light text-neutral-800">
-                            <div class="flex flex-wrap items-center justify-center gap-2 leading-[3]">
+                        <div class="text-xl sm:text-2xl lg:text-3xl leading-relaxed space-y-8 sm:space-y-12 font-light text-neutral-800">
+                            <div class="flex flex-wrap items-center justify-center gap-1 sm:gap-2 leading-[2.5] sm:leading-[3]">
                                 <span class="text-neutral-700">I am translating to</span>
                                 <input type="text" name="target_language" value="{{ project.target_language }}" required 
-                                       class="inline-input bg-transparent border-none border-b-3 border-neutral-300 outline-none text-inherit font-medium text-neutral-900 pb-2 mx-2 min-w-[140px] w-auto transition-all duration-300 ease-out relative placeholder:text-neutral-400 placeholder:opacity-70 focus:border-neutral-900 focus:border-b-4 focus:pb-[7px] focus:scale-105 hover:border-neutral-600 hover:scale-102" 
+                                       class="inline-input bg-transparent border-none border-b-2 sm:border-b-3 border-neutral-300 outline-none text-inherit font-medium text-neutral-900 pb-1 sm:pb-2 mx-1 sm:mx-2 min-w-[120px] sm:min-w-[140px] w-auto transition-all duration-300 ease-out relative placeholder:text-neutral-400 placeholder:opacity-70 focus:border-neutral-900 focus:border-b-3 sm:focus:border-b-4 focus:pb-[3px] sm:focus:pb-[7px] focus:scale-105 hover:border-neutral-600 hover:scale-102" 
                                        list="languages" 
                                        placeholder="Spanish">
                                 <span class="text-neutral-700">.</span>
                             </div>
                             
-                            <div class="flex flex-wrap items-center justify-center gap-2 leading-[3]">
+                            <div class="flex flex-wrap items-center justify-center gap-1 sm:gap-2 leading-[2.5] sm:leading-[3]">
                                 <span class="text-neutral-700">This translation is for</span>
                                 <input type="text" name="audience" value="{{ project.audience }}" required 
-                                       class="inline-input bg-transparent border-none border-b-3 border-neutral-300 outline-none text-inherit font-medium text-neutral-900 pb-2 mx-2 min-w-[180px] w-auto transition-all duration-300 ease-out relative placeholder:text-neutral-400 placeholder:opacity-70 focus:border-neutral-900 focus:border-b-4 focus:pb-[7px] focus:scale-105 hover:border-neutral-600 hover:scale-102" 
+                                       class="inline-input bg-transparent border-none border-b-2 sm:border-b-3 border-neutral-300 outline-none text-inherit font-medium text-neutral-900 pb-1 sm:pb-2 mx-1 sm:mx-2 min-w-[140px] sm:min-w-[180px] w-auto transition-all duration-300 ease-out relative placeholder:text-neutral-400 placeholder:opacity-70 focus:border-neutral-900 focus:border-b-3 sm:focus:border-b-4 focus:pb-[3px] sm:focus:pb-[7px] focus:scale-105 hover:border-neutral-600 hover:scale-102" 
                                        list="audiences" 
                                        placeholder="young adults">
                                 <span class="text-neutral-700">and the style is</span>
                                 <input type="text" name="style" value="{{ project.style }}" required 
-                                       class="inline-input bg-transparent border-none border-b-3 border-neutral-300 outline-none text-inherit font-medium text-neutral-900 pb-2 mx-2 min-w-[180px] w-auto transition-all duration-300 ease-out relative placeholder:text-neutral-400 placeholder:opacity-70 focus:border-neutral-900 focus:border-b-4 focus:pb-[7px] focus:scale-105 hover:border-neutral-600 hover:scale-102" 
+                                       class="inline-input bg-transparent border-none border-b-2 sm:border-b-3 border-neutral-300 outline-none text-inherit font-medium text-neutral-900 pb-1 sm:pb-2 mx-1 sm:mx-2 min-w-[140px] sm:min-w-[180px] w-auto transition-all duration-300 ease-out relative placeholder:text-neutral-400 placeholder:opacity-70 focus:border-neutral-900 focus:border-b-3 sm:focus:border-b-4 focus:pb-[3px] sm:focus:pb-[7px] focus:scale-105 hover:border-neutral-600 hover:scale-102" 
                                        list="styles" 
                                        placeholder="conversational">
                                 <span class="text-neutral-700">.</span>
@@ -61,9 +61,9 @@
                     {% include 'components/form_datalists.html' %}
                     
                     <!-- Submit Button -->
-                    <div class="text-center pt-8">
-                        <button type="submit" class="inline-flex items-center px-12 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-lg font-semibold rounded-xl hover:from-blue-700 hover:to-blue-800 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl">
-                            <i class="fas fa-save mr-3 text-xl"></i>
+                    <div class="text-center pt-6 sm:pt-8">
+                        <button type="submit" class="inline-flex items-center px-8 sm:px-12 py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-base sm:text-lg font-semibold rounded-xl hover:from-blue-700 hover:to-blue-800 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl">
+                            <i class="fas fa-save mr-2 sm:mr-3 text-lg sm:text-xl"></i>
                             Update Project
                         </button>
                     </div>
@@ -72,7 +72,7 @@
         </div>
         
         <!-- Footer Help Text -->
-        <div class="text-center mt-12">
+        <div class="text-center mt-8 sm:mt-12 px-4">
             <p class="text-neutral-500 text-sm">
                 Changes will be saved to your project immediately
             </p>

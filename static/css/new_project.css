@@ -18,3 +18,20 @@
     @apply border-green-500 font-medium bg-green-50 px-2 py-1 rounded-sm;
 }
 
+/* Mobile-specific improvements */
+@media (max-width: 640px) {
+    .inline-input {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+    }
+    
+    .inline-input:focus {
+        transform: scale(1.02) !important;
+    }
+    
+    /* Prevent zoom on iOS when focusing inputs */
+    .inline-input {
+        font-size: 16px;
+    }
+}
+
