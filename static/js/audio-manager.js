@@ -6,22 +6,22 @@ class AudioManager {
     
     createAudioControls(container, verseData, textarea) {
         const audioDiv = document.createElement('div');
-        audioDiv.className = 'audio-controls absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center gap-1 z-50';
+        audioDiv.className = 'audio-controls absolute top-1 left-2 opacity-100 flex items-center gap-1 z-50';
         audioDiv.innerHTML = `
-            <select class="voice-selector text-xs px-2 py-1 border border-gray-300 bg-gray-100 text-gray-500 rounded-sm cursor-pointer hover:bg-gray-200 hover:text-gray-700 transition-all focus:outline-none">
+            <select class="voice-selector text-xs px-1 py-0 border border-gray-300 bg-gray-100 text-gray-500 rounded cursor-pointer focus:outline-none h-5 text-xs leading-none" style="font-size: 10px;">
                 ${this.getVoiceOptions()}
             </select>
-            <button class="tts-btn w-6 h-6 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-gray-200 hover:text-gray-700 transition-all focus:outline-none" title="Generate audio">
-                <i class="fas fa-microphone" style="font-size: 10px;"></i>
+            <button class="tts-btn w-5 h-5 flex items-center justify-center bg-gray-100 text-gray-500 rounded focus:outline-none" title="Generate audio">
+                <i class="fas fa-microphone" style="font-size: 8px;"></i>
             </button>
-            <button class="play-audio-btn w-6 h-6 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-gray-200 hover:text-gray-700 transition-all focus:outline-none" title="Play audio" style="display: none;">
-                <i class="fas fa-play" style="font-size: 10px;"></i>
+            <button class="play-audio-btn w-5 h-5 flex items-center justify-center bg-gray-100 text-gray-500 rounded focus:outline-none" title="Play audio" style="display: none;">
+                <i class="fas fa-play" style="font-size: 8px;"></i>
             </button>
-            <button class="pause-audio-btn w-6 h-6 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-gray-200 hover:text-gray-700 transition-all focus:outline-none" title="Pause audio" style="display: none;">
-                <i class="fas fa-pause" style="font-size: 10px;"></i>
+            <button class="pause-audio-btn w-5 h-5 flex items-center justify-center bg-gray-100 text-gray-500 rounded focus:outline-none" title="Pause audio" style="display: none;">
+                <i class="fas fa-pause" style="font-size: 8px;"></i>
             </button>
-            <button class="audio-tuning-btn w-6 h-6 flex items-center justify-center bg-gray-100 text-gray-500 rounded-sm hover:bg-blue-100 hover:text-blue-600 transition-all focus:outline-none" title="Audio settings" style="display: none;">
-                <i class="fas fa-sliders-h" style="font-size: 10px;"></i>
+            <button class="audio-tuning-btn w-5 h-5 flex items-center justify-center bg-gray-100 text-gray-500 rounded focus:outline-none" title="Audio settings" style="display: none;">
+                <i class="fas fa-sliders-h" style="font-size: 8px;"></i>
             </button>
         `;
         
@@ -30,6 +30,16 @@ class AudioManager {
         // Store audio state on the container
         audioDiv._currentAudio = null;
         audioDiv._audioId = null;
+        
+        // PERFORMANCE: Cache all button elements once
+        const elements = {
+            voiceSelector: audioDiv.querySelector('.voice-selector'),
+            ttsBtn: audioDiv.querySelector('.tts-btn'),
+            playBtn: audioDiv.querySelector('.play-audio-btn'),
+            pauseBtn: audioDiv.querySelector('.pause-audio-btn'),
+            tuningBtn: audioDiv.querySelector('.audio-tuning-btn')
+        };
+        audioDiv._elements = elements;
         
         this.setupAudioListeners(verseData, textarea, audioDiv);
         this.checkExistingAudio(audioDiv, verseData);
@@ -45,28 +55,26 @@ class AudioManager {
     }
     
     setupAudioListeners(verseData, textarea, audioControls) {
-        const ttsBtn = audioControls.querySelector('.tts-btn');
-        const playBtn = audioControls.querySelector('.play-audio-btn');
-        const pauseBtn = audioControls.querySelector('.pause-audio-btn');
-        const tuningBtn = audioControls.querySelector('.audio-tuning-btn');
+        // PERFORMANCE: Use cached elements
+        const elements = audioControls._elements;
         
-        ttsBtn?.addEventListener('click', (e) => {
+        elements.ttsBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
-            const voice = audioControls.querySelector('.voice-selector').value;
+            const voice = elements.voiceSelector.value;
             this.generateAudio(verseData, textarea.value, voice, audioControls);
         });
         
-        playBtn?.addEventListener('click', (e) => {
+        elements.playBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
             this.playAudio(verseData, audioControls);
         });
         
-        pauseBtn?.addEventListener('click', (e) => {
+        elements.pauseBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
             this.pauseAudio(audioControls);
         });
         
-        tuningBtn?.addEventListener('click', (e) => {
+        elements.tuningBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
             this.openAudioTuningModal(verseData, textarea, audioControls);
         });
@@ -75,12 +83,13 @@ class AudioManager {
     async generateAudio(verseData, text, voice, audioControls) {
         if (!text?.trim()) return;
         
-        const ttsBtn = audioControls.querySelector('.tts-btn');
-        const originalContent = ttsBtn.innerHTML;
+        // PERFORMANCE: Use cached elements
+        const elements = audioControls._elements;
+        const originalContent = elements.ttsBtn.innerHTML;
         
         try {
-            ttsBtn.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size: 10px;"></i>';
-            ttsBtn.disabled = true;
+            elements.ttsBtn.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size: 10px;"></i>';
+            elements.ttsBtn.disabled = true;
             
             const projectId = window.location.pathname.split('/')[2];
             const response = await fetch(`/project/${projectId}/verse-audio/${this.windowId}/${verseData.index}/tts`, {
@@ -101,14 +110,14 @@ class AudioManager {
         } catch (error) {
             console.error('Audio generation error:', error);
         } finally {
-            ttsBtn.innerHTML = originalContent;
-            ttsBtn.disabled = false;
+            elements.ttsBtn.innerHTML = originalContent;
+            elements.ttsBtn.disabled = false;
         }
     }
     
     async playAudio(verseData, audioControls) {
-        const playBtn = audioControls.querySelector('.play-audio-btn');
-        const pauseBtn = audioControls.querySelector('.pause-audio-btn');
+        // PERFORMANCE: Use cached elements
+        const elements = audioControls._elements;
         
         if (audioControls._currentAudio && !audioControls._currentAudio.paused) {
             this.pauseAudio(audioControls);
@@ -134,36 +143,36 @@ class AudioManager {
             audioControls._currentAudio = new Audio(audioUrl);
             
             audioControls._currentAudio.play();
-            playBtn.style.display = 'none';
-            pauseBtn.style.display = 'flex';
+            elements.playBtn.style.display = 'none';
+            elements.pauseBtn.style.display = 'flex';
             
             audioControls._currentAudio.onended = () => {
-                playBtn.style.display = 'flex';
-                pauseBtn.style.display = 'none';
+                elements.playBtn.style.display = 'flex';
+                elements.pauseBtn.style.display = 'none';
                 audioControls._currentAudio = null;
             };
             
             audioControls._currentAudio.onerror = () => {
-                playBtn.style.display = 'flex';
-                pauseBtn.style.display = 'none';
+                elements.playBtn.style.display = 'flex';
+                elements.pauseBtn.style.display = 'none';
                 audioControls._currentAudio = null;
                 alert('Failed to play audio');
             };
         } catch (error) {
             console.error('Audio play error:', error);
-            playBtn.style.display = 'flex';
-            pauseBtn.style.display = 'none';
+            elements.playBtn.style.display = 'flex';
+            elements.pauseBtn.style.display = 'none';
         }
     }
     
     pauseAudio(audioControls) {
-        const playBtn = audioControls.querySelector('.play-audio-btn');
-        const pauseBtn = audioControls.querySelector('.pause-audio-btn');
+        // PERFORMANCE: Use cached elements
+        const elements = audioControls._elements;
         
         if (audioControls._currentAudio && !audioControls._currentAudio.paused) {
             audioControls._currentAudio.pause();
-            playBtn.style.display = 'flex';
-            pauseBtn.style.display = 'none';
+            elements.playBtn.style.display = 'flex';
+            elements.pauseBtn.style.display = 'none';
         }
     }
     
@@ -191,15 +200,15 @@ class AudioManager {
     }
     
     showAudioButtons(audioControls, hasAudio) {
-        const playBtn = audioControls.querySelector('.play-audio-btn');
-        const tuningBtn = audioControls.querySelector('.audio-tuning-btn');
+        // PERFORMANCE: Use cached elements
+        const elements = audioControls._elements;
         
         if (hasAudio) {
-            playBtn.style.display = 'flex';
-            tuningBtn.style.display = 'flex';
+            elements.playBtn.style.display = 'flex';
+            elements.tuningBtn.style.display = 'flex';
         } else {
-            playBtn.style.display = 'none';
-            tuningBtn.style.display = 'none';
+            elements.playBtn.style.display = 'none';
+            elements.tuningBtn.style.display = 'none';
         }
     }
     

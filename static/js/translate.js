@@ -125,7 +125,8 @@ document.addEventListener('DOMContentLoaded', function() {
             span.textContent = segment.text;
             
             // Apply smooth color gradient
-            const colors = getConfidenceColors(segment.confidence);
+            const colors = window.TranslationConfidence?.prototype?.getConfidenceColors?.(segment.confidence) || 
+                          { text: '#374151', background: '#f9fafb' }; // fallback colors
             span.style.color = colors.text;
             span.style.backgroundColor = colors.background;
             span.style.padding = '1px 2px';
@@ -190,51 +191,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }, 300);
         });
-    }
-    
-    function getConfidenceColors(confidence) {
-        // Smooth gradient from red (0%) to green (100%)
-        const percentage = Math.max(0, Math.min(100, confidence));
-        
-        if (percentage === 0) {
-            return {
-                text: '#991b1b',
-                background: '#fef2f2'
-            };
-        }
-        
-        // Calculate RGB values for smooth gradient
-        // Red to Yellow to Green transition
-        let red, green, blue;
-        
-        if (percentage <= 50) {
-            // Red to Yellow (0-50%)
-            const factor = percentage / 50;
-            red = 255;
-            green = Math.round(255 * factor);
-            blue = 0;
-        } else {
-            // Yellow to Green (50-100%)
-            const factor = (percentage - 50) / 50;
-            red = Math.round(255 * (1 - factor));
-            green = 255;
-            blue = 0;
-        }
-        
-        // Adjust for text readability
-        const textRed = Math.round(red * 0.6);
-        const textGreen = Math.round(green * 0.6);
-        const textBlue = Math.round(blue * 0.6);
-        
-        // Adjust background for subtle highlighting
-        const bgRed = Math.round(255 - (255 - red) * 0.15);
-        const bgGreen = Math.round(255 - (255 - green) * 0.15);
-        const bgBlue = Math.round(255 - (255 - blue) * 0.15);
-        
-        return {
-            text: `rgb(${textRed}, ${textGreen}, ${textBlue})`,
-            background: `rgb(${bgRed}, ${bgGreen}, ${bgBlue})`
-        };
     }
     
     function showConfidenceIndicator(overallConfidence) {

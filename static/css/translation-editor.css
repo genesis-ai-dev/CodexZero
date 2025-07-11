@@ -1,5 +1,274 @@
 /* Translation Editor Styles - Extracted from template */
 
+/* PERFORMANCE OPTIMIZATIONS */
+/* Use CSS containment to improve rendering performance */
+.translation-editor {
+    /* Remove expensive containment and will-change */
+}
+
+/* Optimize text rendering for large content */
+.text-window {
+    /* Remove expensive containment and will-change */
+}
+
+/* Reduce repaints during scrolling */
+.verse-cell {
+    /* Remove expensive transforms and containment */
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+/* Custom Dropdown Styles */
+.dropdown-option {
+    transition: all 0.15s ease-in-out;
+}
+
+.dropdown-option:hover {
+    background-color: #f8fafc;
+    transform: translateX(2px);
+}
+
+.dropdown-option:active {
+    background-color: #e2e8f0;
+}
+
+/* Dropdown scrollbar styling */
+[id$="-dropdown"]::-webkit-scrollbar {
+    width: 6px;
+}
+
+[id$="-dropdown"]::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+
+[id$="-dropdown"]::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+[id$="-dropdown"]::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Dropdown animation */
+[id$="-dropdown"] {
+    transform-origin: top;
+    animation: dropdown-appear 0.15s ease-out;
+}
+
+@keyframes dropdown-appear {
+    from {
+        opacity: 0;
+        transform: translateY(-4px) scaleY(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scaleY(1);
+    }
+}
+
+/* Chevron rotation animation */
+[id$="-chevron"] {
+    transition: transform 0.2s ease-in-out;
+}
+
+/* CRITICAL: Optimize textarea performance for better INP */
+.text-window textarea {
+    width: 100% !important;
+    box-sizing: border-box;
+    min-height: 80px;
+    resize: none;
+    /* Remove all expensive properties */
+    
+    /* PERFORMANCE: Ensure full width and proper sizing */
+    display: block;
+    margin: 0;
+    padding: 1rem;
+    border: none;
+    outline: none;
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    line-height: 1.75;
+    overflow-y: auto;
+    overflow-x: hidden;
+    
+    /* PERFORMANCE: Smooth scrolling within textareas */
+    scroll-behavior: auto; /* Disable smooth scroll for input responsiveness */
+    -webkit-overflow-scrolling: touch;
+    
+    /* PERFORMANCE: Prevent scroll jank during input */
+    contain: layout;
+    transform: translateZ(0);
+}
+
+/* PERFORMANCE: Disable any expand/contract behavior */
+.verse-cell.expanded textarea,
+.verse-cell textarea {
+    width: 100% !important;
+    /* Prevent any size changes on focus/blur */
+}
+
+.verse-cell.expanded {
+    /* Remove any expanded state styling that might affect layout */
+}
+
+.verse-cell {
+    /* Ensure consistent verse cell sizing */
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+/* PERFORMANCE: Simple focus states */
+.text-window textarea:focus {
+    outline: 1px solid #3b82f6;
+    border-color: #3b82f6;
+}
+
+/* PERFORMANCE: Optimize highlighted verses */
+.text-window textarea.highlighted {
+    /* Use transform instead of changing border properties */
+    transform: translateZ(0) scale(1.01);
+    /* Avoid expensive background changes */
+    background-color: #f8fafc;
+    /* Simple border change */
+    border-color: #64748b;
+}
+
+/* PERFORMANCE: Optimize verse cells for better input performance */
+.verse-cell {
+    /* Ensure consistent verse cell sizing */
+    width: 100%;
+    margin-bottom: 1rem;
+    
+    /* PERFORMANCE: Optimize for smooth scrolling */
+    contain: layout style;
+    transform: translateZ(0);
+    
+    /* PERFORMANCE: Prevent layout shifts during scrolling */
+    min-height: 120px; /* Consistent minimum height */
+    
+    /* PERFORMANCE: Optimize rendering pipeline */
+    content-visibility: auto;
+    contain-intrinsic-size: 0 120px;
+}
+
+/* PERFORMANCE: Optimize input composition (IME) */
+.text-window textarea:focus {
+    /* Better IME composition performance */
+    ime-mode: active;
+    composition-event: auto;
+}
+
+/* PERFORMANCE: Optimize for mobile input */
+@media (max-width: 767px) {
+    .text-window textarea {
+        /* Reduce font size for better mobile performance */
+        font-size: 16px; /* Prevents zoom on iOS */
+        /* Optimize touch input */
+        touch-action: manipulation;
+        /* Reduce layout complexity */
+        line-height: 1.4;
+    }
+    
+    /* PERFORMANCE: Simplify mobile interactions */
+    .text-window textarea:focus {
+        /* Disable zoom and other expensive mobile behaviors */
+        user-select: text;
+        -webkit-user-select: text;
+        -webkit-touch-callout: none;
+    }
+    
+    /* Mobile dropdown adjustments */
+    [id$="-dropdown"] {
+        max-height: 200px; /* Smaller on mobile */
+        font-size: 14px;
+    }
+    
+    .dropdown-option {
+        padding: 0.75rem 1rem; /* Larger touch targets */
+    }
+}
+
+/* PERFORMANCE: Simple scroll containers */
+[data-window-content] {
+    width: 100%;
+    box-sizing: border-box;
+    /* PERFORMANCE: Smooth scrolling optimizations */
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch; /* iOS smooth scrolling */
+    
+    /* PERFORMANCE: GPU acceleration for smooth scrolling */
+    transform: translateZ(0);
+    will-change: scroll-position;
+    
+    /* PERFORMANCE: Reduce scroll jank */
+    contain: layout;
+    isolation: isolate;
+    
+    /* PERFORMANCE: Optimize scroll performance */
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e0 #f7fafc;
+}
+
+/* PERFORMANCE: Optimize scrollbar for WebKit browsers */
+[data-window-content]::-webkit-scrollbar {
+    width: 8px;
+}
+
+[data-window-content]::-webkit-scrollbar-track {
+    background: #f7fafc;
+}
+
+[data-window-content]::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 4px;
+}
+
+[data-window-content]::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
+}
+
+/* Ensure text windows take full width */
+.text-window,
+[data-window-id] {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Progressive loading styles */
+.loading-sentinel {
+    width: 100%;
+    padding: 1rem;
+    text-align: center;
+    border-top: 1px solid #e5e7eb;
+    margin-top: 1rem;
+}
+
+/* Ensure proper spacing in text workspace */
+#text-workspace {
+    width: 100%;
+    height: 100%;
+}
+
+#primary-text-area,
+#secondary-texts-area {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+/* Fix container spacing */
+#primary-text-container,
+#secondary-texts-container {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
 /* Global overrides for translation page */
 body.translation-page {
     overflow: hidden;
@@ -22,21 +291,17 @@ body.translation-page #main-content {
 
 /* Drag and Drop Features */
 .verse-collected {
-    transform: scale(0.98);
     opacity: 0.5;
-    transition: transform 0.2s ease, opacity 0.2s ease;
     border-style: dashed !important;
 }
 
 .drop-target-hint {
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5), inset 0 0 20px rgba(16, 185, 129, 0.1);
+    border: 3px solid rgba(16, 185, 129, 0.5);
     background-color: #f0fdf4 !important;
-    transition: box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
 .sparkle-translate-btn,
 .sparkle-drag-handle {
-    transition: all 0.2s ease;
     background: rgba(255, 255, 255, 0.8);
     border-radius: 4px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -44,14 +309,25 @@ body.translation-page #main-content {
     min-height: 44px;
 }
 
-.sparkle-translate-btn:hover,
-.sparkle-drag-handle:hover {
-    background: rgba(255, 255, 255, 0.95);
-    filter: drop-shadow(0 0 6px rgba(147, 51, 234, 0.6));
-}
-
-/* Mobile Responsive Styles */
+/* Mobile Responsive Styles - OPTIMIZED */
 @media (max-width: 767px) {
+    /* PERFORMANCE: Reduce animations on mobile to improve performance */
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    /* PERFORMANCE: Use transform3d for better mobile performance */
+    .translation-sidebar {
+        transform: translate3d(-100%, 0, 0);
+        will-change: transform;
+    }
+    
+    .translation-sidebar:not(.-translate-x-full) {
+        transform: translate3d(0, 0, 0);
+    }
+    
     /* Hide sitewide navigation on translation page */
     body.translation-page nav:first-of-type {
         display: none !important;
@@ -165,6 +441,49 @@ body.translation-page #main-content {
 button, select, input {
     min-height: 44px;
     min-width: 44px;
+}
+
+/* Translation page gradient background - moved from inline styles */
+#translation-gradient {
+    background: linear-gradient(135deg, 
+        #fafafa 0%,           /* Very light gray */
+        #f5f5f5 20%,          /* Light gray */
+        #e8f4f8 50%,          /* Very light blue */
+        #f0f9ff 80%,          /* Light sky blue */
+        #fafafa 100%          /* Back to light gray */
+    );
+    background-size: 100% 200vh;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+}
+
+/* Force hide nav on mobile for translation page - moved from inline styles */
+@media (max-width: 767px) {
+    body.translation-page nav {
+        display: none !important;
+    }
+    body.translation-page main {
+        padding-top: 0 !important;
+    }
+}
+
+/* PERFORMANCE: Ultra-simple textarea optimizations */
+textarea {
+    will-change: auto; /* Remove will-change to reduce GPU overhead */
+    contain: none; /* Remove containment for now */
+    transform: none; /* Remove transform to reduce compositing */
+}
+
+/* PERFORMANCE: Disable expensive focus effects */
+textarea:focus {
+    outline: 1px solid #3b82f6; /* Simple outline instead of complex shadows */
+    box-shadow: none; /* Remove shadow for better performance */
+}
+
+/* PERFORMANCE: Disable animations during input */
+textarea.highlighted {
+    animation: none !important;
+    transition: none !important;
 }
 
  

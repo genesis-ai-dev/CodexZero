@@ -7,12 +7,12 @@ class TranslationUI {
     }
     
     setupModelSelection() {
-        const modelSelect = document.getElementById('translation-model-select');
+        const modelButton = document.getElementById('translation-model-button');
         const refreshBtn = document.getElementById('refresh-models-btn');
         
-        if (modelSelect) {
-            modelSelect.addEventListener('change', (e) => {
-                const modelId = e.target.value;
+        if (modelButton) {
+            modelButton.addEventListener('change', (e) => {
+                const modelId = e.detail?.value || modelButton.dataset.value;
                 if (modelId && this.currentModels[modelId]) {
                     this.setTranslationModel(modelId);
                     this.showModelInfo(modelId);
@@ -78,11 +78,6 @@ class TranslationUI {
     }
     
     populateModelSelect(models, currentModel) {
-        const select = document.getElementById('translation-model-select');
-        
-        // Clear existing options
-        select.innerHTML = '';
-        
         // Group models by type
         const fineTunedModels = [];
         const baseModels = [];
@@ -105,35 +100,45 @@ class TranslationUI {
         // Sort base models alphabetically
         baseModels.sort((a, b) => a[1].name.localeCompare(b[1].name));
         
+        // Create dropdown options array
+        const dropdownModels = [];
+        
         // Add fine-tuned models first (if any)
         if (fineTunedModels.length > 0) {
-            const fineTunedGroup = document.createElement('optgroup');
-            fineTunedGroup.label = '🎯 Custom Fine-tuned Models';
             fineTunedModels.forEach(([modelId, modelInfo]) => {
-                const option = document.createElement('option');
-                option.value = modelId;
-                option.textContent = modelInfo.name;
-                fineTunedGroup.appendChild(option);
+                dropdownModels.push({
+                    value: modelId,
+                    name: `🎯 ${modelInfo.name}`,
+                    description: modelInfo.description,
+                    type: modelInfo.type
+                });
             });
-            select.appendChild(fineTunedGroup);
         }
         
-        // Add base models (Claude 3.5 Sonnet)
+        // Add base models
         if (baseModels.length > 0) {
-            const baseGroup = document.createElement('optgroup');
-            baseGroup.label = '🧠 Base Models';
             baseModels.forEach(([modelId, modelInfo]) => {
-                const option = document.createElement('option');
-                option.value = modelId;
-                option.textContent = modelInfo.name;
-                baseGroup.appendChild(option);
+                dropdownModels.push({
+                    value: modelId,
+                    name: `🧠 ${modelInfo.name}`,
+                    description: modelInfo.description,
+                    type: modelInfo.type
+                });
             });
-            select.appendChild(baseGroup);
+        }
+        
+        // Use the new dropdown population function
+        if (window.populateModelDropdown) {
+            window.populateModelDropdown(dropdownModels);
         }
         
         // Set current selection
         if (currentModel && models[currentModel]) {
-            select.value = currentModel;
+            const modelInfo = models[currentModel];
+            const prefix = modelInfo.type === 'fine_tuned' ? '🎯 ' : '🧠 ';
+            if (window.setModelDropdownOption) {
+                window.setModelDropdownOption(currentModel, prefix + modelInfo.name, modelInfo.description, modelInfo.type);
+            }
             this.showModelInfo(currentModel);
         }
     }
@@ -180,8 +185,8 @@ class TranslationUI {
     
     getTranslationSettings() {
         // Get current model info to determine settings
-        const modelSelect = document.getElementById('translation-model-select');
-        const currentModelId = modelSelect?.value;
+        const modelButton = document.getElementById('translation-model-button');
+        const currentModelId = modelButton?.dataset.value;
         const currentModel = this.currentModels[currentModelId];
         
         if (currentModel) {
@@ -345,7 +350,7 @@ class TranslationUI {
             
             const nameInput = document.getElementById('translation-name');
             if (nameInput) {
-                setTimeout(() => nameInput.focus(), 100);
+                setTimeout(() => nameInput.focus(), 10);
             }
         });
 

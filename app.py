@@ -18,6 +18,60 @@ from routes.audio import audio
 from routes.members import members
 from ai.bot import Chatbot
 
+def run_performance_migrations():
+    """Run critical performance migrations automatically"""
+    try:
+        # Check what tables exist first
+        inspector = db.inspect(db.engine)
+        existing_tables = inspector.get_table_names()
+        
+        indexes_added = 0
+        
+        # Helper function to create index safely
+        def create_index_safe(index_name, table_name, columns):
+            try:
+                sql = f"CREATE INDEX {index_name} ON {table_name}({columns});"
+                with db.engine.connect() as conn:
+                    conn.execute(db.text(sql))
+                    conn.commit()
+                return True
+            except Exception as e:
+                error_msg = str(e).lower()
+                if "duplicate key name" in error_msg or "already exists" in error_msg:
+                    return True  # Index already exists
+                else:
+                    print(f"Could not add {index_name}: {e}")
+                    return False
+        
+        # CRITICAL: The most important indexes for verse lookups
+        if 'verses' in existing_tables:
+            if create_index_safe('idx_verses_text_lookup', 'verses', 'text_id, verse_index'):
+                indexes_added += 1
+        
+        if 'project_file_verses' in existing_tables:
+            if create_index_safe('idx_project_file_verses_lookup', 'project_file_verses', 'project_file_id, verse_index'):
+                indexes_added += 1
+        
+        if 'translation_verses' in existing_tables:
+            if create_index_safe('idx_translation_verses_lookup', 'translation_verses', 'translation_id, verse_index'):
+                indexes_added += 1
+        
+        if 'texts' in existing_tables:
+            if create_index_safe('idx_texts_project_type', 'texts', 'project_id, text_type'):
+                indexes_added += 1
+        
+        if 'projects' in existing_tables:
+            if create_index_safe('idx_projects_user_updated', 'projects', 'user_id, updated_at'):
+                indexes_added += 1
+        
+        if indexes_added > 0:
+            print(f"✅ Applied {indexes_added} performance indexes automatically")
+        else:
+            print("✅ All performance indexes already exist")
+            
+    except Exception as e:
+        print(f"⚠️  Could not run performance migrations: {e}")
+
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
@@ -94,11 +148,15 @@ def create_app():
         response.headers['Cache-Control'] = 'public, max-age=86400'  # Cache for 1 day
         return response
     
-    # Create database tables
+    # Create database tables and run migrations
     with app.app_context():
         try:
             db.create_all()
             print("Database tables created successfully")
+            
+            # PERFORMANCE: Run critical performance migrations automatically
+            run_performance_migrations()
+            
         except Exception as e:
             print(f"Database connection failed during startup: {e}")
             print("App will start without database initialization")

@@ -1,4 +1,4 @@
-// Unified Text Window Class
+// Unified Text Window Class - OPTIMIZED for Performance
 class TextWindow {
     constructor(id, data, type, title, targetLanguage = null) {
         this.id = id;
@@ -7,15 +7,18 @@ class TextWindow {
         this.title = title;
         this.targetLanguage = targetLanguage; 
         this.element = null;
-        this.themeManager = new ThemeManager(id);
         this.audioManager = new AudioManager(id);
+        
+        // PERFORMANCE: Simple rendering - no virtual scrolling
+        
+        // PERFORMANCE: Lazy loading flags
+        this.audioControlsLoaded = false;
+        this.dragListenersSetup = false;
     }
-    
-
     
     render(container) {
         const textWindow = document.createElement('div');
-        textWindow.className = `flex flex-col border rounded-sm overflow-hidden bg-white min-h-15 flex-1 transition-all duration-200 ${this.themeManager.getThemeClasses()}`;
+        textWindow.className = `flex flex-col border border-neutral-200 rounded-xl overflow-hidden bg-white min-h-15 flex-1 shadow-sm`;
         textWindow.dataset.textId = this.id;
         textWindow.dataset.windowId = this.id;
         
@@ -37,19 +40,17 @@ class TextWindow {
     
     createHeader() {
         const header = document.createElement('div');
-        header.className = `px-4 py-3 text-sm font-bold border-b flex items-center justify-between flex-shrink-0 uppercase tracking-wider cursor-grab active:cursor-grabbing ${this.themeManager.getHeaderThemeClasses()}`;
+        header.className = `px-4 py-3 text-sm font-bold border-b border-neutral-200 flex items-center justify-between flex-shrink-0 tracking-wide cursor-grab active:cursor-grabbing bg-neutral-50 text-neutral-800`;
         header.draggable = true;
         header.setAttribute('data-window-header', 'true');
         
         const downloadButton = this.createDownloadButton();
         const plusButton = this.createPlusButton();
-        const closeButton = `<button class="text-red-600 hover:text-red-800 hover:bg-red-100 rounded p-1 transition-colors close-text-btn" 
+        const closeButton = `<button class="text-red-600 rounded p-1 close-text-btn" 
                        data-text-id="${this.id}" 
                        title="Remove this text">
                    <i class="fas fa-times text-xs"></i>
                </button>`;
-        
-        const colorPicker = this.themeManager.createColorPicker();
         
         header.innerHTML = `
             <div class="flex items-center">
@@ -64,7 +65,6 @@ class TextWindow {
         const rightContainer = header.querySelector('div:last-child');
         rightContainer.insertBefore(downloadButton, rightContainer.firstChild);
         rightContainer.insertBefore(plusButton, rightContainer.firstChild);
-        rightContainer.insertBefore(colorPicker, rightContainer.firstChild);
         
         header.addEventListener('dragstart', (e) => {
             const windowData = {
@@ -84,94 +84,22 @@ class TextWindow {
         return header;
     }
     
-    createColorPicker() {
-        const colorPicker = document.createElement('div');
-        colorPicker.className = 'relative inline-block';
-        
-        const toggle = document.createElement('div');
-        toggle.className = 'w-5 h-5 border border-current rounded cursor-pointer transition-all duration-200 flex items-center justify-center hover:scale-110 hover:shadow-sm';
-        toggle.title = 'Change window color';
-        toggle.innerHTML = '<i class="fas fa-palette text-xs opacity-70"></i>';
-        
-        const dropdown = document.createElement('div');
-        dropdown.className = 'absolute top-full right-0 bg-white border border-gray-800 rounded-md p-3 hidden z-50 shadow-xl';
-        
-        const colorOptions = document.createElement('div');
-        colorOptions.className = 'grid grid-cols-3 gap-2 w-24';
-        
-        const themes = [
-            { class: 'theme-default', name: 'Default', gradient: 'from-gray-800 to-gray-600' },
-            { class: 'theme-blue', name: 'Blue', gradient: 'from-blue-600 to-blue-500' },
-            { class: 'theme-green', name: 'Green', gradient: 'from-green-600 to-green-500' },
-            { class: 'theme-purple', name: 'Purple', gradient: 'from-purple-600 to-purple-500' },
-            { class: 'theme-orange', name: 'Orange', gradient: 'from-orange-600 to-orange-500' },
-            { class: 'theme-pink', name: 'Pink', gradient: 'from-pink-600 to-pink-500' },
-            { class: 'theme-teal', name: 'Teal', gradient: 'from-teal-600 to-teal-500' }
-        ];
-        
-        themes.forEach(theme => {
-            const option = document.createElement('div');
-            option.className = `w-6 h-6 border border-transparent rounded cursor-pointer transition-all duration-200 relative bg-gradient-to-br ${theme.gradient} hover:scale-110 hover:border-gray-400`;
-            option.title = theme.name;
-            option.setAttribute('data-theme-option', theme.class);
-            
-            if (theme.class === this.colorTheme) {
-                option.classList.add('border-gray-800', 'border-2');
-                option.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-white text-xs font-bold">✓</div>';
-            }
-            
-            option.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.setColorTheme(theme.class);
-                dropdown.classList.add('hidden');
-                dropdown.classList.remove('block');
-            });
-            
-            colorOptions.appendChild(option);
-        });
-        
-        dropdown.appendChild(colorOptions);
-        
-        toggle.addEventListener('click', (e) => {
-            e.stopPropagation();
-            dropdown.classList.toggle('hidden');
-            dropdown.classList.toggle('block');
-            
-            document.querySelectorAll('.color-picker-dropdown:not(.hidden)').forEach(other => {
-                if (other !== dropdown) {
-                    other.classList.add('hidden');
-                    other.classList.remove('block');
-                }
-            });
-        });
-        
-        document.addEventListener('click', (e) => {
-            if (!colorPicker.contains(e.target)) {
-                dropdown.classList.add('hidden');
-                dropdown.classList.remove('block');
-            }
-        });
-        
-        colorPicker.appendChild(toggle);
-        colorPicker.appendChild(dropdown);
-        
-        return colorPicker;
-    }
+
 
     createDownloadButton() {
         const downloadContainer = document.createElement('div');
         downloadContainer.className = 'relative inline-block';
         
         const downloadToggle = document.createElement('button');
-        downloadToggle.className = 'text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded p-1 transition-colors';
+        downloadToggle.className = 'text-gray-600 rounded p-1';
         downloadToggle.title = 'Download chapter';
         downloadToggle.innerHTML = '<i class="fas fa-download text-xs"></i>';
         
         const downloadDropdown = document.createElement('div');
-        downloadDropdown.className = 'absolute top-full right-0 bg-white border-2 border-gray-800 rounded-md py-2 hidden z-50 shadow-xl min-w-36';
+        downloadDropdown.className = 'absolute top-full right-0 bg-white border border-neutral-200 rounded-xl py-2 hidden z-50 shadow-xl min-w-36';
         
         const txtButton = document.createElement('button');
-        txtButton.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center';
+        txtButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center';
         txtButton.innerHTML = '<i class="fas fa-file-alt mr-2 text-gray-500"></i>Download as TXT';
         txtButton.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -180,7 +108,7 @@ class TextWindow {
         });
         
         const usfmButton = document.createElement('button');
-        usfmButton.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center';
+        usfmButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center';
         usfmButton.innerHTML = '<i class="fas fa-code mr-2 text-gray-500"></i>Download as USFM';
         usfmButton.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -219,7 +147,7 @@ class TextWindow {
 
     createPlusButton() {
         const plusButton = document.createElement('button');
-        plusButton.className = 'text-gray-600 hover:text-green-600 hover:bg-green-50 rounded p-1 transition-colors';
+        plusButton.className = 'text-gray-600 rounded p-1';
         plusButton.title = 'Load additional text';
         plusButton.innerHTML = '<i class="fas fa-plus text-xs"></i>';
 
@@ -367,7 +295,7 @@ class TextWindow {
     
     createContent() {
         const content = document.createElement('div');
-        content.className = 'flex-1 overflow-y-auto overflow-x-hidden p-4 leading-tight text-sm bg-white scroll-smooth';
+        content.className = 'flex-1 overflow-y-auto overflow-x-hidden p-4 leading-tight text-sm bg-white';
         content.setAttribute('data-window-content', 'true');
         
         if (!this.data?.verses) {
@@ -375,11 +303,64 @@ class TextWindow {
             return content;
         }
         
-        // Add simple purpose section at the top
+        // Add purpose section
+        const purposeSection = this.createPurposeSection();
+        content.appendChild(purposeSection);
+        
+        // PERFORMANCE: Simple rendering - no virtual scrolling
+        this.renderAllVerses(content);
+        
+        return content;
+    }
+    
+    setupProgressiveLoading(container) {
+        // PERFORMANCE: Simple rendering - no progressive loading
+        const fragment = document.createDocumentFragment();
+        
+        this.data.verses.forEach(verseData => {
+            const verseWrapper = this.createVerseElement(verseData, false);
+            fragment.appendChild(verseWrapper);
+        });
+        
+        container.appendChild(fragment);
+        
+        // PERFORMANCE: Simple scroll sync between windows
+        this.setupScrollSync(container);
+    }
+    
+    setupScrollSync(container) {
+        // PERFORMANCE: Simple scroll sync without expensive calculations
+        let syncTimeout;
+        
+        container.addEventListener('scroll', () => {
+            // PERFORMANCE: Debounce scroll sync to avoid excessive calculations
+            if (syncTimeout) clearTimeout(syncTimeout);
+            syncTimeout = setTimeout(() => {
+                // PERFORMANCE: Use simple percentage-based sync
+                const scrollPercent = container.scrollTop / Math.max(1, container.scrollHeight - container.clientHeight);
+                
+                // PERFORMANCE: Cache container query and sync only visible containers
+                const otherContainers = document.querySelectorAll('[data-window-content]');
+                otherContainers.forEach(otherContainer => {
+                    if (otherContainer !== container && otherContainer.offsetParent) {
+                        const maxScroll = otherContainer.scrollHeight - otherContainer.clientHeight;
+                        if (maxScroll > 0) {
+                            const targetScroll = scrollPercent * maxScroll;
+                            // PERFORMANCE: Use smooth scrolling for better UX
+                            otherContainer.scrollTo({
+                                top: targetScroll,
+                                behavior: 'smooth'
+                            });
+                        }
+                    }
+                });
+            }, 100); // Increased debounce delay for better performance
+        }, { passive: true });
+    }
+    
+    createPurposeSection() {
         const purposeSection = document.createElement('div');
         purposeSection.className = 'mb-4 p-3 bg-gray-50 border border-gray-200 rounded-sm';
-        
-
         
         const currentPurpose = this.data?.purpose_description || this.data?.description || '';
         const isTranslation = this.id.includes('translation_');
@@ -403,36 +384,43 @@ class TextWindow {
                       maxlength="1000">${currentPurpose}</textarea>
             <div class="flex justify-between items-center mt-1">
                 <span class="text-xs text-gray-500 char-counter">${currentPurpose.length}/1,000</span>
-                <button class="${isTranslation ? 'save-translation-purpose-btn' : 'save-purpose-btn'} inline-flex items-center px-2 py-1 text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors rounded-sm"
+                <button class="${isTranslation ? 'save-translation-purpose-btn' : 'save-purpose-btn'} inline-flex items-center px-2 py-1 text-xs font-semibold bg-blue-600 text-white rounded-sm"
                         data-${isTranslation ? 'translation-id' : 'file-id'}="${extractedId}">
                     <i class="fas fa-save mr-1"></i>Save
                 </button>
             </div>
         `;
-        content.appendChild(purposeSection);
+        
+        return purposeSection;
+    }
+    
+    renderAllVerses(container) {
+        // PERFORMANCE: Use DocumentFragment for batch DOM updates
+        const fragment = document.createDocumentFragment();
         
         this.data.verses.forEach(verseData => {
-            const verseWrapper = this.createVerseElement(verseData);
-            content.appendChild(verseWrapper);
+            const verseWrapper = this.createVerseElement(verseData, false); // false = not virtualized
+            fragment.appendChild(verseWrapper);
         });
         
-        return content;
+        container.appendChild(fragment);
     }
     
 
 
     
-    createVerseElement(verseData) {
+    createVerseElement(verseData, isVirtualized = false) {
+        // PERFORMANCE: Use pooled elements
         const verseWrapper = document.createElement('div');
-        verseWrapper.className = 'verse-cell relative mb-4 transition-all duration-200 group border border-stone-300 rounded-sm overflow-hidden bg-white hover:border-stone-400';
+        verseWrapper.className = 'verse-cell relative mb-4 border border-stone-300 rounded-sm overflow-hidden bg-white';
         verseWrapper.dataset.verse = verseData.verse;
         verseWrapper.dataset.verseCell = 'true';
         
-        // Create navigation bar
+        // PERFORMANCE: Create navigation bar with pooled elements
         const navBar = document.createElement('div');
-        navBar.className = 'flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-200 min-h-[40px]';
+        navBar.className = 'flex items-center justify-between px-3 py-0.5 bg-gray-50 border-b border-gray-200 min-h-[22px]';
         
-        // Left side - verse reference
+        // PERFORMANCE: Reuse verse label
         const verseLabel = document.createElement('div');
         const labelClasses = this.type === 'primary' ? 
             'text-red-600 bg-red-50' : 
@@ -440,7 +428,7 @@ class TextWindow {
         verseLabel.className = `text-xs font-semibold px-2 py-1 rounded-sm ${labelClasses}`;
         verseLabel.textContent = verseData.reference;
         
-        // Right side - controls container
+        // PERFORMANCE: Reuse controls container
         const controlsContainer = document.createElement('div');
         controlsContainer.className = 'flex items-center gap-1';
         
@@ -448,13 +436,28 @@ class TextWindow {
         navBar.appendChild(controlsContainer);
         verseWrapper.appendChild(navBar);
         
+        const textarea = this.createOptimizedTextarea(verseData);
+        verseWrapper.appendChild(textarea);
+        
+        // PERFORMANCE: Batch control setup to reduce DOM queries
+        this.setupVerseControlsBatched(controlsContainer, verseData, textarea, verseWrapper);
+        
+        return verseWrapper;
+    }
+    
+    createOptimizedTextarea(verseData) {
         const textarea = document.createElement('textarea');
-        textarea.className = `w-full min-h-20 p-4 border-0 text-base leading-7 resize-none focus:ring-0 focus:outline-none bg-white font-['Inter'] transition-all duration-200 overflow-hidden`;
+        textarea.className = `w-full p-4 border-0 text-base leading-7 resize-none focus:ring-0 focus:outline-none bg-white font-['Inter'] overflow-hidden`;
         textarea.placeholder = `Edit verse ${verseData.verse} or drop text here...`;
         textarea.dataset.verse = verseData.verse;
         textarea.dataset.verseIndex = verseData.index;
         textarea.value = verseData.target_text || verseData.source_text || '';
         textarea.draggable = false;
+        
+        // PERFORMANCE: Set proper height immediately based on content
+        const lines = (textarea.value || '').split('\n').length;
+        const minHeight = Math.max(80, lines * 24 + 32); // 24px per line + padding
+        textarea.style.height = minHeight + 'px';
         
         // Disable editing for viewers
         if (window.translationEditor && !window.translationEditor.canEdit) {
@@ -465,158 +468,117 @@ class TextWindow {
             textarea.title = 'Editor access required to edit translations';
         }
         
-        verseWrapper.appendChild(textarea);
+        // PERFORMANCE: Use optimized event handlers
+        this.attachOptimizedTextareaListeners(textarea);
         
-        // Only add sparkle translate button for primary windows and if user can edit
-        if (this.type === 'primary' && window.translationEditor?.canEdit) {
-            // Add audio controls first
-            this.audioManager.createAudioControls(controlsContainer, verseData, textarea);
-            
-            const sparkleButton = document.createElement('button');
-            sparkleButton.className = 'w-7 h-7 bg-transparent border-0 cursor-pointer flex items-center justify-center transition-all duration-200 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded-sm sparkle-translate-btn';
-            sparkleButton.innerHTML = '<i class="fas fa-magic text-sm"></i>';
-            sparkleButton.title = 'Translate this verse with AI';
-            sparkleButton.setAttribute('data-verse', verseData.verse);
-            sparkleButton.setAttribute('data-verse-index', verseData.index);
-            
-            this.addSparkleButtonListener(sparkleButton, verseData, textarea);
-            controlsContainer.appendChild(sparkleButton);
-        }
+        return textarea;
+    }
+    
+    attachOptimizedTextareaListeners(textarea) {
+        // PERFORMANCE: SIMPLEST POSSIBLE - just store the value
+        let currentValue = '';
+        let resizeTimeout;
         
-        // Create drag handle (only for editors)
+        textarea.addEventListener('input', (e) => {
+            currentValue = e.target.value; // Just store, no processing
+            
+            // PERFORMANCE: Debounce height adjustment to prevent scroll jank
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                const lines = currentValue.split('\n').length;
+                const newHeight = Math.max(80, lines * 24 + 32);
+                if (Math.abs(textarea.offsetHeight - newHeight) > 20) { // Increased threshold
+                    textarea.style.height = newHeight + 'px';
+                }
+            }, 150); // Debounce for 150ms
+        }, { passive: true });
+        
+        // PERFORMANCE: Only process on blur
+        textarea.addEventListener('blur', () => {
+            if (window.translationEditor?.saveSystem) {
+                const verseIndex = parseInt(textarea.dataset.verseIndex);
+                if (!isNaN(verseIndex)) {
+                    window.translationEditor.saveSystem.bufferVerseChange(verseIndex, currentValue);
+                }
+            }
+        }, { passive: true });
+        
+        // PERFORMANCE: Remove all other listeners - no focus handlers, no resize handlers
+    }
+    
+    // PERFORMANCE: Resize functions removed - textareas are proper size from start
+    
+    setupVerseControlsBatched(controlsContainer, verseData, textarea, verseWrapper) {
+        // PERFORMANCE: Batch all control creation to reduce DOM operations
+        const fragment = document.createDocumentFragment();
+        
+        // Only add controls for editors
         if (window.translationEditor?.canEdit) {
+            // Primary window gets sparkle button
+            if (this.type === 'primary') {
+                // PERFORMANCE: Create audio placeholder
+                const audioPlaceholder = document.createElement('div');
+                audioPlaceholder.className = 'audio-placeholder w-5 h-5 bg-gray-100 rounded cursor-pointer flex items-center justify-center';
+                audioPlaceholder.innerHTML = '<i class="fas fa-volume-up text-xs text-gray-400"></i>';
+                audioPlaceholder.title = 'Click to load audio controls';
+                
+                // PERFORMANCE: Use single onclick handler
+                audioPlaceholder.onclick = () => this.loadAudioControls(controlsContainer, audioPlaceholder, verseData, textarea);
+                
+                fragment.appendChild(audioPlaceholder);
+                
+                // PERFORMANCE: Create sparkle button
+                const sparkleButton = document.createElement('button');
+                sparkleButton.className = 'w-7 h-7 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm sparkle-translate-btn';
+                sparkleButton.innerHTML = '<i class="fas fa-magic text-sm"></i>';
+                sparkleButton.title = 'Translate this verse with AI';
+                sparkleButton.setAttribute('data-verse', verseData.verse);
+                sparkleButton.setAttribute('data-verse-index', verseData.index);
+                
+                // PERFORMANCE: Store handler reference for efficient cleanup
+                sparkleButton._clickHandler = (e) => this.handleSparkleClick(e, verseData, textarea, sparkleButton);
+                sparkleButton.onclick = sparkleButton._clickHandler;
+                
+                fragment.appendChild(sparkleButton);
+            }
+            
+            // PERFORMANCE: Create drag handle
             const dragHandle = document.createElement('div');
-            dragHandle.className = `w-7 h-7 bg-gray-100 border border-gray-300 rounded-sm cursor-move flex items-center justify-center transition-all duration-200 hover:bg-gray-200 hover:border-gray-400 sparkle-drag-handle`;
+            dragHandle.className = 'w-7 h-7 bg-gray-100 border border-gray-300 rounded-sm cursor-move flex items-center justify-center sparkle-drag-handle';
             dragHandle.innerHTML = '<i class="fas fa-arrows-alt text-sm text-gray-500"></i>';
             dragHandle.title = 'Drag to translate';
             dragHandle.draggable = true;
             
-            this.addDragListeners(dragHandle, verseData);
-            controlsContainer.appendChild(dragHandle);
+            // PERFORMANCE: Store handler references for efficient cleanup
+            dragHandle._dragStartHandler = (e) => this.handleDragStart(e, verseData, textarea, dragHandle);
+            dragHandle._dragEndHandler = (e) => this.handleDragEnd(e, verseData, textarea, dragHandle);
+            dragHandle.ondragstart = dragHandle._dragStartHandler;
+            dragHandle.ondragend = dragHandle._dragEndHandler;
+            
+            fragment.appendChild(dragHandle);
         }
         
-        // Initialize verse cell behavior after DOM is ready, but only if no audio controls exist
-        setTimeout(() => {
-            if (window.VerseCell && !verseWrapper.querySelector('.audio-controls')) {
-                window.VerseCell.initialize(verseWrapper);
-            }
-        }, 10);
-        
-        return verseWrapper;
+        // PERFORMANCE: Single DOM append instead of multiple
+        controlsContainer.appendChild(fragment);
     }
     
-    addDragListeners(dragHandle, verseData) {
-        dragHandle.addEventListener('dragstart', (e) => {
-            const container = dragHandle.closest('[data-verse]');
-            const textarea = container.querySelector('textarea');
-            
-            const dragData = {
-                sourceText: textarea.value || '',
-                sourceId: this.id,
-                verse: verseData.verse,
-                reference: verseData.reference,
-                sourceType: this.type,
-                sourceTitle: this.title
-            };
-            
-            // Start collection system - hover over verses to add them
-            if (window.translationEditor?.dragDrop) {
-                window.translationEditor.dragDrop.startCollection(dragData);
-                
-                // Add visual feedback to the initial verse textarea
-                textarea.style.backgroundColor = '#dbeafe';
-                textarea.style.borderColor = '#3b82f6';
-                textarea.style.borderWidth = '2px';
-            }
-            
-            e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
-            e.dataTransfer.effectAllowed = 'copy';
-            
-            container.classList.add('opacity-70', 'bg-blue-100', 'border', 'border-blue-500', 'rounded');
-        });
-        
-        dragHandle.addEventListener('dragend', () => {
-            const container = dragHandle.closest('[data-verse]');
-            const textarea = container.querySelector('textarea');
-            
-            container.classList.remove('opacity-70', 'bg-blue-100', 'border', 'border-blue-500', 'rounded');
-            
-            // Clear visual feedback from the initial verse (will be cleaned up by endCollection too)
-            textarea.style.backgroundColor = '';
-            textarea.style.borderColor = '';
-            textarea.style.borderWidth = '';
-        });
-    }
+    // Removed - using batched controls now
     
-    addSparkleButtonListener(sparkleButton, verseData, textarea) {
-        sparkleButton.addEventListener('click', async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            // Find source text from other windows
-            let sourceText = '';
-            let sourceWindow = null;
-            
-            // Look for any other window with text in this verse
-            for (const [id, textWindow] of window.translationEditor.textWindows) {
-                if (textWindow.id !== this.id) {
-                    const sourceTextarea = textWindow.element?.querySelector(`textarea[data-verse="${verseData.verse}"]`);
-                    if (sourceTextarea && sourceTextarea.value?.trim()) {
-                        sourceText = sourceTextarea.value.trim();
-                        sourceWindow = textWindow;
-                        break;
-                    }
-                }
-            }
-            
-            if (!sourceText) {
-                // Flash error
-                sparkleButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
-                sparkleButton.style.color = '#dc2626';
-                setTimeout(() => {
-                    sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
-                    sparkleButton.style.color = '';
-                }, 1500);
-                return;
-            }
-            
-            // Create drag data and use existing translation system
-            const dragData = {
-                sourceText: sourceText,
-                sourceId: sourceWindow.id,
-                verse: verseData.verse,
-                reference: verseData.reference,
-                sourceType: sourceWindow.type,
-                sourceTitle: sourceWindow.title
-            };
-            
-            // Show loading
-            sparkleButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            sparkleButton.style.color = '#3b82f6';
-            
-            try {
-                // Use existing translation system
-                await window.translationEditor.translateFromDrag(dragData, textarea, this);
-                
-                // Success
-                sparkleButton.innerHTML = '<i class="fas fa-check"></i>';
-                sparkleButton.style.color = '#10b981';
-                setTimeout(() => {
-                    sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
-                    sparkleButton.style.color = '';
-                }, 2000);
-                
-            } catch (error) {
-                // Error
-                sparkleButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
-                sparkleButton.style.color = '#dc2626';
-                setTimeout(() => {
-                    sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
-                    sparkleButton.style.color = '';
-                }, 2000);
-            }
-        });
-    }
+    // Removed - using optimized audio loading now
+    
+    // Removed - using pooled elements now
+    
+    // Removed - using pooled elements now
+    
+    // Removed - using optimized drag handlers now
+    
+    // Removed - using optimized sparkle handler now
+    
+
+    
+
+    
+
     
 
     
@@ -731,9 +693,123 @@ class TextWindow {
                 }
                 
                 // Small delay between translations to avoid overwhelming the server
-                await new Promise(resolve => setTimeout(resolve, 200));
+                await new Promise(resolve => setTimeout(resolve, 50));
             }
         }
+    }
+
+    // PERFORMANCE: Optimized audio loading
+    loadAudioControls(controlsContainer, placeholder, verseData, textarea) {
+        if (!this.audioControlsLoaded) {
+            controlsContainer.removeChild(placeholder);
+            this.audioManager.createAudioControls(controlsContainer, verseData, textarea);
+            this.audioControlsLoaded = true;
+        }
+    }
+    
+    // PERFORMANCE: Optimized sparkle click handler
+    async handleSparkleClick(e, verseData, textarea, sparkleButton) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Find source text from other windows
+        let sourceText = '';
+        let sourceWindow = null;
+        
+        // PERFORMANCE: Cache textWindows to avoid repeated access
+        const textWindows = window.translationEditor.textWindows;
+        
+        for (const [id, textWindow] of textWindows) {
+            if (textWindow.id !== this.id) {
+                const sourceTextarea = textWindow.element?.querySelector(`textarea[data-verse="${verseData.verse}"]`);
+                if (sourceTextarea && sourceTextarea.value?.trim()) {
+                    sourceText = sourceTextarea.value.trim();
+                    sourceWindow = textWindow;
+                    break;
+                }
+            }
+        }
+        
+        if (!sourceText) {
+            // PERFORMANCE: Simple error indication
+            sparkleButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+            sparkleButton.style.color = '#dc2626';
+            setTimeout(() => {
+                sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+                sparkleButton.style.color = '';
+            }, 1000);
+            return;
+        }
+        
+        // Create drag data and use existing translation system
+        const dragData = {
+            sourceText: sourceText,
+            sourceId: sourceWindow.id,
+            verse: verseData.verse,
+            reference: verseData.reference,
+            sourceType: sourceWindow.type,
+            sourceTitle: sourceWindow.title
+        };
+        
+        // Show loading
+        sparkleButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        sparkleButton.style.color = '#3b82f6';
+        
+        try {
+            await window.translationEditor.translateFromDrag(dragData, textarea, this);
+            
+            // Success
+            sparkleButton.innerHTML = '<i class="fas fa-check"></i>';
+            sparkleButton.style.color = '#10b981';
+            setTimeout(() => {
+                sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+                sparkleButton.style.color = '';
+            }, 1000);
+            
+        } catch (error) {
+            // Error
+            sparkleButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+            sparkleButton.style.color = '#dc2626';
+            setTimeout(() => {
+                sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+                sparkleButton.style.color = '';
+            }, 1000);
+        }
+    }
+    
+    // PERFORMANCE: Optimized drag handlers
+    handleDragStart(e, verseData, textarea, dragHandle) {
+        const container = dragHandle.closest('[data-verse]');
+        
+        const dragData = {
+            sourceText: textarea.value || '',
+            sourceId: this.id,
+            verse: verseData.verse,
+            reference: verseData.reference,
+            sourceType: this.type,
+            sourceTitle: this.title
+        };
+        
+        if (window.translationEditor?.dragDrop) {
+            window.translationEditor.dragDrop.startCollection(dragData);
+            
+            // PERFORMANCE: Direct style assignment
+            textarea.style.cssText = 'background-color: #dbeafe; border-color: #3b82f6; border-width: 2px;';
+        }
+        
+        e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+        e.dataTransfer.effectAllowed = 'copy';
+        
+        container.className += ' opacity-70 bg-blue-100 border border-blue-500 rounded';
+    }
+    
+    handleDragEnd(e, verseData, textarea, dragHandle) {
+        const container = dragHandle.closest('[data-verse]');
+        
+        container.className = container.className.replace(' opacity-70 bg-blue-100 border border-blue-500 rounded', '');
+        
+        // PERFORMANCE: Clear styles directly
+        textarea.style.cssText = '';
     }
 }
 

@@ -15,20 +15,22 @@
 {% endif %}
 
 {% block content %}
-<section class="min-h-screen paper-white{% if admin_view %} admin-view{% endif %}">
+<section class="min-h-screen{% if admin_view %} admin-view{% endif %}">
     {% if admin_view %}
     <!-- Admin View Banner -->
     <div class="bg-blue-50 border-b border-blue-200">
-        <div class="max-w-5xl mx-auto px-6 py-3">
-            <div class="flex items-center justify-between">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div class="flex items-center text-sm text-blue-700 font-medium">
                     <i class="fas fa-shield-alt mr-2"></i>
-                    Admin View: {{ project_owner.name }}'s Project
+                    <span class="hidden sm:inline">Admin View: {{ project_owner.name }}'s Project</span>
+                    <span class="sm:hidden">Admin: {{ project_owner.name }}</span>
                 </div>
                 <a href="{{ url_for('admin.user_detail', encoded_user_id=encode_id(project_owner.id, 'user')) }}" 
                    class="text-blue-600 hover:text-blue-800 text-sm font-medium">
                     <i class="fas fa-arrow-left mr-1"></i>
-                    Back to {{ project_owner.name }}'s Profile
+                    <span class="hidden sm:inline">Back to {{ project_owner.name }}'s Profile</span>
+                    <span class="sm:hidden">Back</span>
                 </a>
             </div>
         </div>
@@ -36,15 +38,16 @@
     {% endif %}
     
     <!-- Clean Header -->
-    <div class="paper-cream border-b border-neutral-300">
-        <div class="max-w-5xl mx-auto px-6 py-8">
-            <div class="flex items-center justify-between">
-                <div>
-                    <div class="flex items-center text-sm text-neutral-600 mb-2 font-medium">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
+        <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-4 sm:p-8 mb-6 sm:mb-8">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center text-sm text-neutral-600 mb-2 font-medium">
                         {% if admin_view %}
                         <a href="{{ url_for('admin.user_detail', encoded_user_id=encode_id(project_owner.id, 'user')) }}" class="hover:text-neutral-900 transition-colors">
                             <i class="fas fa-arrow-left mr-2"></i>
-                            {{ project_owner.name }}'s Projects
+                            <span class="hidden sm:inline">{{ project_owner.name }}'s Projects</span>
+                            <span class="sm:hidden">Projects</span>
                         </a>
                         {% else %}
                         <a href="{{ url_for('projects.dashboard') }}" class="hover:text-neutral-900 transition-colors">
@@ -53,26 +56,26 @@
                         </a>
                         {% endif %}
                         <span class="mx-2">→</span>
-                        <span>{{ project.target_language }}</span>
+                        <span class="truncate">{{ project.target_language }}</span>
                     </div>
-                    <h1 class="text-2xl font-bold" style="color: #2d2d2d;">{{ project.target_language }} Translation</h1>
-                    <p class="text-neutral-700 mt-1 font-medium">{{ project.audience }} • {{ project.style }} style</p>
-                    <div class="flex items-center space-x-2 mt-2">
+                    <h1 class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2 break-words">{{ project.target_language }} Translation</h1>
+                    <p class="text-neutral-700 font-medium text-base sm:text-lg mb-4">{{ project.audience }} • {{ project.style }} style</p>
+                    <div class="flex flex-wrap items-center gap-2 sm:gap-3">
                         {% if texts|length > 0 %}
-                            <span class="inline-flex items-center px-2 py-1 text-xs font-bold bg-green-100 text-green-800 border border-green-200">
-                                <i class="fas fa-check-circle mr-1"></i>
+                            <span class="inline-flex items-center px-3 py-1.5 text-sm font-bold bg-green-100 text-green-800 border border-green-200 rounded-lg">
+                                <i class="fas fa-check-circle mr-1.5"></i>
                                 {{ texts|length }} translation{{ 's' if texts|length != 1 else '' }}
                             </span>
                             {% set translations_with_purpose = texts|selectattr('purpose_description')|list|length %}
                             {% if translations_with_purpose > 0 %}
-                                <span class="inline-flex items-center px-2 py-1 text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
-                                    <i class="fas fa-tag mr-1"></i>
+                                <span class="inline-flex items-center px-3 py-1.5 text-sm font-bold bg-blue-100 text-blue-800 border border-blue-200 rounded-lg">
+                                    <i class="fas fa-tag mr-1.5"></i>
                                     {{ translations_with_purpose }} with purpose{{ 's' if translations_with_purpose != 1 else '' }}
                                 </span>
                             {% endif %}
                         {% else %}
-                            <span class="inline-flex items-center px-2 py-1 text-xs font-bold bg-neutral-100 text-neutral-600 border border-neutral-200">
-                                <i class="fas fa-plus mr-1"></i>
+                            <span class="inline-flex items-center px-3 py-1.5 text-sm font-bold bg-neutral-100 text-neutral-600 border border-neutral-200 rounded-lg">
+                                <i class="fas fa-plus mr-1.5"></i>
                                 Create translations to start
                             </span>
                         {% endif %}
@@ -80,29 +83,31 @@
                 </div>
                 
                 {% if not admin_view %}
-                <div class="flex items-center space-x-3">
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full lg:w-auto">
                     {% set can_translate = texts|length > 0 %}
                     
                     <a href="{{ url_for('translation.translate_page', project_id=project.id) }}" 
-                       class="px-4 py-2 {% if can_translate %}btn-marker{% else %}paper-light text-neutral-500 cursor-not-allowed border border-neutral-300{% endif %}"
+                       class="px-4 sm:px-6 py-3 {% if can_translate %}bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 border-0{% else %}bg-neutral-100 text-neutral-500 cursor-not-allowed border border-neutral-300{% endif %} rounded-xl font-semibold transition-all duration-200 text-center whitespace-nowrap"
                        {% if not can_translate %}onclick="return false;" title="Create translations to enable editing"{% endif %}>
                         <i class="fas fa-language mr-2"></i>
                         Translate
                     </a>
                     
-                    {% if project.has_member_access(current_user.id, 'owner') %}
-                    <a href="{{ url_for('members.project_members', project_id=project.id) }}"
-                       class="px-4 py-2 paper-light text-neutral-700 border border-neutral-300 font-bold hover:bg-neutral-100 transition-colors">
-                        <i class="fas fa-users mr-2"></i>
-                        Members
-                    </a>
-                    {% endif %}
-                    
-                    <a href="{{ url_for('projects.edit_project', project_id=project.id) }}"
-                       class="px-4 py-2 paper-light text-neutral-700 border border-neutral-300 font-bold hover:bg-neutral-100 transition-colors">
-                        <i class="fas fa-edit mr-2"></i>
-                        Edit
-                    </a>
+                    <div class="flex gap-2 sm:gap-3">
+                        {% if project.has_member_access(current_user.id, 'owner') %}
+                        <a href="{{ url_for('members.project_members', project_id=project.id) }}"
+                           class="flex-1 sm:flex-none px-3 sm:px-4 py-3 bg-white text-neutral-700 border border-neutral-300 rounded-xl font-semibold hover:bg-neutral-50 transition-all duration-200 shadow-md text-center">
+                            <i class="fas fa-users mr-2"></i>
+                            <span class="hidden sm:inline">Members</span>
+                        </a>
+                        {% endif %}
+                        
+                        <a href="{{ url_for('projects.edit_project', project_id=project.id) }}"
+                           class="flex-1 sm:flex-none px-3 sm:px-4 py-3 bg-white text-neutral-700 border border-neutral-300 rounded-xl font-semibold hover:bg-neutral-50 transition-all duration-200 shadow-md text-center">
+                            <i class="fas fa-edit mr-2"></i>
+                            <span class="hidden sm:inline">Edit</span>
+                        </a>
+                    </div>
                 </div>
                 {% else %}
                 <div class="text-sm text-neutral-600 font-medium">
@@ -112,394 +117,405 @@
                 {% endif %}
             </div>
         </div>
-    </div>
 
-    <!-- Tab Navigation -->
-    <div class="max-w-5xl mx-auto px-6">
-        <div class="border-b border-neutral-200">
-            <nav class="flex space-x-8" aria-label="Tabs">
-                <button class="tab-button active py-4 px-1 border-b-2 border-blue-600 font-medium text-sm text-blue-600" data-tab="files">
-                    <i class="fas fa-file-alt mr-2"></i>
-                    Files
-                </button>
-                <button class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-sm text-neutral-500 hover:text-neutral-700 hover:border-neutral-300" data-tab="fine-tuning">
-                    <i class="fas fa-brain mr-2"></i>
-                    Fine-Tuning
-                </button>
+        <!-- Tab Navigation -->
+        <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 mb-6 sm:mb-8">
+            <nav class="flex px-4 sm:px-8 py-4" aria-label="Tabs">
+                <div class="flex w-full">
+                    <button class="tab-button active flex-1 sm:flex-none py-3 px-2 sm:px-4 border-b-2 border-blue-600 font-semibold text-blue-600 text-center" data-tab="files">
+                        <i class="fas fa-file-alt mr-2"></i>
+                        Files
+                    </button>
+                    <button class="tab-button flex-1 sm:flex-none py-3 px-2 sm:px-4 border-b-2 border-transparent font-semibold text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 transition-all duration-200 text-center ml-4 sm:ml-8" data-tab="fine-tuning">
+                        <i class="fas fa-brain mr-2"></i>
+                        <span class="hidden sm:inline">Fine-Tuning</span>
+                        <span class="sm:hidden">AI</span>
+                    </button>
+                </div>
             </nav>
         </div>
-    </div>
 
-    <!-- Tab Content -->
-    <div class="max-w-5xl mx-auto px-6 py-8">
-        
-        <!-- Texts Tab -->
-        <div id="files-tab" class="tab-content">
-            {% if texts %}
-            <div class="mb-6 flex items-center justify-between">
-                <div>
-                    <h2 class="text-xl font-bold mb-2" style="color: #2d2d2d;">Translations</h2>
-                    <p class="text-neutral-600 font-medium">All translations in this project</p>
-                </div>
+        <!-- Tab Content -->
+        <div class="space-y-6 sm:space-y-8">
+            
+            <!-- Texts Tab -->
+            <div id="files-tab" class="tab-content">
+                {% if texts %}
+                <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-4 sm:p-8 mb-6 sm:mb-8">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                        <div>
+                            <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 mb-2">Translations</h2>
+                            <p class="text-neutral-600 font-medium">All translations in this project</p>
                         </div>
-            
-            <!-- Upload Zone -->
-            <div id="drag-drop-zone" class="border-2 border-dashed border-neutral-300 rounded-lg p-8 mb-6 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer">
-                <div class="flex flex-col items-center">
-                    <i class="fas fa-cloud-upload-alt text-4xl text-neutral-400 mb-4"></i>
-                    <h3 class="text-lg font-bold text-neutral-700 mb-2">Drop files here or click to upload</h3>
-                    <p class="text-sm text-neutral-600 mb-4">Upload .txt files, or .usfm/.sfm files</p>
-                    <input type="file" id="file-input" multiple accept=".txt,.usfm,.sfm" class="hidden">
-                    <div class="text-xs text-neutral-500">Files are automatically converted to database entries</div>
-                </div>
-            </div>
-            
-            <!-- Upload Progress -->
-            <div id="upload-progress" class="hidden mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div class="flex items-center mb-2">
-                    <i class="fas fa-spinner fa-spin text-blue-600 mr-2"></i>
-                    <span class="text-blue-700 font-medium">Uploading...</span>
-                </div>
-                <div class="w-full bg-blue-200 rounded-full h-2">
-                    <div id="progress-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-                </div>
-            </div>
-            
-            <div class="space-y-6">
-                <!-- Project Translations -->
-                {% for text in texts %}
-                <div class="group paper-white border border-neutral-200 hover:border-neutral-300 transition-all duration-200 hover:shadow-sm">
-                    <div class="p-4">
-                        <!-- Translation Header -->
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="min-w-0 flex-1">
-                                <h3 class="text-lg font-bold text-neutral-900 truncate mb-1">{{ text.name }}</h3>
-                                <div class="flex items-center space-x-4 text-sm text-neutral-600">
-                                    <span>{{ text.verse_count }} verses</span>
-                                    <span>{{ text.created_at.strftime('%b %d') }}</span>
-                                </div>
-                            </div>
-                            
-                            <!-- Translation Actions -->
-                            <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                <a href="{{ url_for('translation.translate_page', project_id=project.id) }}"
-                                   class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors">
-                                    <i class="fas fa-edit mr-1.5"></i>
-                                    Edit
-                                </a>
-                            </div>
-                        </div>
-                        
-                        <!-- Translation Purpose Section -->
-                        <div class="border-t border-neutral-100 pt-3">
-                            <label class="block text-sm font-semibold text-neutral-900 mb-2">Translation Purpose</label>
-                            <textarea class="w-full px-3 py-3 border border-neutral-200 bg-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors purpose-input resize-none"
-                                      rows="4"
-                                      placeholder="Describe this translation's role in your project..."
-                                      data-file-id="{{ text.id }}"
-                                      maxlength="1000">{{ text.purpose_description or '' }}</textarea>
-                            <div class="flex justify-between items-center mt-2">
-                                <p class="text-xs text-neutral-600">Help AI understand how to use this translation</p>
-                                <div class="flex items-center space-x-3">
-                                    <span class="text-xs text-neutral-500 char-counter">{{ (text.purpose_description or '')|length }}/1,000</span>
-                                    <button class="save-purpose-btn inline-flex items-center px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                                            data-file-id="{{ text.id }}">
-                                        <i class="fas fa-save mr-1.5"></i>Save
-                                    </button>
-                                </div>
-                            </div>
+                    </div>
+                
+                    <!-- Upload Zone -->
+                    <div id="drag-drop-zone" class="border-2 border-dashed border-neutral-300 rounded-xl p-4 sm:p-8 text-center hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-200 cursor-pointer">
+                        <div class="flex flex-col items-center">
+                            <i class="fas fa-cloud-upload-alt text-3xl sm:text-4xl text-neutral-400 mb-4"></i>
+                            <h3 class="text-base sm:text-lg font-semibold text-neutral-700 mb-2">Drop files here or click to upload</h3>
+                            <p class="text-sm text-neutral-600 mb-4">Upload .txt files, or .usfm/.sfm files</p>
+                            <input type="file" id="file-input" multiple accept=".txt,.usfm,.sfm" class="hidden">
+                            <div class="text-xs text-neutral-500">Files are automatically converted to database entries</div>
                         </div>
                     </div>
                 </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <!-- Empty State with Upload -->
-            <div id="drag-drop-zone-empty" class="border-2 border-dashed border-neutral-300 rounded-lg p-12 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer">
-                <div class="flex flex-col items-center">
-                    <i class="fas fa-cloud-upload-alt text-6xl text-neutral-400 mb-6"></i>
-                    <h3 class="text-xl font-bold mb-2" style="color: #2d2d2d;">Upload files or create translations</h3>
-                    <p class="text-neutral-600 mb-4 font-medium">Upload existing texts or create new translations to get started</p>
-                    <p class="text-sm text-neutral-600 mb-6">Drop .txt files here, or .usfm/.sfm files</p>
-                    <input type="file" id="file-input-empty" multiple accept=".txt,.usfm,.sfm" class="hidden">
-                    <div class="flex items-center space-x-4 mb-4">
-                        <button class="btn-marker" onclick="document.getElementById('file-input-empty').click()">
-                            <i class="fas fa-upload mr-2"></i>
-                            Upload Files
-                        </button>
-                        <span class="text-neutral-500">or</span>
-                        <a href="{{ url_for('translation.translate_page', project_id=project.id) }}" 
-                           class="px-4 py-2 paper-light text-neutral-700 border border-neutral-300 font-bold hover:bg-neutral-100 transition-colors">
-                            <i class="fas fa-plus mr-2"></i>
-                            Create Translation
-                        </a>
+                
+                <!-- Upload Progress -->
+                <div id="upload-progress" class="hidden mb-6 sm:mb-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-4 sm:p-6">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-spinner fa-spin text-blue-600 mr-3"></i>
+                        <span class="text-blue-700 font-semibold">Uploading...</span>
                     </div>
-                    <div class="text-xs text-neutral-500">Files are automatically converted to database entries</div>
-                </div>
-            </div>
-            
-            <!-- Upload Progress for Empty State -->
-            <div id="upload-progress-empty" class="hidden mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div class="flex items-center mb-2">
-                    <i class="fas fa-spinner fa-spin text-blue-600 mr-2"></i>
-                    <span class="text-blue-700 font-medium">Uploading...</span>
-                </div>
-                <div class="w-full bg-blue-200 rounded-full h-2">
-                    <div id="progress-bar-empty" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- Fine-Tuning Tab -->
-        <div id="fine-tuning-tab" class="tab-content hidden">
-            <div class="mb-6">
-                <h2 class="text-xl font-bold mb-2" style="color: #2d2d2d;">Fine-Tuning</h2>
-                <p class="text-neutral-600 font-medium">Train custom AI models with your parallel texts for more accurate translations.</p>
-            </div>
-            
-            {% if texts|length >= 2 %}
-            <!-- Configuration and Controls -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Configuration Panel -->
-                <div class="lg:col-span-2 space-y-6">
-                    <!-- Fine-tuning Configuration -->
-                    <div class="paper-cream border border-neutral-300 p-6">
-                        <h3 class="font-bold mb-4" style="color: #2d2d2d;">Configuration</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-bold text-neutral-700 mb-2">Source-Target Pair</label>
-                                <select id="file-pair-select" class="w-full p-3 border border-neutral-200 paper-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                    <option value="">Select translations for training...</option>
-                                    {% for text1 in texts %}
-                                        {% for text2 in texts %}
-                                            {% if text1.id != text2.id and text1.verse_count == text2.verse_count and text1.verse_count > 0 %}
-                                                <option value="{{ text1.id }},{{ text2.id }}">
-                                                    {{ text1.name }} → {{ text2.name }}
-                                                </option>
-                                            {% endif %}
-                                        {% endfor %}
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-bold text-neutral-700 mb-2">Base Model</label>
-                                <select id="base-model-select" class="w-full p-3 border border-neutral-200 paper-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                    <option value="">Loading models...</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="mt-4">
-                            <label class="block text-sm font-bold text-neutral-700 mb-2">
-                                Model Name <span class="text-red-500">*</span>
-                            </label>
-                            <input type="text" 
-                                   id="model-name-input" 
-                                   maxlength="100"
-                                   placeholder="e.g., Spanish Bible v1, Arabic Youth Translation..."
-                                   class="w-full p-3 border border-neutral-200 paper-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                            <p class="text-xs text-neutral-600 font-medium mt-1">
-                                <i class="fas fa-info-circle mr-1"></i>
-                                Required - only named models appear in translation dropdown
-                            </p>
-                        </div>
+                    <div class="w-full bg-blue-200 rounded-full h-3">
+                        <div id="progress-bar" class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
                     </div>
-                    
-                    <!-- Training Data Files -->
-                    {% set training_files = project.files|selectattr('file_type', 'equalto', 'training_data')|list %}
-                    {% if training_files %}
-                    <div class="paper-cream border border-neutral-300">
-                        <button class="w-full p-4 text-left flex items-center justify-between hover:bg-neutral-50 transition-colors" 
-                                onclick="toggleTrainingFiles()">
-                            <div class="flex items-center">
-                                <i class="fas fa-brain text-purple-600 mr-3"></i>
-                                <div>
-                                    <h3 class="font-bold text-neutral-900">Training Data Files</h3>
-                                    <p class="text-sm text-neutral-600 font-medium">{{ training_files|length }} generated file{{ 's' if training_files|length != 1 else '' }} • Used for fine-tuning</p>
-                                </div>
-                            </div>
-                            <i id="training-files-chevron" class="fas fa-chevron-down text-neutral-500 transition-transform"></i>
-                        </button>
-                        
-                        <div id="training-files-list" class="hidden border-t border-neutral-200">
-                            {% for file in training_files %}
-                            <div class="p-4 border-b border-neutral-200 last:border-b-0">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center min-w-0 flex-1">
-                                        <div class="w-8 h-8 paper-light border border-neutral-200 flex items-center justify-center mr-3">
-                                            <i class="fas fa-brain text-purple-600 text-sm"></i>
-                                        </div>
-                                        <div class="min-w-0 flex-1">
-                                            <p class="text-sm font-bold text-neutral-900 truncate">{{ file.original_filename }}</p>
-                                            <div class="flex items-center space-x-3 text-xs text-neutral-600 font-medium">
-                                                <span>{{ file.get_line_count() }} lines</span>
-                                                <span>{{ file.created_at.strftime('%b %d') }}</span>
-                                                <span class="text-purple-600">Training Data</span>
-                                            </div>
-                                        </div>
+                </div>
+                
+                <div class="space-y-4 sm:space-y-6">
+                    <!-- Project Translations -->
+                    {% for text in texts %}
+                    <div class="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 hover:shadow-xl transition-all duration-200">
+                        <div class="p-4 sm:p-6">
+                            <!-- Translation Header -->
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
+                                <div class="min-w-0 flex-1">
+                                    <h3 class="text-lg sm:text-xl font-bold text-neutral-900 mb-2 break-words">{{ text.name }}</h3>
+                                    <div class="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-neutral-600">
+                                        <span class="bg-neutral-100 px-2 py-1 rounded-lg">{{ text.verse_count }} verses</span>
+                                        <span>{{ text.created_at.strftime('%b %d') }}</span>
                                     </div>
-                                    <div class="flex items-center space-x-2 ml-4">
-                                        {% if admin_view %}
-                                        <a href="{{ url_for('admin.download_user_project_file', encoded_user_id=encode_id(project_owner.id, 'user'), encoded_project_id=encode_id(project.id, 'project'), encoded_file_id=encode_id(file.id, 'file')) }}"
-                                           class="text-neutral-500 hover:text-neutral-700 text-sm">
-                                            <i class="fas fa-download"></i>
-                                        </a>
-                                        {% else %}
-                                        <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=file.id) }}"
-                                           class="text-neutral-500 hover:text-neutral-700 text-sm">
-                                            <i class="fas fa-download"></i>
-                                        </a>
-                                        {% endif %}
-                                        <button type="button" class="delete-file-btn text-neutral-500 hover:text-red-600 text-sm"
-                                                data-file-id="{{ file.id }}" 
-                                                data-filename="{{ file.original_filename }}">
-                                            <i class="fas fa-trash"></i>
+                                </div>
+                                
+                                <!-- Translation Actions -->
+                                <div class="flex items-center justify-end opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
+                                    <a href="{{ url_for('translation.translate_page', project_id=project.id) }}"
+                                       class="inline-flex items-center px-4 py-2 text-sm font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200">
+                                        <i class="fas fa-edit mr-2"></i>
+                                        Edit
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <!-- Translation Purpose Section -->
+                            <div class="border-t border-neutral-100 pt-4">
+                                <label class="block text-sm font-semibold text-neutral-900 mb-3">Translation Purpose</label>
+                                <textarea class="w-full px-4 py-3 border border-neutral-200 bg-white/90 text-sm placeholder-neutral-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 purpose-input resize-none rounded-xl"
+                                          rows="4"
+                                          placeholder="Describe this translation's role in your project..."
+                                          data-file-id="{{ text.id }}"
+                                          maxlength="1000">{{ text.purpose_description or '' }}</textarea>
+                                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-3 gap-2">
+                                    <p class="text-xs text-neutral-600">Help AI understand how to use this translation</p>
+                                    <div class="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
+                                        <span class="text-xs text-neutral-500 char-counter">{{ (text.purpose_description or '')|length }}/1,000</span>
+                                        <button class="save-purpose-btn inline-flex items-center px-4 py-2 text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 rounded-lg"
+                                                data-file-id="{{ text.id }}">
+                                            <i class="fas fa-save mr-2"></i>Save
                                         </button>
                                     </div>
                                 </div>
                             </div>
-                            {% endfor %}
                         </div>
                     </div>
-                    {% endif %}
-                    
-                    <!-- Fine-tuning Estimate -->
-                    <div id="fine-tuning-estimate" class="hidden p-4 bg-blue-50 border border-blue-200">
-                        <div class="grid grid-cols-3 gap-4 text-sm text-blue-700 font-medium mb-3">
-                            <div><strong>Model:</strong> <span id="estimated-model">-</span></div>
-                            <div><strong>Examples:</strong> <span id="estimated-examples">-</span></div>
-                            <div><strong>Est. Cost:</strong> $<span id="estimated-cost">-</span> USD</div>
-                        </div>
-                        <div class="flex space-x-3">
-                            <button id="preview-example-btn" class="px-4 py-2 bg-blue-600 text-white border border-blue-600 text-sm font-bold hover:bg-blue-700 transition-colors">
-                                <i class="fas fa-eye mr-2"></i>
-                                Preview Example
-                            </button>
-                            <button id="start-fine-tuning-btn" class="px-6 py-2 btn-marker opacity-50 cursor-not-allowed" disabled>
-                                <i class="fas fa-rocket mr-2"></i>
-                                Start Fine-Tuning
-                            </button>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <!-- Empty State with Upload -->
+                <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 sm:p-12">
+                    <div id="drag-drop-zone-empty" class="border-2 border-dashed border-neutral-300 rounded-xl p-6 sm:p-12 text-center hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-200 cursor-pointer">
+                        <div class="flex flex-col items-center">
+                            <i class="fas fa-cloud-upload-alt text-4xl sm:text-6xl text-neutral-400 mb-4 sm:mb-6"></i>
+                            <h3 class="text-xl sm:text-2xl font-bold text-neutral-900 mb-3">Upload files or create translations</h3>
+                            <p class="text-neutral-600 mb-4 font-medium">Upload existing texts or create new translations to get started</p>
+                            <p class="text-sm text-neutral-600 mb-6">Drop .txt files here, or .usfm/.sfm files</p>
+                            <input type="file" id="file-input-empty" multiple accept=".txt,.usfm,.sfm" class="hidden">
+                            <div class="flex flex-col sm:flex-row items-center gap-4 mb-6 w-full sm:w-auto">
+                                <button class="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 rounded-xl font-semibold transition-all duration-200 shadow-lg" onclick="document.getElementById('file-input-empty').click()">
+                                    <i class="fas fa-upload mr-2"></i>
+                                    Upload Files
+                                </button>
+                                <span class="text-neutral-500 font-medium">or</span>
+                                <a href="{{ url_for('translation.translate_page', project_id=project.id) }}" 
+                                   class="w-full sm:w-auto px-6 py-3 bg-white text-neutral-700 border border-neutral-300 rounded-xl font-semibold hover:bg-neutral-50 transition-all duration-200 shadow-md text-center">
+                                    <i class="fas fa-plus mr-2"></i>
+                                    Create Translation
+                                </a>
+                            </div>
+                            <div class="text-xs text-neutral-500">Files are automatically converted to database entries</div>
                         </div>
                     </div>
                     
-                    <div id="no-estimate" class="text-center py-8 paper-cream border border-neutral-300">
-                        <p class="text-sm text-neutral-600 mb-3 font-medium">Select a file pair and model to see cost estimate</p>
-                        <button id="start-fine-tuning-btn-disabled" class="px-6 py-2 paper-light text-neutral-500 border border-neutral-200 font-bold text-sm cursor-not-allowed">
+                    <!-- Upload Progress for Empty State -->
+                    <div id="upload-progress-empty" class="hidden mt-6 sm:mt-8 p-4 sm:p-6 bg-blue-50/80 border border-blue-200 rounded-xl">
+                        <div class="flex items-center mb-3">
+                            <i class="fas fa-spinner fa-spin text-blue-600 mr-3"></i>
+                            <span class="text-blue-700 font-semibold">Uploading...</span>
+                        </div>
+                        <div class="w-full bg-blue-200 rounded-full h-3">
+                            <div id="progress-bar-empty" class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Fine-Tuning Tab -->
+            <div id="fine-tuning-tab" class="tab-content hidden">
+                <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-4 sm:p-8 mb-6 sm:mb-8">
+                    <div class="mb-6">
+                        <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 mb-2">Fine-Tuning</h2>
+                        <p class="text-neutral-600 font-medium">Train custom AI models with your parallel texts for more accurate translations.</p>
+                    </div>
+                    
+                    {% if texts|length >= 2 %}
+                    <!-- Configuration and Controls -->
+                    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 sm:gap-8">
+                        <!-- Configuration Panel -->
+                        <div class="xl:col-span-2 space-y-6">
+                            <!-- Fine-tuning Configuration -->
+                            <div class="bg-neutral-50/80 border border-neutral-200 rounded-xl p-4 sm:p-6">
+                                <h3 class="font-bold text-neutral-900 mb-4">Configuration</h3>
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-bold text-neutral-700 mb-2">Source-Target Pair</label>
+                                        <select id="file-pair-select" class="w-full p-3 border border-neutral-200 bg-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent rounded-lg">
+                                            <option value="">Select translations for training...</option>
+                                            {% for text1 in texts %}
+                                                {% for text2 in texts %}
+                                                    {% if text1.id != text2.id and text1.verse_count == text2.verse_count and text1.verse_count > 0 %}
+                                                        <option value="{{ text1.id }},{{ text2.id }}">
+                                                            {{ text1.name }} → {{ text2.name }}
+                                                        </option>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-bold text-neutral-700 mb-2">Base Model</label>
+                                        <select id="base-model-select" class="w-full p-3 border border-neutral-200 bg-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent rounded-lg">
+                                            <option value="">Loading models...</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-4">
+                                    <label class="block text-sm font-bold text-neutral-700 mb-2">
+                                        Model Name <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="text" 
+                                           id="model-name-input" 
+                                           maxlength="100"
+                                           placeholder="e.g., Spanish Bible v1, Arabic Youth Translation..."
+                                           class="w-full p-3 border border-neutral-200 bg-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent rounded-lg">
+                                    <p class="text-xs text-neutral-600 font-medium mt-1">
+                                        <i class="fas fa-info-circle mr-1"></i>
+                                        Required - only named models appear in translation dropdown
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <!-- Training Data Files -->
+                            {% set training_files = project.files|selectattr('file_type', 'equalto', 'training_data')|list %}
+                            {% if training_files %}
+                            <div class="bg-neutral-50/80 border border-neutral-200 rounded-xl">
+                                <button class="w-full p-4 sm:p-6 text-left flex items-center justify-between hover:bg-neutral-100/50 transition-colors rounded-xl" 
+                                        onclick="toggleTrainingFiles()">
+                                    <div class="flex items-center min-w-0 flex-1">
+                                        <div class="w-8 h-8 sm:w-10 sm:h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-3 sm:mr-4 flex-shrink-0">
+                                            <i class="fas fa-brain text-purple-600 text-sm sm:text-base"></i>
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <h3 class="font-bold text-neutral-900">Training Data Files</h3>
+                                            <p class="text-sm text-neutral-600 font-medium truncate">{{ training_files|length }} generated file{{ 's' if training_files|length != 1 else '' }} • Used for fine-tuning</p>
+                                        </div>
+                                    </div>
+                                    <i id="training-files-chevron" class="fas fa-chevron-down text-neutral-500 transition-transform flex-shrink-0"></i>
+                                </button>
+                                
+                                <div id="training-files-list" class="hidden border-t border-neutral-200">
+                                    {% for file in training_files %}
+                                    <div class="p-4 sm:p-6 border-b border-neutral-200 last:border-b-0">
+                                        <div class="flex items-center justify-between gap-3">
+                                            <div class="flex items-center min-w-0 flex-1">
+                                                <div class="w-8 h-8 bg-purple-100 border border-purple-200 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
+                                                    <i class="fas fa-brain text-purple-600 text-sm"></i>
+                                                </div>
+                                                <div class="min-w-0 flex-1">
+                                                    <p class="text-sm font-bold text-neutral-900 truncate">{{ file.original_filename }}</p>
+                                                    <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-neutral-600 font-medium">
+                                                        <span>{{ file.get_line_count() }} lines</span>
+                                                        <span>{{ file.created_at.strftime('%b %d') }}</span>
+                                                        <span class="text-purple-600">Training Data</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+                                                {% if admin_view %}
+                                                <a href="{{ url_for('admin.download_user_project_file', encoded_user_id=encode_id(project_owner.id, 'user'), encoded_project_id=encode_id(project.id, 'project'), encoded_file_id=encode_id(file.id, 'file')) }}"
+                                                   class="text-neutral-500 hover:text-neutral-700 text-sm p-2 rounded-lg hover:bg-neutral-100 transition-colors">
+                                                    <i class="fas fa-download"></i>
+                                                </a>
+                                                {% else %}
+                                                <a href="{{ url_for('files.download_project_file', project_id=project.id, file_id=file.id) }}"
+                                                   class="text-neutral-500 hover:text-neutral-700 text-sm p-2 rounded-lg hover:bg-neutral-100 transition-colors">
+                                                    <i class="fas fa-download"></i>
+                                                </a>
+                                                {% endif %}
+                                                <button type="button" class="delete-file-btn text-neutral-500 hover:text-red-600 text-sm p-2 rounded-lg hover:bg-red-50 transition-colors"
+                                                        data-file-id="{{ file.id }}" 
+                                                        data-filename="{{ file.original_filename }}">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Fine-tuning Estimate -->
+                            <div id="fine-tuning-estimate" class="hidden p-4 sm:p-6 bg-blue-50/80 border border-blue-200 rounded-xl">
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-sm text-blue-700 font-medium mb-4">
+                                    <div><strong>Model:</strong> <span id="estimated-model" class="break-all">-</span></div>
+                                    <div><strong>Examples:</strong> <span id="estimated-examples">-</span></div>
+                                    <div><strong>Est. Cost:</strong> $<span id="estimated-cost">-</span> USD</div>
+                                </div>
+                                <div class="flex flex-col sm:flex-row gap-3">
+                                    <button id="preview-example-btn" class="px-4 py-2 bg-blue-600 text-white border border-blue-600 text-sm font-bold hover:bg-blue-700 transition-colors rounded-lg">
+                                        <i class="fas fa-eye mr-2"></i>
+                                        Preview Example
+                                    </button>
+                                    <button id="start-fine-tuning-btn" class="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 rounded-xl font-semibold transition-all duration-200 shadow-lg opacity-50 cursor-not-allowed" disabled>
+                                        <i class="fas fa-rocket mr-2"></i>
+                                        Start Fine-Tuning
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="no-estimate" class="text-center py-8 sm:py-12 bg-neutral-50/80 border border-neutral-200 rounded-xl">
+                                <p class="text-sm text-neutral-600 mb-4 font-medium">Select a file pair and model to see cost estimate</p>
+                                <button id="start-fine-tuning-btn-disabled" class="px-6 py-2 bg-neutral-100 text-neutral-500 border border-neutral-200 font-bold text-sm cursor-not-allowed rounded-xl">
+                                    <i class="fas fa-rocket mr-2"></i>
+                                    Start Fine-Tuning
+                                </button>
+                                <p class="text-xs text-neutral-600 font-medium mt-2">Training takes 1-3 hours</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Sidebar: Models & Jobs -->
+                        <div class="space-y-6">
+                            <!-- Models List -->
+                            <div class="bg-neutral-50/80 border border-neutral-200 rounded-xl p-4 sm:p-6">
+                                <h4 class="font-bold text-neutral-800 mb-4 flex items-center">
+                                    <i class="fas fa-robot mr-2"></i> 
+                                    <span class="hidden sm:inline">Available Models</span>
+                                    <span class="sm:hidden">Models</span>
+                                </h4>
+                                <div id="models-list" class="space-y-2 text-sm">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+                            
+                            <!-- Quick Status -->
+                            <div id="fine-tuning-jobs" class="bg-neutral-50/80 border border-neutral-200 rounded-xl p-4 sm:p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="font-bold text-neutral-800 flex items-center">
+                                        <i class="fas fa-tasks mr-2"></i> 
+                                        <span class="hidden sm:inline">Recent Jobs</span>
+                                        <span class="sm:hidden">Jobs</span>
+                                    </h4>
+                                    <button class="toggle-section-btn text-neutral-600 hover:text-neutral-800 text-sm" data-target="jobs-list">
+                                        <i class="fas fa-chevron-down"></i>
+                                    </button>
+                                </div>
+                                <div id="jobs-list" class="space-y-2 hidden">
+                                    <div class="text-center py-4 text-sm text-neutral-500">No jobs yet</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-12 sm:py-16 bg-neutral-50/80 border border-neutral-200 rounded-xl">
+                        <div class="w-12 h-12 sm:w-16 sm:h-16 bg-neutral-100 border border-neutral-200 rounded-xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                            <i class="fas fa-language text-neutral-600 text-xl sm:text-2xl"></i>
+                        </div>
+                        <h3 class="text-lg sm:text-xl font-bold text-neutral-900 mb-3">Create Translations to Enable Fine-Tuning</h3>
+                        <p class="text-neutral-600 mb-6 sm:mb-8 font-medium px-4">Fine-tuning requires at least 2 translations with matching verse counts</p>
+                        <div class="px-6 sm:px-8 py-3 bg-neutral-100 text-neutral-500 border border-neutral-200 font-bold text-sm inline-block rounded-xl">
                             <i class="fas fa-rocket mr-2"></i>
                             Start Fine-Tuning
-                        </button>
-                        <p class="text-xs text-neutral-600 font-medium mt-2">Training takes 1-3 hours</p>
-                    </div>
-                </div>
-                
-                <!-- Sidebar: Models & Jobs -->
-                <div class="space-y-6">
-                    <!-- Models List -->
-                    <div class="paper-cream border border-neutral-300 p-4">
-                        <h4 class="font-bold text-neutral-800 mb-3 flex items-center">
-                            <i class="fas fa-robot mr-2"></i> Available Models
-                        </h4>
-                        <div id="models-list" class="space-y-2 text-sm">
-                            <!-- Populated by JS -->
                         </div>
+                        <p class="text-xs text-neutral-600 font-medium mt-4 px-4">Create parallel translations to get started</p>
                     </div>
-                    
-                    <!-- Quick Status -->
-                    <div id="fine-tuning-jobs" class="paper-cream border border-neutral-300 p-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <h4 class="font-bold text-neutral-800 flex items-center">
-                                <i class="fas fa-tasks mr-2"></i> Recent Jobs
-                            </h4>
-                            <button class="toggle-section-btn text-neutral-600 hover:text-neutral-800 text-sm" data-target="jobs-list">
-                                <i class="fas fa-chevron-down"></i>
-                            </button>
-                        </div>
-                        <div id="jobs-list" class="space-y-2 hidden">
-                            <div class="text-center py-4 text-sm text-neutral-500">No jobs yet</div>
-                        </div>
-                    </div>
+                    {% endif %}
                 </div>
             </div>
-            {% else %}
-            <div class="text-center py-12 paper-cream border border-neutral-300">
-                <div class="w-16 h-16 paper-light border border-neutral-200 flex items-center justify-center mx-auto mb-4">
-                    <i class="fas fa-language text-neutral-600 text-2xl"></i>
-                </div>
-                <h3 class="text-lg font-bold mb-2" style="color: #2d2d2d;">Create Translations to Enable Fine-Tuning</h3>
-                <p class="text-neutral-600 mb-6 font-medium">Fine-tuning requires at least 2 translations with matching verse counts</p>
-                <div class="px-8 py-3 paper-light text-neutral-500 border border-neutral-200 font-bold text-sm inline-block">
-                    <i class="fas fa-rocket mr-2"></i>
-                    Start Fine-Tuning
-                </div>
-                <p class="text-xs text-neutral-600 font-medium mt-4">Create parallel translations to get started</p>
-            </div>
-            {% endif %}
         </div>
     </div>
 </section>
 
 <!-- Preview Training Example Modal -->
-<div id="preview-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
-    <div class="paper-white border border-neutral-300 shadow-xl max-w-3xl w-full mx-4 max-h-[80vh] overflow-hidden">
-        <div class="px-6 py-4 paper-cream border-b border-neutral-200">
+<div id="preview-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="paper-white border border-neutral-300 shadow-xl max-w-3xl w-full max-h-[90vh] sm:max-h-[80vh] overflow-hidden rounded-xl">
+        <div class="px-4 sm:px-6 py-4 paper-cream border-b border-neutral-200">
             <div class="flex items-center justify-between">
-                <h3 class="text-lg font-bold" style="color: #2d2d2d;">Training Data Preview</h3>
-                <button id="close-preview-modal-btn" class="text-neutral-500 hover:text-neutral-700">
+                <h3 class="text-lg font-bold truncate pr-4" style="color: #2d2d2d;">Training Data Preview</h3>
+                <button id="close-preview-modal-btn" class="text-neutral-500 hover:text-neutral-700 p-1">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
         </div>
         
-        <div class="px-6 py-4 max-h-[60vh] overflow-y-auto">
+        <div class="px-4 sm:px-6 py-4 max-h-[60vh] overflow-y-auto">
             <div id="preview-content" class="space-y-4">
                 <!-- Preview content will be loaded here -->
             </div>
         </div>
         
-        <div class="px-6 py-4 paper-cream border-t border-neutral-200 flex justify-end">
-            <button id="close-preview-btn" class="px-4 py-2 bg-neutral-600 text-white border border-neutral-600 text-sm font-bold hover:bg-neutral-700 transition-colors">
+        <div class="px-4 sm:px-6 py-4 paper-cream border-t border-neutral-200 flex justify-end">
+            <button id="close-preview-btn" class="px-4 py-2 bg-neutral-600 text-white border border-neutral-600 text-sm font-bold hover:bg-neutral-700 transition-colors rounded-lg">
                 Close
             </button>
         </div>
     </div>
 </div>
 
-
-
 <!-- Delete Modal -->
-<div id="delete-file-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
-    <div class="paper-white border border-neutral-300 shadow-xl max-w-lg w-full mx-4">
-        <div class="px-6 py-4 paper-cream border-b border-neutral-200">
+<div id="delete-file-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="paper-white border border-neutral-300 shadow-xl max-w-lg w-full rounded-xl">
+        <div class="px-4 sm:px-6 py-4 paper-cream border-b border-neutral-200">
             <h3 class="text-lg font-bold" style="color: #2d2d2d;">Delete File</h3>
         </div>
         
-        <div class="px-6 py-4">
-            <p class="text-neutral-700 mb-4 font-medium">
+        <div class="px-4 sm:px-6 py-4">
+            <p class="text-neutral-700 mb-4 font-medium break-words">
                 Delete <strong id="delete-filename"></strong>? This cannot be undone.
             </p>
             
-            <div class="p-3 bg-yellow-50 border border-yellow-200 mb-4">
+            <div class="p-3 bg-yellow-50 border border-yellow-200 mb-4 rounded-lg">
                 <div class="flex items-start">
-                    <i class="fas fa-exclamation-triangle text-yellow-600 mr-2 mt-0.5"></i>
+                    <i class="fas fa-exclamation-triangle text-yellow-600 mr-2 mt-0.5 flex-shrink-0"></i>
                     <div class="text-sm text-yellow-700 font-medium">
                         Download the file before deletion if needed
                     </div>
                 </div>
             </div>
             
-            <button id="download-original-btn" class="w-full btn-marker mb-4">
+            <button id="download-original-btn" class="w-full btn-marker mb-4 p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                 <i class="fas fa-download mr-2"></i>
                 Download File
             </button>
         </div>
         
-        <div class="px-6 py-4 paper-cream border-t border-neutral-200 flex justify-end space-x-3">
-            <button id="close-delete-modal-btn" class="px-4 py-2 text-neutral-600 hover:text-neutral-800 font-bold">
+        <div class="px-4 sm:px-6 py-4 paper-cream border-t border-neutral-200 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+            <button id="close-delete-modal-btn" class="px-4 py-2 text-neutral-600 hover:text-neutral-800 font-bold order-2 sm:order-1">
                 Cancel
             </button>
-            <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 text-white border border-red-600 font-bold hover:bg-red-700" disabled>
+            <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 text-white border border-red-600 font-bold hover:bg-red-700 rounded-lg order-1 sm:order-2" disabled>
                 Delete
             </button>
         </div>
@@ -507,20 +523,20 @@
 </div>
 
 <!-- Delete Translation Modal -->
-<div id="delete-translation-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
-    <div class="paper-white border border-neutral-300 shadow-xl max-w-lg w-full mx-4">
-        <div class="px-6 py-4 paper-cream border-b border-neutral-200">
+<div id="delete-translation-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="paper-white border border-neutral-300 shadow-xl max-w-lg w-full rounded-xl">
+        <div class="px-4 sm:px-6 py-4 paper-cream border-b border-neutral-200">
             <h3 class="text-lg font-bold" style="color: #2d2d2d;">Delete Translation</h3>
         </div>
         
-        <div class="px-6 py-4">
-            <p class="text-neutral-700 mb-4 font-medium">
+        <div class="px-4 sm:px-6 py-4">
+            <p class="text-neutral-700 mb-4 font-medium break-words">
                 Delete <strong id="delete-translation-filename"></strong>? This cannot be undone.
             </p>
             
-            <div class="p-3 bg-yellow-50 border border-yellow-200 mb-4">
+            <div class="p-3 bg-yellow-50 border border-yellow-200 mb-4 rounded-lg">
                 <div class="flex items-start">
-                    <i class="fas fa-exclamation-triangle text-yellow-600 mr-2 mt-0.5"></i>
+                    <i class="fas fa-exclamation-triangle text-yellow-600 mr-2 mt-0.5 flex-shrink-0"></i>
                     <div class="text-sm text-yellow-700 font-medium">
                         All translation progress will be permanently lost
                     </div>
@@ -528,19 +544,16 @@
             </div>
         </div>
         
-        <div class="px-6 py-4 paper-cream border-t border-neutral-200 flex justify-end space-x-3">
-            <button id="close-delete-translation-modal-btn" class="px-4 py-2 text-neutral-600 hover:text-neutral-800 font-bold">
+        <div class="px-4 sm:px-6 py-4 paper-cream border-t border-neutral-200 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+            <button id="close-delete-translation-modal-btn" class="px-4 py-2 text-neutral-600 hover:text-neutral-800 font-bold order-2 sm:order-1">
                 Cancel
             </button>
-            <button id="confirm-delete-translation-btn" class="px-4 py-2 bg-red-600 text-white border border-red-600 font-bold hover:bg-red-700">
+            <button id="confirm-delete-translation-btn" class="px-4 py-2 bg-red-600 text-white border border-red-600 font-bold hover:bg-red-700 rounded-lg order-1 sm:order-2">
                 Delete
             </button>
         </div>
     </div>
 </div>
-
-
-
 
 {% endblock %}
 

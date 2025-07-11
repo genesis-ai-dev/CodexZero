@@ -78,7 +78,7 @@ class ThemeManager {
         const themeClasses = this.getThemeClasses();
         const headerThemeClasses = this.getHeaderThemeClasses();
         
-        element.className = `flex flex-col border rounded-sm overflow-hidden bg-white min-h-15 flex-1 transition-all duration-200 ${themeClasses}`;
+        element.className = `flex flex-col border rounded-sm overflow-hidden bg-white min-h-15 flex-1 ${themeClasses}`;
         
         const header = element.querySelector('[data-window-header]');
         if (header) {

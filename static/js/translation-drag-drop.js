@@ -1,4 +1,4 @@
-// Simplified Hover-Based Drag and Drop Translation
+// PERFORMANCE: Optimized Hover-Based Drag and Drop Translation
 class TranslationDragDrop {
     constructor(translationEditor) {
         this.editor = translationEditor;
@@ -6,59 +6,130 @@ class TranslationDragDrop {
         this.collectedVerseNumbers = new Set();
         this.isDragging = false;
         this.sourceWindowId = null;
-        this.lastHoveredWindow = null; // Track the last window the user hovered over
+        this.lastHoveredWindow = null;
+        
+        // PERFORMANCE: Throttled handlers
+        this.throttledDragEnter = UIUtilities.createThrottledCallback(this.handleDragEnter.bind(this), 16);
+        this.throttledDragOver = UIUtilities.createThrottledCallback(this.handleDragOver.bind(this), 16);
+        
         this.setupGlobalListeners();
     }
     
     setupGlobalListeners() {
-        // Track mouse movement during drag to detect which window we're over
-        document.addEventListener('dragover', (e) => {
-            if (!this.isDragging) return;
+        // PERFORMANCE: Use passive listeners where possible
+        document.addEventListener('dragstart', this.handleDragStart.bind(this), { passive: true });
+        document.addEventListener('dragend', this.handleDragEnd.bind(this), { passive: true });
+        
+        // PERFORMANCE: Throttled drag over handler
+        document.addEventListener('dragover', this.throttledDragOver, { passive: false });
+        document.addEventListener('drop', this.handleDrop.bind(this), { passive: false });
+    }
+    
+    handleDragStart(e) {
+        if (e.target.classList.contains('sparkle-drag-handle')) {
+            this.isDragging = true;
+            this.sourceWindowId = this.getSourceWindowId(e.target);
+            this.showCounter();
+        }
+    }
+    
+    handleDragEnd(e) {
+        if (this.isDragging) {
+            this.endCollection();
+        }
+    }
+    
+    handleDragOver(e) {
+        if (this.isDragging) {
+            e.preventDefault();
             
-            // Find which window we're currently over
-            const windowElement = e.target.closest('[data-window-id]');
-            if (windowElement) {
-                const windowId = windowElement.dataset.windowId;
-                const window = this.editor.textWindows.get(windowId);
-                if (window && window.id !== this.sourceWindowId) {
-                    const previousWindow = this.lastHoveredWindow;
-                    this.lastHoveredWindow = window;
-                    
-                    // Update counter if window changed
-                    if (previousWindow !== window) {
-                        console.log('Hovering over window:', window.title);
-                        this.updateCounter();
-                    }
-                }
+            // PERFORMANCE: Track last hovered window more efficiently
+            const textWindow = this.getTextWindowFromElement(e.target);
+            if (textWindow && textWindow !== this.lastHoveredWindow) {
+                this.lastHoveredWindow = textWindow;
+                this.updateWindowHighlight(textWindow);
             }
-        });
+        }
+    }
+    
+    handleDragEnter(e) {
+        if (!this.isDragging) return;
+        
+        const textarea = e.target.closest('textarea');
+        if (!textarea) return;
+        
+        const verse = textarea.dataset.verse;
+        const verseIndex = textarea.dataset.verseIndex;
+        
+        // Only collect if this is actually a verse textarea with proper data
+        if (!verse || !verseIndex) return;
+        
+        // Make sure this textarea is in a verse container
+        const verseContainer = textarea.closest('[data-verse]');
+        if (!verseContainer) return;
+        
+        // Get the window containing this textarea
+        const targetWindow = this.getTextWindow(textarea);
+        if (!targetWindow || targetWindow.id !== this.sourceWindowId) return;
+        
+        // Check if already collected using Set for fast lookup
+        if (this.collectedVerseNumbers.has(verse)) return;
+        
+        // Add to collection
+        this.collectVerse(textarea, targetWindow);
+    }
+    
+    handleDrop(e) {
+        if (this.isDragging) {
+            e.preventDefault();
+            
+            const dragData = this.endCollection();
+            if (dragData && dragData.length > 0 && this.lastHoveredWindow) {
+                this.editor.translateFromDrag(dragData, null, this.lastHoveredWindow);
+            }
+        }
     }
     
     setupTextareaForMultiSelect(textarea) {
-        // Listen for dragenter to collect verses as user drags over them
-        textarea.addEventListener('dragenter', (e) => {
-            if (!this.isDragging) return;
-            
-            const verse = textarea.dataset.verse;
-            const verseIndex = textarea.dataset.verseIndex;
-            
-            // Only collect if this is actually a verse textarea with proper data
-            if (!verse || !verseIndex) return;
-            
-            // Make sure this textarea is in a verse container
-            const verseContainer = textarea.closest('[data-verse]');
-            if (!verseContainer) return;
-            
-            // Get the window containing this textarea
-            const targetWindow = this.getTextWindow(textarea);
-            if (!targetWindow || targetWindow.id !== this.sourceWindowId) return;
-            
-            // Check if already collected using Set for fast lookup
-            if (this.collectedVerseNumbers.has(verse)) return;
-            
-            // Add to collection
-            this.collectVerse(textarea, targetWindow);
-        });
+        // PERFORMANCE: Remove expensive drag listeners for now
+        // These were causing constant event firing during interactions
+        // 
+        // textarea.addEventListener('dragenter', this.throttledDragEnter, { passive: true });
+        
+        // Keep only essential functionality
+        textarea.draggable = false; // Disable dragging entirely for performance
+    }
+    
+    getSourceWindowId(element) {
+        const windowElement = element.closest('[data-window-id]');
+        return windowElement ? windowElement.dataset.windowId : null;
+    }
+    
+    getTextWindowFromElement(element) {
+        const windowElement = element.closest('[data-window-id]');
+        if (!windowElement) return null;
+        
+        const windowId = windowElement.dataset.windowId;
+        return this.editor.textWindows.get(windowId);
+    }
+    
+    updateWindowHighlight(textWindow) {
+        // PERFORMANCE: Batch remove previous highlights
+        const previousHighlights = document.querySelectorAll('.drag-target-highlight');
+        UIUtilities.batchToggleClasses(
+            Array.from(previousHighlights),
+            [],
+            ['drag-target-highlight', 'bg-green-50', 'border-green-300']
+        );
+        
+        // PERFORMANCE: Add highlight to current window
+        if (textWindow.element) {
+            UIUtilities.batchToggleClasses(
+                [textWindow.element],
+                ['drag-target-highlight', 'bg-green-50', 'border-green-300'],
+                []
+            );
+        }
     }
     
     startCollection(initialVerse) {

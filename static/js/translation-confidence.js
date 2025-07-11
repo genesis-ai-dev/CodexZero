@@ -43,12 +43,12 @@ class TranslationConfidence {
         const container = document.createElement('div');
         container.className = 'absolute top-2 right-2 flex space-x-1 pointer-events-auto';
         
-        const acceptBtn = this.createButton('✓', 'Accept translation', 'bg-green-500 hover:bg-green-600', () => {
+        const acceptBtn = this.createButton('✓', 'Accept translation', 'bg-green-500', () => {
             this.acceptTranslation(confidenceDiv, textarea, translation, verseIndex, translationEditor);
             overlay.remove();
         });
         
-        const rejectBtn = this.createButton('✗', 'Reject translation', 'bg-red-500 hover:bg-red-600', () => {
+        const rejectBtn = this.createButton('✗', 'Reject translation', 'bg-red-500', () => {
             this.rejectTranslation(confidenceDiv, textarea, originalContent, verseIndex, translationEditor);
             overlay.remove();
         });
@@ -62,7 +62,7 @@ class TranslationConfidence {
     
     createButton(text, title, colorClasses, onClick) {
         const button = document.createElement('button');
-        button.className = `w-6 h-6 ${colorClasses} text-white text-xs rounded-full transition-colors flex items-center justify-center shadow-lg`;
+        button.className = `w-6 h-6 ${colorClasses} text-white text-xs rounded-full flex items-center justify-center shadow-lg`;
         button.textContent = text;
         button.title = title;
         button.addEventListener('click', (e) => {

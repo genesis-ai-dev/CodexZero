@@ -1,26 +1,25 @@
-// Purpose Management Utility - Unified handling for files and translations
+// PERFORMANCE: Simplified Purpose Management - inline utility functions
 class PurposeManager {
     static setupPurposeListeners(container) {
         if (!container) return;
         
+        // PERFORMANCE: Use single delegated event listener instead of multiple listeners
         container.addEventListener('click', (e) => {
-            if (e.target.closest('.save-purpose-btn')) {
-                const btn = e.target.closest('.save-purpose-btn');
-                const fileId = btn.getAttribute('data-file-id');
-                const purposeInput = container.querySelector(`.purpose-input[data-file-id="${fileId}"]`);
-                if (purposeInput) {
-                    this.savePurpose(fileId, purposeInput, btn, 'file');
-                }
-            } else if (e.target.closest('.save-translation-purpose-btn')) {
-                const btn = e.target.closest('.save-translation-purpose-btn');
-                const translationId = btn.getAttribute('data-translation-id');
-                const purposeInput = container.querySelector(`.translation-purpose-input[data-translation-id="${translationId}"]`);
-                if (purposeInput) {
-                    this.savePurpose(translationId, purposeInput, btn, 'translation');
-                }
+            const btn = e.target.closest('.save-purpose-btn, .save-translation-purpose-btn');
+            if (!btn) return;
+            
+            const isTranslation = btn.classList.contains('save-translation-purpose-btn');
+            const id = btn.getAttribute(isTranslation ? 'data-translation-id' : 'data-file-id');
+            const inputClass = isTranslation ? '.translation-purpose-input' : '.purpose-input';
+            const inputSelector = `${inputClass}[data-${isTranslation ? 'translation' : 'file'}-id="${id}"]`;
+            const purposeInput = container.querySelector(inputSelector);
+            
+            if (purposeInput) {
+                this.savePurpose(id, purposeInput, btn, isTranslation ? 'translation' : 'file');
             }
         });
         
+        // PERFORMANCE: Use single delegated input listener
         container.addEventListener('input', (e) => {
             if (e.target.classList.contains('purpose-input') || e.target.classList.contains('translation-purpose-input')) {
                 this.updateCharCounter(e.target);
@@ -37,6 +36,7 @@ class PurposeManager {
             const length = input.value.length;
             charCounter.textContent = `${length}/1,000`;
             
+            // PERFORMANCE: Direct style assignment
             if (length > 1000) {
                 charCounter.style.color = '#dc2626';
                 input.style.borderColor = '#dc2626';
@@ -57,14 +57,20 @@ class PurposeManager {
         
         const projectId = window.location.pathname.split('/')[2];
         
-        // Visual feedback
-        purposeInput.style.opacity = '0.6';
-        purposeInput.disabled = true;
+        // PERFORMANCE: Direct style assignment for visual feedback
+        purposeInput.style.cssText = 'opacity: 0.6; pointer-events: none;';
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
         
         try {
-            const { url, requestBody } = this.getPurposeEndpoint(projectId, id, purposeDescription, type);
+            // PERFORMANCE: Inline endpoint logic instead of separate method
+            const isTranslation = type === 'translation' || id.startsWith('text_');
+            const url = isTranslation 
+                ? `/project/${projectId}/texts/${id}/purpose`
+                : `/project/${projectId}/files/${id}/purpose`;
+            const requestBody = isTranslation
+                ? { description: purposeDescription }
+                : { purpose_description: purposeDescription, file_purpose: purposeDescription ? 'custom' : null };
             
             const response = await fetch(url, {
                 method: 'POST',
@@ -75,50 +81,26 @@ class PurposeManager {
             const data = await response.json();
             
             if (data.success) {
-                this.showSuccess(purposeInput, button);
+                // PERFORMANCE: Direct style assignment for success
+                purposeInput.style.cssText = 'border-color: #10b981;';
+                button.innerHTML = '<i class="fas fa-check mr-1"></i>Saved!';
+                
+                setTimeout(() => {
+                    purposeInput.style.cssText = '';
+                    button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+                }, 2000);
             } else {
-                this.showError(purposeInput, button, data.error);
+                throw new Error(data.error || 'Save failed');
             }
         } catch (error) {
-            this.showError(purposeInput, button, error.message);
+            alert('Failed to save purpose: ' + error.message);
+            purposeInput.style.cssText = 'border-color: #ef4444;';
+            button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
         } finally {
+            purposeInput.style.pointerEvents = '';
             purposeInput.style.opacity = '';
-            purposeInput.disabled = false;
             button.disabled = false;
         }
-    }
-    
-    static getPurposeEndpoint(projectId, id, description, type) {
-        if (type === 'translation' || id.startsWith('text_')) {
-            return {
-                url: `/project/${projectId}/texts/${id}/purpose`,
-                requestBody: { description }
-            };
-        } else {
-            return {
-                url: `/project/${projectId}/files/${id}/purpose`,
-                requestBody: { 
-                    purpose_description: description,
-                    file_purpose: description ? 'custom' : null
-                }
-            };
-        }
-    }
-    
-    static showSuccess(purposeInput, button) {
-        purposeInput.style.borderColor = '#10b981';
-        button.innerHTML = '<i class="fas fa-check mr-1"></i>Saved!';
-        
-        setTimeout(() => {
-            purposeInput.style.borderColor = '';
-            button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
-        }, 2000);
-    }
-    
-    static showError(purposeInput, button, errorMessage) {
-        alert('Failed to save purpose: ' + (errorMessage || 'Unknown error'));
-        purposeInput.style.borderColor = '#ef4444';
-        button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
     }
 }
 

@@ -13,17 +13,6 @@
 {% endblock %}
 
 {% block content %}
-<style>
-/* Force hide nav on mobile for translation page */
-@media (max-width: 767px) {
-    body.translation-page nav {
-        display: none !important;
-    }
-    body.translation-page main {
-        padding-top: 0 !important;
-    }
-}
-</style>
 <script>
 document.body.classList.add('translation-page');
 // Force hide nav immediately on mobile
@@ -33,17 +22,20 @@ if (window.innerWidth <= 767) {
 }
 </script>
 
-<section class="h-screen flex flex-col bg-white text-gray-800 overflow-hidden">
+<!-- Translation Gradient Background -->
+<div id="translation-gradient" class="fixed inset-0 -z-10"></div>
+
+<section class="h-screen flex flex-col text-gray-800 overflow-hidden relative">
     
 
                         
     <!-- Mobile Header -->
-    <header class="md:hidden flex items-center justify-between p-2 bg-white border-b border-gray-200 z-50">
-        <button id="mobile-sidebar-toggle" class="text-gray-600 p-2">
+    <header class="md:hidden flex items-center justify-between p-4 bg-white/95 backdrop-blur-sm border-b border-neutral-200 z-50 shadow-sm">
+        <button id="mobile-sidebar-toggle" class="text-neutral-600 p-2 rounded-lg">
             <i id="sidebar-toggle-icon" class="fas fa-bars text-xl"></i>
         </button>
-        <h1 class="text-base font-semibold text-gray-800">Translation Editor</h1>
-        <div class="w-8"></div> <!-- Spacer for centering -->
+        <h1 class="text-lg font-bold text-neutral-900 tracking-tight">Translation Editor</h1>
+        <div class="w-10"></div> <!-- Spacer for centering -->
     </header>
 
     <!-- Main Content -->
@@ -51,42 +43,42 @@ if (window.innerWidth <= 767) {
         <!-- Sidebar Backdrop for Mobile -->
         <div class="sidebar-backdrop hidden" id="sidebar-backdrop"></div>
         
-        <div class="translation-sidebar fixed left-0 top-0 h-full w-80 bg-white border-r border-gray-200 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-50 md:relative md:w-80 md:block">
+        <div class="translation-sidebar fixed left-0 top-0 h-full w-80 transform -translate-x-full md:translate-x-0 z-50 md:relative md:w-80 md:block">
             {{ translation_sidebar(project) }}
         </div>
 
         <!-- Unified Text Workspace -->
-        <div class="flex-1 flex flex-col md:flex-row overflow-hidden bg-gray-50 rounded-t-sm" id="text-workspace">
+        <div class="flex-1 flex flex-col md:flex-row overflow-hidden bg-neutral-50/50 rounded-t-lg" id="text-workspace">
             <!-- Mobile Tabs -->
-            <div class="md:hidden flex border-b border-gray-200 bg-white">
-                <button class="flex-1 py-3 px-4 text-sm font-medium border-b-2 border-transparent text-gray-600 hover:border-gray-300" data-tab="references">References</button>
-                <button class="flex-1 py-3 px-4 text-sm font-medium border-b-2 border-green-500 text-green-700" data-tab="primary">Primary</button>
+            <div class="md:hidden flex border-b border-neutral-200 bg-white/90 backdrop-blur-sm">
+                <button class="flex-1 py-3 px-4 text-sm font-semibold border-b-2 border-transparent text-neutral-600" data-tab="references">References</button>
+                <button class="flex-1 py-3 px-4 text-sm font-semibold border-b-2 border-green-500 text-green-700" data-tab="primary">Primary</button>
             </div>
             
             <!-- Secondary Texts Area (Now on Left) -->
-            <div id="secondary-texts-area" class="order-1 hidden md:flex w-full md:w-1/2 p-2 md:p-6 border-t md:border-r md:border-t-0 border-gray-200 md:border-r-[0.5px] overflow-hidden flex flex-col bg-white rounded-tl-sm">
-                <div class="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-100 border-b-[0.5px]">Reference Texts</div>
+            <div id="secondary-texts-area" class="order-1 hidden md:flex w-full md:w-1/2 p-2 md:p-6 border-t md:border-r md:border-t-0 border-neutral-200 overflow-hidden flex flex-col bg-white/90 backdrop-blur-sm rounded-tl-xl shadow-sm">
+                <div class="text-sm font-semibold text-neutral-700 mb-4 pb-2 border-b border-neutral-200">Reference Texts</div>
                 <div id="secondary-texts-container" class="flex-1 overflow-hidden flex flex-col gap-3">
-                    <div class="text-gray-500 text-center py-20 flex flex-col items-center">
-                        <button id="add-reference-text-btn" class="mb-4 px-6 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border-2 border-dashed border-blue-300 hover:border-blue-400 rounded-lg transition-all duration-200 flex items-center gap-2">
+                    <div class="text-neutral-500 text-center py-20 flex flex-col items-center">
+                        <button id="add-reference-text-btn" class="mb-4 px-8 py-4 bg-blue-50 text-blue-600 border-2 border-dashed border-blue-300 rounded-2xl flex items-center gap-3 font-semibold shadow-sm">
                             <i class="fas fa-plus"></i>
                             Load Reference Text
                         </button>
-                        <p class="text-sm">Load reference texts to compare and translate from</p>
+                        <p class="text-sm text-neutral-600 font-medium">Load reference texts to compare and translate from</p>
                     </div>
                 </div>
             </div>
             
             <!-- Primary Text Area (Now on Right) -->
-            <div id="primary-text-area" class="order-2 w-full md:w-1/2 p-2 md:p-6 overflow-hidden flex flex-col bg-white md:border-l-0 border-t border-gray-200 md:border-t-0 active">
-                <div class="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-100 border-b-[0.5px]">Primary Translation</div>
-                <div id="primary-text-container" class="flex-1 overflow-y-auto drop-zone-primary transition-all duration-300">
-                    <div class="text-gray-500 text-center py-20 flex flex-col items-center">
-                        <button id="add-primary-text-btn" class="mb-4 px-6 py-3 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border-2 border-dashed border-green-300 hover:border-green-400 rounded-lg transition-all duration-200 flex items-center gap-2">
+            <div id="primary-text-area" class="order-2 w-full md:w-1/2 p-2 md:p-6 overflow-hidden flex flex-col bg-white/90 backdrop-blur-sm md:border-l-0 border-t border-neutral-200 md:border-t-0 active rounded-tr-xl shadow-sm">
+                <div class="text-sm font-semibold text-neutral-700 mb-4 pb-2 border-b border-neutral-200">Primary Translation</div>
+                <div id="primary-text-container" class="flex-1 overflow-y-auto drop-zone-primary">
+                    <div class="text-neutral-500 text-center py-20 flex flex-col items-center">
+                        <button id="add-primary-text-btn" class="mb-4 px-8 py-4 bg-green-50 text-green-600 border-2 border-dashed border-green-300 rounded-2xl flex items-center gap-3 font-semibold shadow-sm">
                             <i class="fas fa-plus"></i>
                             Create or Load Translation
                         </button>
-                        <p class="text-sm">Create a new translation or load an existing one</p>
+                        <p class="text-sm text-neutral-600 font-medium">Create a new translation or load an existing one</p>
                     </div>
                 </div>
             </div>
@@ -146,11 +138,13 @@ class TranslationEditor {
     }
     
     initialize() {
+        // PERFORMANCE: Show immediate loading state
+        this.showImmediateLoadingState();
+        
         this.setupEventListeners();
         
         // Show immediate UI
         this.navigation.populateBookOptions();
-        this.navigation.populateTestamentSections();
         this.restoreNavigationState();
         
         // Disable editing features for viewers
@@ -160,6 +154,31 @@ class TranslationEditor {
         
         // Load data in background with progress indication
         this.loadEditorData();
+    }
+    
+    showImmediateLoadingState() {
+        // Show skeleton UI immediately to prevent blank screen
+        const primaryContainer = document.getElementById('primary-text-container');
+        const secondaryContainer = document.getElementById('secondary-texts-container');
+        
+        if (primaryContainer) {
+            primaryContainer.innerHTML = `
+                <div class="animate-pulse p-8">
+                    <div class="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+                    <div class="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                    <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                </div>
+            `;
+        }
+        
+        if (secondaryContainer) {
+            secondaryContainer.innerHTML = `
+                <div class="animate-pulse p-8">
+                    <div class="h-4 bg-gray-200 rounded w-2/3 mb-4"></div>
+                    <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                </div>
+            `;
+        }
     }
     
     async loadEditorData() {
@@ -331,18 +350,7 @@ class TranslationEditor {
             this.createNewTranslation();
         });
         
-        // Navigation controls
-        document.getElementById('goto-book')?.addEventListener('change', (e) => {
-            if (e.target.value) {
-                this.navigation.jumpToBook(e.target.value);
-            }
-        });
-        
-        document.getElementById('goto-chapter')?.addEventListener('change', (e) => {
-            if (e.target.value) {
-                this.navigation.navigateToChapter(parseInt(e.target.value));
-            }
-        });
+        // Navigation controls are now handled by the dropdown components in translation-navigation.js
         
         // Save button
         document.getElementById('save-changes-btn')?.addEventListener('click', async () => {
@@ -721,12 +729,12 @@ class TranslationEditor {
         const descriptionText = this.canEdit ? 'Create a new translation or load an existing one' : 'Load an existing translation to view';
         
         container.innerHTML = `
-            <div class="text-gray-500 text-center py-8 md:py-20 flex flex-col items-center">
-                <button id="add-primary-text-btn" class="mb-4 px-6 py-3 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 border-2 border-dashed border-green-300 hover:border-green-400 rounded-lg transition-all duration-200 flex items-center gap-2">
+            <div class="text-neutral-500 text-center py-8 md:py-20 flex flex-col items-center">
+                <button id="add-primary-text-btn" class="mb-4 px-8 py-4 bg-green-50 text-green-600 border-2 border-dashed border-green-300 rounded-2xl flex items-center gap-3 font-semibold shadow-sm">
                     <i class="fas fa-plus"></i>
                     ${buttonText}
                 </button>
-                <p class="text-sm">${descriptionText}</p>
+                <p class="text-sm text-neutral-600 font-medium">${descriptionText}</p>
             </div>
         `;
         
@@ -736,12 +744,12 @@ class TranslationEditor {
     
     renderEmptyReferenceState(container) {
         container.innerHTML = `
-            <div class="text-gray-500 text-center py-8 md:py-20 flex flex-col items-center">
-                <button id="add-reference-text-btn" class="mb-4 px-6 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border-2 border-dashed border-blue-300 hover:border-blue-400 rounded-lg transition-all duration-200 flex items-center gap-2">
+            <div class="text-neutral-500 text-center py-8 md:py-20 flex flex-col items-center">
+                <button id="add-reference-text-btn" class="mb-4 px-8 py-4 bg-blue-50 text-blue-600 border-2 border-dashed border-green-300 rounded-2xl flex items-center gap-3 font-semibold shadow-sm">
                     <i class="fas fa-plus"></i>
                     Load Reference Text
                 </button>
-                <p class="text-sm">Load reference texts to compare and translate from</p>
+                <p class="text-sm text-neutral-600 font-medium">Load reference texts to compare and translate from</p>
             </div>
         `;
         
@@ -761,7 +769,7 @@ class TranslationEditor {
         const textareas = textWindow.element.querySelectorAll('textarea');
         if (textareas.length > 0) {
             requestAnimationFrame(() => {
-                UIUtilities.batchAutoResize(textareas);
+                UIUtilities.batchAutoResizeTextareas(textareas);
                 textareas.forEach(textarea => this.addTextareaListeners(textarea));
             });
         }
@@ -770,25 +778,25 @@ class TranslationEditor {
     addTextareaListeners(textarea) {
         const verseIndex = parseInt(textarea.dataset.verseIndex);
         
-        textarea.addEventListener('focus', () => {
-            this.highlightSourceVerse(textarea.dataset.verse);
-        });
+        // PERFORMANCE: Skip if listeners already added
+        if (textarea._listenersAdded) return;
+        textarea._listenersAdded = true;
         
-        textarea.addEventListener('input', () => {
-            UIUtilities.autoResizeTextarea(textarea);
-            this.saveSystem.bufferVerseChange(verseIndex, textarea.value);
-        });
+        // PERFORMANCE: SIMPLEST POSSIBLE input handler
+        let value = '';
+        textarea.addEventListener('input', (e) => {
+            value = e.target.value; // Just store value, nothing else
+        }, { passive: true });
         
+        // PERFORMANCE: Only save on blur
         textarea.addEventListener('blur', () => {
-            this.saveSystem.bufferVerseChange(verseIndex, textarea.value);
-        });
+            this.saveSystem.bufferVerseChange(verseIndex, value);
+        }, { passive: true });
         
-        textarea.addEventListener('change', () => {
-            UIUtilities.autoResizeTextarea(textarea);
-        });
-        
-        // Add multi-select functionality
-        this.dragDrop.setupTextareaForMultiSelect(textarea);
+        // PERFORMANCE: Remove focus highlighting entirely for now
+        // textarea.addEventListener('focus', () => {
+        //     // Highlighting disabled for better performance
+        // }, { passive: true });
     }
     
     async refreshTextMetadata() {
@@ -818,7 +826,7 @@ class TranslationEditor {
         }
         
         // Show loading state
-        this.showGlobalLoading('Refreshing texts...');
+        UIUtilities.showLoading('Refreshing texts...');
         
         try {
             // Collect current text info
@@ -868,7 +876,7 @@ class TranslationEditor {
         } catch (error) {
             console.error('Error refreshing texts:', error);
         } finally {
-            this.hideGlobalLoading();
+            UIUtilities.hideLoading();
         }
     }
     
@@ -913,43 +921,15 @@ class TranslationEditor {
         }
     }
     
+    // PERFORMANCE: Remove highlighting system entirely
     highlightSourceVerse(verseNumber) {
-        document.querySelectorAll('textarea.highlighted').forEach(verse => {
-            verse.classList.remove('highlighted', 'border-gray-800', 'border-[0.5px]', 'bg-stone-50', 'shadow-inner');
-        });
-        
-        const allSourceVerses = document.querySelectorAll(`textarea[data-verse="${verseNumber}"]`);
-        
-        allSourceVerses.forEach((verse, index) => {
-            verse.classList.add('highlighted', 'border-gray-800', 'border-[0.5px]', 'bg-stone-50', 'shadow-inner', 'animate-pulse');
-            
-            setTimeout(() => {
-                const scrollContainer = verse.closest('[data-window-content]');
-                if (!scrollContainer) return;
-                
-                const verseWrapper = verse.closest('[data-verse]');
-                const elementToScroll = verseWrapper || verse;
-                
-                const containerRect = scrollContainer.getBoundingClientRect();
-                const elementRect = elementToScroll.getBoundingClientRect();
-                
-                const relativeTop = elementRect.top - containerRect.top + scrollContainer.scrollTop;
-                const elementHeight = elementRect.height;
-                const containerHeight = scrollContainer.clientHeight;
-                
-                const targetScrollTop = relativeTop - (containerHeight / 2) + (elementHeight / 2);
-                
-                scrollContainer.scrollTo({
-                    top: Math.max(0, targetScrollTop),
-                    behavior: 'smooth'
-                });
-                
-                // Remove animation after scroll
-                setTimeout(() => {
-                    verse.classList.remove('animate-pulse');
-                }, 300);
-            }, index * 50);
-        });
+        // Disabled for performance - no highlighting
+        return;
+    }
+    
+    scrollToVerseOptimized(verse) {
+        // Disabled for performance - no auto-scrolling
+        return;
     }
     
     // Delegate methods to subsystems
@@ -1004,36 +984,29 @@ class TranslationEditor {
     }
 }
 
-// Initialize when page loads with optimized timing
+// PERFORMANCE: Simplest possible initialization - no virtual scrolling
 document.addEventListener('DOMContentLoaded', () => {
-    // Show UI immediately, then initialize editor
     const editor = new TranslationEditor();
-    
-    // Preload data that might be needed soon
-    requestIdleCallback(() => {
-        // Cache common operations when browser is idle
-        if (editor.textMetadata.size === 0) {
-            editor.loadTextMetadata().catch(console.error);
-        }
-    });
+    // Just start the editor - no complex systems
 });
 </script>
 
 {% endblock %}
 
 {% block scripts %}
-<!-- Translation Editor JavaScript Components -->
-<script src="{{ url_for('static', filename='js/ui-utilities.js') }}"></script>
-<script src="{{ url_for('static', filename='js/purpose-manager.js') }}"></script>
-<script src="{{ url_for('static', filename='js/audio-manager.js') }}"></script>
-<script src="{{ url_for('static', filename='js/theme-manager.js') }}"></script>
-<script src="{{ url_for('static', filename='js/bible-constants.js') }}"></script>
-<script src="{{ url_for('static', filename='js/text-window.js') }}"></script>
-<script src="{{ url_for('static', filename='js/translation-storage.js') }}"></script>
-<script src="{{ url_for('static', filename='js/translation-confidence.js') }}"></script>
-<script src="{{ url_for('static', filename='js/translation-navigation.js') }}"></script>
-<script src="{{ url_for('static', filename='js/translation-save.js') }}"></script>
-<script src="{{ url_for('static', filename='js/translation-ui.js') }}"></script>
-<script src="{{ url_for('static', filename='js/translation-test-results.js') }}"></script>
-<script src="{{ url_for('static', filename='js/translation-drag-drop.js') }}"></script>
+<!-- Translation Editor JavaScript Components - OPTIMIZED with defer for faster loading -->
+<script defer src="{{ url_for('static', filename='js/ui-utilities.js') }}"></script>
+    <!-- Virtual scroll removed for performance -->
+<script defer src="{{ url_for('static', filename='js/purpose-manager.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/audio-manager.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/theme-manager.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/bible-constants.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/text-window.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/translation-storage.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/translation-confidence.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/translation-navigation.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/translation-save.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/translation-ui.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/translation-test-results.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/translation-drag-drop.js') }}"></script>
 {% endblock %} 

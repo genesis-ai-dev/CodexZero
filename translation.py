@@ -1009,14 +1009,14 @@ def get_chapter_verses(project_id, target_id, book, chapter):
             # Get purpose description from file
             target_purpose = target_file.purpose_description or ''
             
-            # Get verses from database - all files should use database storage
+            # OPTIMIZED: Single bulk query with proper indexing
             verse_indices = [v['index'] for v in chapter_verses]
             verses = ProjectFileVerse.query.filter(
                 ProjectFileVerse.project_file_id == target_file.id,
                 ProjectFileVerse.verse_index.in_(verse_indices)
-            ).all()
+            ).order_by(ProjectFileVerse.verse_index).all()
             
-            # Create a mapping for quick lookup
+            # Create a mapping for O(1) lookup
             verse_map = {v.verse_index: v.verse_text for v in verses}
             target_texts = [verse_map.get(idx, '') for idx in verse_indices]
 
@@ -1071,14 +1071,14 @@ def get_chapter_verses(project_id, target_id, book, chapter):
                 project_id=project_id
             ).first_or_404()
             
-            # Get verses from database - all files should use database storage
+            # OPTIMIZED: Single bulk query with proper indexing
             verse_indices = [v['index'] for v in chapter_verses]
             verses = ProjectFileVerse.query.filter(
                 ProjectFileVerse.project_file_id == source_file.id,
                 ProjectFileVerse.verse_index.in_(verse_indices)
-            ).all()
+            ).order_by(ProjectFileVerse.verse_index).all()
             
-            # Create a mapping for quick lookup
+            # Create a mapping for O(1) lookup
             verse_map = {v.verse_index: v.verse_text for v in verses}
             source_verses = [verse_map.get(idx, '') for idx in verse_indices]
         

@@ -2,14 +2,34 @@
 class TranslationNavigation {
     constructor(translationEditor) {
         this.editor = translationEditor;
+        this.setupDropdownListeners();
+    }
+    
+    setupDropdownListeners() {
+        // Book dropdown change listener
+        const bookButton = document.getElementById('goto-book-button');
+        if (bookButton) {
+            bookButton.addEventListener('change', (e) => {
+                const bookCode = e.detail?.value || bookButton.dataset.value;
+                if (bookCode && bookCode !== this.editor.currentBook) {
+                    this.jumpToBook(bookCode);
+                }
+            });
+        }
+        
+        // Chapter dropdown change listener
+        const chapterButton = document.getElementById('goto-chapter-button');
+        if (chapterButton) {
+            chapterButton.addEventListener('change', (e) => {
+                const chapter = parseInt(e.detail?.value || chapterButton.dataset.value);
+                if (chapter && chapter !== this.editor.currentChapter) {
+                    this.navigateToChapter(chapter);
+                }
+            });
+        }
     }
     
     populateBookOptions() {
-        const bookSelect = document.getElementById('goto-book');
-        if (!bookSelect) return;
-        
-        bookSelect.innerHTML = '';
-        
         // Get available books from bookChapters and sort by biblical order
         const availableBooks = Object.keys(this.editor.bookChapters);
         const sortedBooks = BibleConstants.BIBLICAL_ORDER.filter(book => availableBooks.includes(book));
@@ -18,19 +38,21 @@ class TranslationNavigation {
         const remainingBooks = availableBooks.filter(book => !BibleConstants.BIBLICAL_ORDER.includes(book));
         remainingBooks.sort(); // Sort remaining books alphabetically as fallback
         
-        [...sortedBooks, ...remainingBooks].forEach(bookCode => {
-            const option = document.createElement('option');
-            option.value = bookCode;
-            option.textContent = BibleConstants.getBookDisplayName(bookCode);
-            bookSelect.appendChild(option);
-        });
+        const books = [...sortedBooks, ...remainingBooks].map(bookCode => ({
+            value: bookCode,
+            name: BibleConstants.getBookDisplayName(bookCode)
+        }));
+        
+        // Use the new dropdown population function
+        if (window.populateBookDropdown) {
+            window.populateBookDropdown(books);
+        }
     }
     
     updateChapterTitle() {
         // Chapter title element no longer exists in simplified header
         this.updateNavigationButtons();
         this.updateChapterOptions();
-        this.populateTestamentSections();
     }
     
     updateNavigationButtons() {
@@ -78,9 +100,9 @@ class TranslationNavigation {
         this.editor.currentChapter = chapter;
         this.editor.storage.saveNavigationState(this.editor.currentBook, chapter);
         
-        const gotoChapter = document.getElementById('goto-chapter');
-        if (gotoChapter) {
-            gotoChapter.value = chapter;
+        // Update the chapter dropdown display
+        if (window.setChapterDropdownOption) {
+            window.setChapterDropdownOption(chapter, `Chapter ${chapter}`);
         }
         
         this.updateChapterTitle();
@@ -92,14 +114,12 @@ class TranslationNavigation {
         this.editor.currentChapter = 1; // Reset to chapter 1 when jumping to a new book
         this.editor.storage.saveNavigationState(book, 1);
         
-        const gotoBook = document.getElementById('goto-book');
-        const gotoChapter = document.getElementById('goto-chapter');
-        
-        if (gotoBook) {
-            gotoBook.value = this.editor.currentBook;
+        // Update the dropdown displays
+        if (window.setBookDropdownOption) {
+            window.setBookDropdownOption(book, BibleConstants.getBookDisplayName(book));
         }
-        if (gotoChapter) {
-            gotoChapter.value = 1;
+        if (window.setChapterDropdownOption) {
+            window.setChapterDropdownOption(1, 'Chapter 1');
         }
         
         this.updateChapterOptions();
@@ -153,14 +173,12 @@ class TranslationNavigation {
                 this.editor.currentChapter = chapter;
                 this.editor.storage.saveNavigationState(book, chapter);
                 
-                const gotoBook = document.getElementById('goto-book');
-                const gotoChapter = document.getElementById('goto-chapter');
-                
-                if (gotoBook) {
-                    gotoBook.value = book;
+                // Update dropdown displays
+                if (window.setBookDropdownOption) {
+                    window.setBookDropdownOption(book, BibleConstants.getBookDisplayName(book));
                 }
-                if (gotoChapter) {
-                    gotoChapter.value = chapter;
+                if (window.setChapterDropdownOption) {
+                    window.setChapterDropdownOption(chapter, `Chapter ${chapter}`);
                 }
                 
                 this.updateChapterOptions();
@@ -170,84 +188,34 @@ class TranslationNavigation {
         });
     }
     
-    populateTestamentSections() {
-        this.populateTestamentBooks('ot-books', BibleConstants.OLD_TESTAMENT_BOOKS);
-        this.populateTestamentBooks('nt-books', BibleConstants.NEW_TESTAMENT_BOOKS);
-    }
-    
-    populateTestamentBooks(containerId, books) {
-        const container = document.getElementById(containerId);
-        if (!container) return;
-        
-        container.innerHTML = '';
-        
-        books.forEach(bookCode => {
-            const available = this.editor.bookChapters[bookCode];
-            const isCurrent = bookCode === this.editor.currentBook;
-            
-            if (available) { // Show all available books
-                const button = document.createElement('button');
-                button.className = `w-full text-left px-3 py-2 text-xs font-medium transition-colors marker-border-thin ${
-                    isCurrent 
-                        ? 'cursor-not-allowed opacity-50' 
-                        : 'hover:bg-gray-50'
-                }`;
-                button.style.cssText = `
-                    background: ${isCurrent ? '#f3f4f6' : '#fefdf8'}; 
-                    color: ${isCurrent ? '#9ca3af' : '#2d2d2d'}; 
-                    border: 1px solid ${isCurrent ? '#d1d5db' : '#2d2d2d'}; 
-                    border-radius: 1px;
-                `;
-                button.textContent = `${BibleConstants.getBookDisplayName(bookCode)} (${available})`;
-                button.disabled = isCurrent;
-                
-                if (!isCurrent) {
-                    button.addEventListener('click', () => {
-                        this.jumpToBook(bookCode);
-                    });
-                }
-                
-                container.appendChild(button);
-            }
-        });
-    }
-    
-    toggleTestamentSection(testament) {
-        const booksContainer = document.getElementById(`${testament}-books`);
-        const chevron = document.getElementById(`${testament}-chevron`);
-        
-        if (booksContainer.classList.contains('hidden')) {
-            // Show the section
-            booksContainer.classList.remove('hidden');
-            chevron.style.transform = 'rotate(180deg)';
-        } else {
-            // Hide the section
-            booksContainer.classList.add('hidden');
-            chevron.style.transform = 'rotate(0deg)';
-        }
-    }
+
     
     updateChapterOptions() {
-        const chapterSelect = document.getElementById('goto-chapter');
-        if (!chapterSelect) return;
-        
-        chapterSelect.innerHTML = '';
-        
         if (!this.editor.currentBook || !this.editor.bookChapters[this.editor.currentBook]) {
-            chapterSelect.innerHTML = '<option value="">Select Chapter...</option>';
+            if (window.populateChapterDropdown) {
+                window.populateChapterDropdown([]);
+            }
             return;
         }
         
         const maxChapters = this.editor.bookChapters[this.editor.currentBook];
         
+        const chapters = [];
         for (let i = 1; i <= maxChapters; i++) {
-            const option = document.createElement('option');
-            option.value = i;
-            option.textContent = `Chapter ${i}`;
-            if (i === this.editor.currentChapter) {
-                option.selected = true;
-            }
-            chapterSelect.appendChild(option);
+            chapters.push({
+                value: i,
+                name: `Chapter ${i}`
+            });
+        }
+        
+        // Use the new dropdown population function
+        if (window.populateChapterDropdown) {
+            window.populateChapterDropdown(chapters);
+        }
+        
+        // Set current selection
+        if (window.setChapterDropdownOption) {
+            window.setChapterDropdownOption(this.editor.currentChapter, `Chapter ${this.editor.currentChapter}`);
         }
     }
 }

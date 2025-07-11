@@ -1,9 +1,37 @@
-// Translation Save System
+// PERFORMANCE: Simplified Translation Save System
 class TranslationSave {
     constructor(translationEditor) {
         this.editor = translationEditor;
-        this.setupAutoSave();
-        this.setupPageUnloadWarning();
+        
+        // PERFORMANCE: Cache the save button element
+        this.saveBtn = document.getElementById('save-changes-btn');
+        
+        // PERFORMANCE: Simple auto-save with debouncing
+        this.autoSaveTimeout = null;
+    }
+    
+    bufferVerseChange(verseIndex, text) {
+        // PERFORMANCE: Direct update to editor's unsaved changes
+        this.editor.unsavedChanges.set(verseIndex, text);
+        this.editor.hasUnsavedChanges = true;
+        
+        // PERFORMANCE: Simple debounced save button update
+        this.updateSaveButtonState();
+        
+        // PERFORMANCE: Simple auto-save after 2 seconds of inactivity
+        if (this.autoSaveTimeout) clearTimeout(this.autoSaveTimeout);
+        this.autoSaveTimeout = setTimeout(() => {
+            this.saveAllChanges();
+        }, 2000);
+    }
+    
+    updateSaveButtonState() {
+        // PERFORMANCE: Use cached button element
+        if (this.saveBtn) {
+            const hasChanges = this.editor.unsavedChanges.size > 0;
+            this.saveBtn.disabled = !hasChanges;
+            this.saveBtn.textContent = hasChanges ? 'Save Changes' : 'No Changes';
+        }
     }
     
     setupPageUnloadWarning() {
@@ -26,43 +54,6 @@ class TranslationSave {
                 }
             }
         }, 30000);
-    }
-    
-    bufferVerseChange(verseIndex, text) {
-        if (verseIndex !== null && verseIndex !== undefined && !isNaN(verseIndex)) {
-            // Find the textarea to check if it's in test mode
-            const textarea = document.querySelector(`textarea[data-verse-index="${verseIndex}"]`);
-            const hasExistingContent = textarea?.value?.trim();
-            
-            // Don't buffer changes if this appears to be test mode
-            if (hasExistingContent && textarea?.style.borderColor === '#3b82f6') {
-                console.log('Skipping buffer for potential test mode verse:', verseIndex);
-                return;
-            }
-            
-            this.editor.unsavedChanges.set(verseIndex, text);
-            this.editor.hasUnsavedChanges = this.editor.unsavedChanges.size > 0;
-            this.updateSaveButtonState();
-        }
-    }
-    
-    updateSaveButtonState() {
-        const saveBtn = document.getElementById('save-changes-btn');
-        
-        if (!saveBtn) return;
-        
-        const changeCount = this.editor.unsavedChanges.size;
-        const hasChanges = this.editor.hasUnsavedChanges && changeCount > 0;
-        
-        // Update save button
-        saveBtn.disabled = !hasChanges;
-        saveBtn.textContent = hasChanges ? `SAVE CHANGES (${changeCount})` : 'NO CHANGES TO SAVE';
-        
-        const styles = hasChanges ? 
-            { background: '#dcfce7', color: '#166534', borderColor: '#166534' } :
-            { background: '#e5e5e5', color: '#2d2d2d', borderColor: '#2d2d2d' };
-            
-        Object.assign(saveBtn.style, styles);
     }
     
     async saveAllChanges() {

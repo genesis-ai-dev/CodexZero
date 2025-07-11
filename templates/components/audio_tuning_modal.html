@@ -1,28 +1,28 @@
 {% macro audio_tuning_modal() %}
 <div id="audio-tuning-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
     <div class="flex items-center justify-center min-h-screen p-4">
-        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
-            <div class="flex items-center justify-between p-4 border-b">
-                <h3 class="text-lg font-semibold">Fine-tune Audio</h3>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
-                    <i class="fas fa-times"></i>
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col border border-neutral-200">
+            <div class="flex items-center justify-between p-6 border-b border-neutral-200">
+                <h3 class="text-xl font-bold text-neutral-900 tracking-tight">Fine-tune Audio</h3>
+                <button onclick="closeModal()" class="text-neutral-400 hover:text-neutral-600 p-2 rounded-lg hover:bg-neutral-100 transition-all duration-200">
+                    <i class="fas fa-times text-lg"></i>
                 </button>
             </div>
             
-            <div class="p-4 bg-gray-50 border-b">
-                <div class="text-sm text-gray-600 mb-1">Original Text:</div>
-                <div id="original-text" class="text-gray-900 font-medium"></div>
+            <div class="p-6 bg-neutral-50 border-b border-neutral-200">
+                <div class="text-sm font-medium text-neutral-600 mb-2">Original Text:</div>
+                <div id="original-text" class="text-neutral-900 font-semibold text-lg"></div>
             </div>
             
             <!-- Chat-like iterations list -->
-            <div class="flex-1 overflow-y-auto p-4 space-y-3" id="iterations-list">
+            <div class="flex-1 overflow-y-auto p-6 space-y-4" id="iterations-list">
                 <!-- Iterations will be added here -->
             </div>
             
             <!-- Input area -->
-            <div class="border-t p-4">
-                <div class="flex items-center space-x-2 mb-3">
-                    <select id="voice-select" class="border rounded px-3 py-2 text-sm">
+            <div class="border-t border-neutral-200 p-6">
+                <div class="flex items-center space-x-3 mb-4">
+                    <select id="voice-select" class="border border-neutral-200 rounded-lg px-4 py-2 text-sm font-medium bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
                         <option value="alloy">Alloy</option>
                         <option value="echo">Echo</option>
                         <option value="fable">Fable</option>
@@ -30,32 +30,32 @@
                         <option value="nova">Nova</option>
                         <option value="shimmer">Shimmer</option>
                     </select>
-                    <span class="text-sm text-gray-500">Voice for next iteration</span>
+                    <span class="text-sm text-neutral-600 font-medium">Voice for next iteration</span>
                 </div>
-                <div class="flex space-x-2">
+                <div class="flex space-x-3">
                     <input 
                         type="text" 
                         id="instructions-input" 
                         placeholder="Voice instructions (e.g., 'speak slowly', 'British accent', 'more excited')"
-                        class="flex-1 border rounded px-3 py-2"
+                        class="flex-1 border border-neutral-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-medium"
                         onkeypress="if(event.key==='Enter') generateIteration()"
                     >
-                    <button onclick="generateIteration()" id="generate-btn" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                    <button onclick="generateIteration()" id="generate-btn" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105">
                         <i class="fas fa-play"></i>
                     </button>
                 </div>
             </div>
             
             <!-- Footer -->
-            <div class="flex justify-between items-center p-4 border-t bg-gray-50">
-                <button onclick="deleteAllAudio()" class="px-4 py-2 text-red-600 hover:bg-red-50 rounded">
+            <div class="flex justify-between items-center p-6 border-t border-neutral-200 bg-neutral-50 rounded-b-2xl">
+                <button onclick="deleteAllAudio()" class="px-6 py-3 text-red-600 hover:bg-red-50 rounded-xl font-medium hover:text-red-700 transition-all duration-200">
                     <i class="fas fa-trash mr-2"></i>Delete All Audio
                 </button>
-                <div class="flex space-x-2">
-                    <button onclick="closeModal()" class="px-4 py-2 border rounded text-gray-600 hover:bg-gray-50">
+                <div class="flex space-x-3">
+                    <button onclick="closeModal()" class="px-6 py-3 border border-neutral-200 rounded-xl text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-all duration-200 font-medium">
                         Cancel
                     </button>
-                    <button onclick="applySelected()" id="apply-btn" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700" disabled>
+                    <button onclick="applySelected()" id="apply-btn" class="px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105" disabled>
                         Apply Selected
                     </button>
                 </div>
