@@ -1,19 +1,19 @@
 # CodexZero - AI-Powered Bible Translation Platform
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: AGPLv3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 **Zero draft Bible translation powered by AI**
 
 CodexZero is a modern Flask web application that provides AI-assisted Bible translation tools. It helps translators work with Biblical texts by providing contextual translation suggestions, back-translation, quality checks, and OpenAI fine-tuning capabilities.
 
-## ✨ Key Features
+## Key Features
 
 - **AI Translation**: Real-time translation with confidence scoring using Claude 3.5 Sonnet (best model for translation)
 - **Fine-Tuning**: Custom GPT model training for specialized translation needs  
 - **USFM Import**: Advanced Biblical text format support
 - **Multi-User Projects**: Collaborative translation with role-based access
 
-## 🚀 Quick Start
+## Quick Start
 
 1. **Clone the repository**
    ```bash
@@ -39,7 +39,7 @@ CodexZero is a modern Flask web application that provides AI-assisted Bible tran
 
 Visit `http://localhost:5000` to get started!
 
-## 🛠 Requirements
+## Requirements
 
 - Python 3.8+
 - MySQL database
@@ -47,16 +47,16 @@ Visit `http://localhost:5000` to get started!
 - Anthropic API key (for translation)
 - Google OAuth credentials
 
-## 🎯 Who It's For
+## Who It's For
 
 - Bible translation organizations
 - Missionary translators  
 - Biblical studies researchers
 - AI/ML developers interested in specialized translation tools
 
-## 📄 License
+## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the AGPLv3 License - see the [LICENSE](LICENSE) file for details.
 
 ## 🔗 Related Projects
 
