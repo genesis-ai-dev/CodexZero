@@ -187,7 +187,6 @@ class TranslationEditor {
             UIUtilities.showLoading('Loading translation editor...');
             await this.loadTextMetadata();
             await this.restoreLayoutStateParallel();
-            this.saveSystem.updateSaveButtonState();
             this.ui.initializeModels();
         } catch (error) {
             console.error('Error loading editor data:', error);
@@ -1001,9 +1000,7 @@ class TranslationEditor {
         this.saveSystem.bufferVerseChange(verseIndex, text);
     }
     
-    updateSaveButtonState() {
-        this.saveSystem.updateSaveButtonState();
-    }
+
     
     async saveAllChanges() {
         return await this.saveSystem.saveAllChanges();

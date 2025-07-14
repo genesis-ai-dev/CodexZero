@@ -132,7 +132,6 @@ class TranslationConfidence {
             
             // Remove from unsaved changes since it's now saved
             translationEditor.unsavedChanges.delete(verseIndex);
-            translationEditor.updateSaveButtonState();
         } catch (error) {
             console.error('Error saving accepted translation:', error);
         }
