@@ -15,7 +15,6 @@ class TranslationUI {
                 const modelId = e.detail?.value || modelButton.dataset.value;
                 if (modelId && this.currentModels[modelId]) {
                     this.setTranslationModel(modelId);
-                    this.showModelInfo(modelId);
                 }
             });
         }
@@ -109,7 +108,6 @@ class TranslationUI {
                 dropdownModels.push({
                     value: modelId,
                     name: `🎯 ${modelInfo.name}`,
-                    description: modelInfo.description,
                     type: modelInfo.type
                 });
             });
@@ -121,7 +119,6 @@ class TranslationUI {
                 dropdownModels.push({
                     value: modelId,
                     name: `${modelInfo.name}`,
-                    description: modelInfo.description,
                     type: modelInfo.type
                 });
             });
@@ -137,40 +134,12 @@ class TranslationUI {
             const modelInfo = models[currentModel];
             const prefix = modelInfo.type === 'fine_tuned' ? '🎯 ' : ' ';
             if (window.setModelDropdownOption) {
-                window.setModelDropdownOption(currentModel, prefix + modelInfo.name, modelInfo.description, modelInfo.type);
+                window.setModelDropdownOption(currentModel, prefix + modelInfo.name);
             }
-            this.showModelInfo(currentModel);
         }
     }
     
-    showModelInfo(modelId) {
-        const modelInfo = this.currentModels[modelId];
-        if (!modelInfo) return;
-        
-        const infoDiv = document.getElementById('model-info');
-        const descriptionDiv = document.getElementById('model-description');
-        const typeDiv = document.getElementById('model-type');
-        
-        if (!descriptionDiv || !typeDiv) return;
-        
-        descriptionDiv.textContent = modelInfo.description;
-        
-        let typeText = modelInfo.type === 'fine_tuned' ? 'Fine-tuned Model' : 'Base Model';
-        if (modelInfo.type === 'fine_tuned' && modelInfo.training_examples) {
-            typeText += ` • ${modelInfo.training_examples.toLocaleString()} training examples`;
-        }
-        
-        // Add automatic settings info
-        const isFineTuned = modelInfo.type === 'fine_tuned';
-        typeText += ` • Temperature: 0.2 • In-context: ${isFineTuned ? 'OFF' : 'ON'}`;
-        
-        typeDiv.textContent = typeText;
-        
-        // Show the model info div
-        if (infoDiv) {
-            infoDiv.classList.remove('hidden');
-        }
-    }
+   
     
     showModelUpdateFeedback(message) {
         // Create temporary success message
@@ -180,7 +149,6 @@ class TranslationUI {
         tempFeedback.style.cssText = 'background: #dcfce7; color: #166534; border: 1px solid #166534;';
         tempFeedback.textContent = '✓ ' + message;
         
-        infoDiv.parentNode.insertBefore(tempFeedback, infoDiv);
         
         // Remove after 3 seconds
         setTimeout(() => {
