@@ -977,26 +977,48 @@ def save_verse(project_id, target_id, verse_index):
             
             previous_text = current_verse.verse_text if current_verse else ''
             
-            # Save the verse using existing logic
-            text_manager = TextManager(text_id)
-            success = text_manager.save_verse(verse_index, verse_text)
-            
-            if not success:
-                return jsonify({'error': 'Failed to save verse'}), 500
-            
-            # Record edit history
+            # Save verse and record history in single transaction
             from utils.verse_history_service import VerseEditHistoryService
-            VerseEditHistoryService.record_edit(
-                text_id=text_id,
-                verse_index=verse_index,
-                previous_text=previous_text,
-                new_text=verse_text,
-                user_id=current_user.id,
-                edit_type='create' if not previous_text else 'update',
-                edit_source=edit_source,
-                comment=edit_comment,
-                confidence_score=confidence_score
-            )
+            
+            try:
+                # Use TextManager to save verse (without committing)
+                text_manager = TextManager(text_id)
+                verse = Verse.query.filter_by(
+                    text_id=text_id,
+                    verse_index=verse_index
+                ).first()
+                
+                if verse:
+                    verse.verse_text = verse_text
+                else:
+                    verse = Verse(
+                        text_id=text_id,
+                        verse_index=verse_index,
+                        verse_text=verse_text
+                    )
+                    db.session.add(verse)
+                
+                # Record edit history (without committing)
+                VerseEditHistoryService.record_edit(
+                    text_id=text_id,
+                    verse_index=verse_index,
+                    previous_text=previous_text,
+                    new_text=verse_text,
+                    user_id=current_user.id,
+                    edit_source=edit_source,
+                    comment=edit_comment
+                )
+                
+                # Single commit for both operations
+                db.session.commit()
+                
+                # Update progress after successful save
+                text_manager._update_progress()
+                
+            except Exception as e:
+                db.session.rollback()
+                print(f"Error saving verse with history: {e}")
+                return jsonify({'error': 'Failed to save verse'}), 500
             
             return jsonify({
                 'success': True,

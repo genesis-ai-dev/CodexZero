@@ -182,21 +182,16 @@ class Verse(db.Model):
     verse_index = db.Column(db.Integer, nullable=False)  # 0-31169
     verse_text = db.Column(db.Text, nullable=False)
     
-    # Edit tracking fields
-    last_edited_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    last_edited_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    edit_count = db.Column(db.Integer, default=0)
+    # Simplified - edit tracking handled by VerseEditHistory table
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Relationships
-    last_editor = db.relationship('User', foreign_keys=[last_edited_by], backref='last_edited_verses')
+    # No additional relationships needed
     
     __table_args__ = (
         db.UniqueConstraint('text_id', 'verse_index', name='unique_text_verse'),
         db.Index('idx_verse_lookup', 'text_id', 'verse_index'),
-        db.Index('idx_verse_last_edited', 'last_edited_by', 'last_edited_at'),
     )
     
     def get_edit_history(self, limit=50):
@@ -232,7 +227,6 @@ class VerseEditHistory(db.Model):
     
     # Optional context
     edit_comment = db.Column(db.Text)
-    confidence_score = db.Column(db.Numeric(3, 2))
     
     # Relationships
     text = db.relationship('Text', backref='edit_history')

@@ -67,9 +67,8 @@ def run_performance_migrations():
                                 edited_by INT NOT NULL,
                                 edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                 edit_type ENUM('create', 'update', 'delete', 'revert') NOT NULL DEFAULT 'update',
-                                edit_source ENUM('manual', 'ai_translation', 'import', 'bulk_operation') NOT NULL DEFAULT 'manual',
-                                edit_comment TEXT,
-                                confidence_score DECIMAL(3,2),
+                                                            edit_source ENUM('manual', 'ai_translation', 'import', 'bulk_operation') NOT NULL DEFAULT 'manual',
+                            edit_comment TEXT,
                                 
                                 FOREIGN KEY (text_id) REFERENCES texts(id) ON DELETE CASCADE,
                                 FOREIGN KEY (edited_by) REFERENCES users(id) ON DELETE SET NULL,
@@ -89,18 +88,8 @@ def run_performance_migrations():
                             "WHERE table_schema = DATABASE() AND table_name = 'verses' AND column_name = 'last_edited_by'"
                         )).fetchone()
                         
-                        if result.count == 0:
-                            # Add tracking columns to verses table
-                            conn.execute(db.text("""
-                                ALTER TABLE verses 
-                                ADD COLUMN last_edited_by INT,
-                                ADD COLUMN last_edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                                ADD COLUMN edit_count INT DEFAULT 0,
-                                ADD FOREIGN KEY (last_edited_by) REFERENCES users(id) ON DELETE SET NULL,
-                                ADD INDEX idx_verse_last_edited (last_edited_by, last_edited_at)
-                            """))
-                            print("✅ Added edit tracking columns to verses table")
-                            local_migrations += 1
+                        
+                        local_migrations += 1
                     
                     conn.commit()
                     return local_migrations

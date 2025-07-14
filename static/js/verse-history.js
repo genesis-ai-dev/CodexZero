@@ -164,12 +164,11 @@ class VerseHistory {
             const data = await response.json();
             
             if (data.success) {
-                // Refresh the verse in the editor
-                await this.refreshVerseInEditor();
-                
-                // Close modal and show success
+                // Close modal first
                 this.closeModal();
-                this.editor.showMessage?.('Verse reverted successfully', 'success');
+                
+                // Simple page reload to refresh all content
+                window.location.reload();
             } else {
                 throw new Error(data.error || 'Revert failed');
             }
@@ -179,31 +178,7 @@ class VerseHistory {
         }
     }
     
-    async refreshVerseInEditor() {
-        // Find the textarea for this verse
-        const textarea = document.querySelector(`textarea[data-verse-index="${this.currentVerseIndex}"]`);
-        if (!textarea) return;
-        
-        try {
-            // Get current verse content from server
-            const response = await fetch(
-                `/project/${this.editor.projectId}/translation/${this.editor.currentTranslation}/chapter/${this.editor.currentBook}/${this.editor.currentChapter}`
-            );
-            
-            if (response.ok) {
-                const data = await response.json();
-                const verse = data.verses.find(v => v.index === this.currentVerseIndex);
-                if (verse) {
-                    textarea.value = verse.target_text;
-                    // Remove from unsaved changes if it exists
-                    this.editor.unsavedChanges?.delete(this.currentVerseIndex);
-                    this.editor.updateSaveButtonState?.();
-                }
-            }
-        } catch (error) {
-            console.error('Error refreshing verse:', error);
-        }
-    }
+    // Removed complex refresh logic - using simple page reload instead
     
     closeModal() {
         const modal = document.querySelector('.verse-history-modal');
