@@ -15,9 +15,7 @@ class TranslationSave {
         this.editor.unsavedChanges.set(verseIndex, text);
         this.editor.hasUnsavedChanges = true;
         
-        // PERFORMANCE: Simple save button update
-        this.updateSaveButtonState();
-        
+     
         // Auto-save immediately when user moves between cells
         this.autoSaveVerse(verseIndex, text);
     }
@@ -51,7 +49,6 @@ class TranslationSave {
             // Remove from unsaved changes since it's now saved
             this.editor.unsavedChanges.delete(verseIndex);
             this.editor.hasUnsavedChanges = this.editor.unsavedChanges.size > 0;
-            this.updateSaveButtonState();
             
             // Show subtle success indicator
             if (textarea) {
@@ -68,18 +65,7 @@ class TranslationSave {
         }
     }
     
-    updateSaveButtonState() {
-        // PERFORMANCE: Use cached button element
-        if (this.saveBtn) {
-            const hasChanges = this.editor.unsavedChanges.size > 0;
-            this.saveBtn.disabled = !hasChanges;
-            if (hasChanges) {
-                this.saveBtn.textContent = `Save ${this.editor.unsavedChanges.size} Changes`;
-            } else {
-                this.saveBtn.textContent = 'Auto-Saved';
-            }
-        }
-    }
+    
     
     setupPageUnloadWarning() {
         window.addEventListener('beforeunload', (e) => {
@@ -159,7 +145,6 @@ class TranslationSave {
         }
         
         this.editor.hasUnsavedChanges = this.editor.unsavedChanges.size > 0;
-        this.updateSaveButtonState();
         
         if (savedVerses.size > 0) {
             // Refresh metadata for successful saves
@@ -169,11 +154,7 @@ class TranslationSave {
         
         // Show appropriate feedback
         if (failedVerses.size === 0) {
-            // All successful
-            if (saveBtn) {
-                saveBtn.textContent = 'Saved!';
-                setTimeout(() => this.updateSaveButtonState(), 2000);
-            }
+           
         } else if (savedVerses.size > 0) {
             // Partial success
             if (saveBtn) {

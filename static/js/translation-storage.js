@@ -68,6 +68,16 @@ class TranslationStorage {
             chapter: parseInt(this.getFromLocalStorage('currentChapter')) || 1
         };
     }
+    
+    // Sidebar state
+    setSidebarState(collapsed) {
+        this.saveToLocalStorage('sidebarCollapsed', collapsed ? 'true' : 'false');
+    }
+    
+    getSidebarState() {
+        const saved = this.getFromLocalStorage('sidebarCollapsed');
+        return saved === 'true';
+    }
 }
 
 // Make available globally

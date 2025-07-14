@@ -2,69 +2,71 @@
 <!-- Translation Sidebar -->
 <div class="h-full flex flex-col bg-white/95 backdrop-blur-sm border-r border-neutral-200 shadow-lg">
     
-    <!-- Save Button -->
-    <div class="border-b border-neutral-200 p-6 flex-shrink-0">
-        <button id="save-changes-btn" class="w-full py-3 px-4 text-sm font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-700 hover:text-neutral-900 rounded-lg transition-all duration-200 border border-neutral-200 hover:border-neutral-300 shadow-sm">
-            NO CHANGES TO SAVE
+    <!-- Desktop Collapse Button -->
+    <div class="hidden md:flex justify-end p-2 border-b border-neutral-200/50">
+        <button id="desktop-sidebar-toggle" class="p-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-all duration-200" title="Collapse sidebar">
+            <i id="desktop-sidebar-icon" class="fas fa-chevron-left text-sm"></i>
         </button>
     </div>
     
-    <!-- Model Selection -->
-    <div class="border-b border-neutral-200 p-6 flex-shrink-0">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-bold text-neutral-900 tracking-tight">Translation Model</h3>
-            <button id="refresh-models-btn" class="p-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-all duration-200" title="Refresh models">
-                <i class="fas fa-sync-alt text-sm"></i>
-            </button>
-        </div>
-        <p class="text-sm text-neutral-600 mb-4 leading-relaxed">Choose base models or your custom fine-tuned models</p>
-        
-        <!-- Custom Model Dropdown -->
-        <div class="relative mb-3">
-            <button id="translation-model-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
-                <span id="translation-model-text" class="flex-1 truncate">Loading models...</span>
-                <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="translation-model-chevron"></i>
-            </button>
-            <div id="translation-model-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
-                <div class="p-2 text-sm text-neutral-500 text-center">Loading models...</div>
-            </div>
-        </div>
-  
-    </div>
-    
-    <!-- Navigation Section -->
-    <div class="p-6 flex-1 overflow-y-auto">
-        <h3 class="text-lg font-bold text-neutral-900 tracking-tight mb-4">Navigation</h3>
-        
-        <!-- Book Selection -->
-        <div class="mb-4">
-            <label class="block text-sm font-medium text-neutral-600 mb-2">Book</label>
-            <div class="relative">
-                <button id="goto-book-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
-                    <span id="goto-book-text" class="flex-1 truncate">Select Book...</span>
-                    <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="goto-book-chevron"></i>
+    <!-- Sidebar Content -->
+    <div id="sidebar-content">
+        <!-- Model Selection -->
+        <div class="border-b border-neutral-200 p-6 flex-shrink-0">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-neutral-900 tracking-tight">Translation Model</h3>
+                <button id="refresh-models-btn" class="p-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-all duration-200" title="Refresh models">
+                    <i class="fas fa-sync-alt text-sm"></i>
                 </button>
-                <div id="goto-book-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
-                    <div class="p-2 text-sm text-neutral-500 text-center">Select a book...</div>
+            </div>
+            <p class="text-sm text-neutral-600 mb-4 leading-relaxed">Choose base models or your custom fine-tuned models</p>
+            
+            <!-- Custom Model Dropdown -->
+            <div class="relative mb-3">
+                <button id="translation-model-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
+                    <span id="translation-model-text" class="flex-1 truncate">Loading models...</span>
+                    <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="translation-model-chevron"></i>
+                </button>
+                <div id="translation-model-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
+                    <div class="p-2 text-sm text-neutral-500 text-center">Loading models...</div>
                 </div>
             </div>
+      
         </div>
         
-        <!-- Chapter Selection -->
-        <div class="mb-6">
-            <label class="block text-sm font-medium text-neutral-600 mb-2">Chapter</label>
-            <div class="relative">
-                <button id="goto-chapter-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
-                    <span id="goto-chapter-text" class="flex-1 truncate">Select Chapter...</span>
-                    <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="goto-chapter-chevron"></i>
-                </button>
-                <div id="goto-chapter-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
-                    <div class="p-2 text-sm text-neutral-500 text-center">Select a chapter...</div>
+        <!-- Navigation Section -->
+        <div class="p-6 flex-1 overflow-y-auto">
+            <h3 class="text-lg font-bold text-neutral-900 tracking-tight mb-4">Navigation</h3>
+            
+            <!-- Book Selection -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-neutral-600 mb-2">Book</label>
+                <div class="relative">
+                    <button id="goto-book-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
+                        <span id="goto-book-text" class="flex-1 truncate">Select Book...</span>
+                        <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="goto-book-chevron"></i>
+                    </button>
+                    <div id="goto-book-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
+                        <div class="p-2 text-sm text-neutral-500 text-center">Select a book...</div>
+                    </div>
                 </div>
             </div>
+            
+            <!-- Chapter Selection -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-neutral-600 mb-2">Chapter</label>
+                <div class="relative">
+                    <button id="goto-chapter-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
+                        <span id="goto-chapter-text" class="flex-1 truncate">Select Chapter...</span>
+                        <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="goto-chapter-chevron"></i>
+                    </button>
+                    <div id="goto-chapter-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
+                        <div class="p-2 text-sm text-neutral-500 text-center">Select a chapter...</div>
+                    </div>
+                </div>
+            </div>
+            
         </div>
-        
-
     </div>
 </div>
 
