@@ -96,46 +96,76 @@ class TranslationNavigation {
         }
     }
     
-    navigateToChapter(chapter) {
-        this.editor.currentChapter = chapter;
-        this.editor.storage.saveNavigationState(this.editor.currentBook, chapter);
+    async navigateToChapter(chapter) {
+        console.log(`TranslationNavigation: Navigating to chapter ${chapter} in ${this.editor.currentBook}`);
         
-        // Update the chapter dropdown display
-        if (window.setChapterDropdownOption) {
-            window.setChapterDropdownOption(chapter, `Chapter ${chapter}`);
-        }
+        // Show loading indicator for chapter navigation
+        UIUtilities.showLoading(`Loading ${BibleConstants.getBookDisplayName(this.editor.currentBook)} ${chapter}...`);
         
-        this.updateChapterTitle();
-        
-        // Use virtual scroll manager if available, otherwise fall back to refresh
-        if (this.editor.virtualScrollManager) {
-            this.editor.virtualScrollManager.scrollToBookChapter(this.editor.currentBook, chapter);
-        } else {
-            this.editor.refreshAllTexts();
+        try {
+            this.editor.currentChapter = chapter;
+            this.editor.storage.saveNavigationState(this.editor.currentBook, chapter);
+            
+            // Update the chapter dropdown display
+            if (window.setChapterDropdownOption) {
+                window.setChapterDropdownOption(chapter, `Chapter ${chapter}`);
+            }
+            
+            this.updateChapterTitle();
+            
+            // Use virtual scroll manager if available, otherwise fall back to refresh
+            if (this.editor.virtualScrollManager) {
+                try {
+                    await this.editor.virtualScrollManager.scrollToBookChapter(this.editor.currentBook, chapter);
+                } catch (error) {
+                    console.error('Error navigating to chapter:', error);
+                    // Fallback to refresh if virtual scroll fails
+                    this.editor.refreshAllTexts();
+                }
+            } else {
+                this.editor.refreshAllTexts();
+            }
+        } finally {
+            UIUtilities.hideLoading();
         }
     }
     
-    jumpToBook(book) {
-        this.editor.currentBook = book;
-        this.editor.currentChapter = 1; // Reset to chapter 1 when jumping to a new book
-        this.editor.storage.saveNavigationState(book, 1);
+    async jumpToBook(book) {
+        console.log(`TranslationNavigation: Jumping to book ${book} chapter 1`);
         
-        // Update the dropdown displays
-        if (window.setBookDropdownOption) {
-            window.setBookDropdownOption(book, BibleConstants.getBookDisplayName(book));
-        }
-        if (window.setChapterDropdownOption) {
-            window.setChapterDropdownOption(1, 'Chapter 1');
-        }
+        // Show loading indicator for distant navigation
+        UIUtilities.showLoading(`Navigating to ${BibleConstants.getBookDisplayName(book)}...`);
         
-        this.updateChapterOptions();
-        this.updateChapterTitle();
-        
-        // Use virtual scroll manager if available, otherwise fall back to refresh
-        if (this.editor.virtualScrollManager) {
-            this.editor.virtualScrollManager.scrollToBookChapter(book, 1);
-        } else {
-            this.editor.refreshAllTexts();
+        try {
+            this.editor.currentBook = book;
+            this.editor.currentChapter = 1; // Reset to chapter 1 when jumping to a new book
+            this.editor.storage.saveNavigationState(book, 1);
+            
+            // Update the dropdown displays
+            if (window.setBookDropdownOption) {
+                window.setBookDropdownOption(book, BibleConstants.getBookDisplayName(book));
+            }
+            if (window.setChapterDropdownOption) {
+                window.setChapterDropdownOption(1, 'Chapter 1');
+            }
+            
+            this.updateChapterOptions();
+            this.updateChapterTitle();
+            
+            // Use virtual scroll manager if available, otherwise fall back to refresh
+            if (this.editor.virtualScrollManager) {
+                try {
+                    await this.editor.virtualScrollManager.scrollToBookChapter(book, 1);
+                } catch (error) {
+                    console.error('Error jumping to book:', error);
+                    // Fallback to refresh if virtual scroll fails
+                    this.editor.refreshAllTexts();
+                }
+            } else {
+                this.editor.refreshAllTexts();
+            }
+        } finally {
+            UIUtilities.hideLoading();
         }
     }
     
@@ -177,30 +207,45 @@ class TranslationNavigation {
         
         // Add click listeners to recent chapter buttons
         container.querySelectorAll('.recent-chapter-btn:not([disabled])').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 const book = btn.dataset.book;
                 const chapter = parseInt(btn.dataset.chapter);
                 
-                this.editor.currentBook = book;
-                this.editor.currentChapter = chapter;
-                this.editor.storage.saveNavigationState(book, chapter);
+                console.log(`TranslationNavigation: Navigating to recent chapter ${book} ${chapter}`);
                 
-                // Update dropdown displays
-                if (window.setBookDropdownOption) {
-                    window.setBookDropdownOption(book, BibleConstants.getBookDisplayName(book));
-                }
-                if (window.setChapterDropdownOption) {
-                    window.setChapterDropdownOption(chapter, `Chapter ${chapter}`);
-                }
+                // Show loading indicator
+                UIUtilities.showLoading(`Loading ${BibleConstants.getBookDisplayName(book)} ${chapter}...`);
                 
-                this.updateChapterOptions();
-                this.updateChapterTitle();
-                
-                // Use virtual scroll manager if available, otherwise fall back to refresh
-                if (this.editor.virtualScrollManager) {
-                    this.editor.virtualScrollManager.scrollToBookChapter(book, chapter);
-                } else {
-                    this.editor.refreshAllTexts();
+                try {
+                    this.editor.currentBook = book;
+                    this.editor.currentChapter = chapter;
+                    this.editor.storage.saveNavigationState(book, chapter);
+                    
+                    // Update dropdown displays
+                    if (window.setBookDropdownOption) {
+                        window.setBookDropdownOption(book, BibleConstants.getBookDisplayName(book));
+                    }
+                    if (window.setChapterDropdownOption) {
+                        window.setChapterDropdownOption(chapter, `Chapter ${chapter}`);
+                    }
+                    
+                    this.updateChapterOptions();
+                    this.updateChapterTitle();
+                    
+                    // Use virtual scroll manager if available, otherwise fall back to refresh
+                    if (this.editor.virtualScrollManager) {
+                        try {
+                            await this.editor.virtualScrollManager.scrollToBookChapter(book, chapter);
+                        } catch (error) {
+                            console.error('Error navigating to recent chapter:', error);
+                            // Fallback to refresh if virtual scroll fails
+                            this.editor.refreshAllTexts();
+                        }
+                    } else {
+                        this.editor.refreshAllTexts();
+                    }
+                } finally {
+                    UIUtilities.hideLoading();
                 }
             });
         });

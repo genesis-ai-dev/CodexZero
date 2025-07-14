@@ -1055,6 +1055,18 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Virtual scroll cache cleared');
         }
     };
+    window.emergencyResetVirtualScroll = () => {
+        if (editor.virtualScrollManager) {
+            editor.virtualScrollManager.emergencyReset();
+            console.log('Virtual scroll emergency reset complete');
+        }
+    };
+    window.forceReloadChapter = (book, chapter) => {
+        if (editor.virtualScrollManager) {
+            editor.virtualScrollManager.scrollToBookChapter(book || editor.currentBook, chapter || editor.currentChapter);
+            console.log(`Force reloading ${book || editor.currentBook} ${chapter || editor.currentChapter}`);
+        }
+    };
     
     // Set up close button listeners for text windows
     document.addEventListener('click', (e) => {
@@ -1082,10 +1094,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Performance monitoring (for development)
     if (window.location.hostname === 'localhost' || window.location.hostname.includes('dev')) {
-        console.log('🚀 Translation Editor with Optimized Infinite Scroll initialized');
+        console.log('🚀 Translation Editor with Simplified Infinite Scroll initialized');
         console.log('📊 Use debugVirtualScroll() to see detailed debug info');
         console.log('📈 Use getVirtualScrollMetrics() to see performance metrics');
         console.log('🧹 Use clearVirtualScrollCache() to clear memory cache');
+        console.log('🚨 Use emergencyResetVirtualScroll() if navigation gets stuck');
+        console.log('🔄 Use forceReloadChapter("GEN", 1) to force reload a specific chapter');
     }
 });
 </script>

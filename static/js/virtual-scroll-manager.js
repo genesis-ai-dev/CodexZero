@@ -104,52 +104,114 @@ class VirtualScrollManager {
         }
     }
     
-    async loadInitialVerses(windowId, book, chapter) {
-        console.log(`VirtualScrollManager: Loading initial verses for ${windowId} - ${book} ${chapter}`);
+    async scrollToBookChapter(book, chapter) {
+        console.log(`VirtualScrollManager: DIRECT NAVIGATION to ${book} ${chapter}`);
         
-        if (this.isLoading.get(windowId)) {
-            console.log(`VirtualScrollManager: Already loading for ${windowId}, skipping`);
+        // Just clear everything and load the chapter directly
+        this.containers.forEach(async (container, windowId) => {
+            await this.loadChapterDirect(windowId, book, chapter);
+        });
+    }
+    
+    async loadChapterDirect(windowId, book, chapter) {
+        console.log(`VirtualScrollManager: DIRECT LOAD ${windowId} for ${book} ${chapter}`);
+        
+        // Get the container and text window
+        const container = this.containers.get(windowId);
+        const textWindow = this.editor.textWindows.get(windowId);
+        
+        if (!container || !textWindow) {
+            console.error(`VirtualScrollManager: Missing container or textWindow for ${windowId}`);
             return;
         }
         
-        this.isLoading.set(windowId, true);
+        // STEP 1: Clear everything
+        container.innerHTML = '';
+        container.scrollTop = 0;
+        this.loadedVerses.get(windowId)?.clear();
+        this.renderedVerses.get(windowId)?.clear();
+        this.currentChapterIndex.delete(windowId);
+        this.isLoading.set(windowId, false);
+        this.loadingDirection.set(windowId, null);
         
+        // STEP 2: Determine source ID
+        let sourceId = windowId;
+        if (windowId.includes('translation_')) {
+            // Find a non-translation text as source
+            for (const [id, metadata] of this.editor.textMetadata) {
+                if (metadata.type !== 'Translation' && !id.includes('translation_')) {
+                    sourceId = id;
+                    break;
+                }
+            }
+        }
+        
+        // STEP 3: Load the chapter directly from backend
         try {
-            // Get chapter start index
             const response = await fetch(
-                `/project/${this.editor.projectId}/verse-index/${book}/${chapter}`
+                `/project/${this.editor.projectId}/translation/${windowId}/chapter/${book}/${chapter}?source_id=${sourceId}`
             );
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
             const data = await response.json();
             
-            if (!data.start_index && data.start_index !== 0) {
-                throw new Error('Failed to get chapter start index');
+            if (!data.verses || !Array.isArray(data.verses)) {
+                throw new Error('Invalid response: missing verses array');
             }
             
-            // Store current chapter index
-            this.currentChapterIndex.set(windowId, data.start_index);
+            console.log(`VirtualScrollManager: Loaded ${data.verses.length} verses for ${windowId}`);
             
-            // Clear existing content
-            const container = this.containers.get(windowId);
-            if (container) {
-                container.innerHTML = '';
+            // STEP 4: Store the verse data
+            const loadedVerses = this.loadedVerses.get(windowId);
+            const renderedVerses = this.renderedVerses.get(windowId);
+            
+            data.verses.forEach(verse => {
+                loadedVerses.set(verse.index, verse);
+            });
+            
+            // STEP 5: Render all verses directly
+            const fragment = document.createDocumentFragment();
+            
+            data.verses.forEach(verseData => {
+                const verseElement = textWindow.createVerseElement(verseData, true);
+                verseElement.dataset.verseIndex = verseData.index;
+                
+                // Setup textarea auto-resize
+                this.setupTextareaAutoResize(verseElement);
+                
+                fragment.appendChild(verseElement);
+                renderedVerses.add(verseData.index);
+            });
+            
+            // STEP 6: Insert all content at once
+            container.appendChild(fragment);
+            
+            // STEP 7: Auto-resize textareas after DOM insertion
+            requestAnimationFrame(() => {
+                const textareas = container.querySelectorAll('textarea');
+                UIUtilities.batchAutoResizeTextareas(textareas);
+            });
+            
+            // STEP 8: Store chapter start index for reference
+            if (data.verses.length > 0) {
+                this.currentChapterIndex.set(windowId, data.verses[0].index);
             }
-            this.loadedVerses.get(windowId).clear();
-            this.renderedVerses.get(windowId).clear();
             
-            // Load smaller initial range for faster startup
-            const startIndex = Math.max(this.MIN_VERSE_INDEX, data.start_index - this.INITIAL_LOAD_SIZE);
-            const endIndex = Math.min(this.MAX_VERSE_INDEX, data.start_index + this.INITIAL_LOAD_SIZE);
-            
-            await this.loadVerseRange(windowId, startIndex, endIndex);
-            
-            // Scroll to chapter start after loading
-            this.scrollToVerseIndex(windowId, data.start_index);
+            console.log(`VirtualScrollManager: Successfully loaded ${book} ${chapter} for ${windowId}`);
             
         } catch (error) {
-            console.error(`VirtualScrollManager: Error loading initial verses:`, error);
-        } finally {
-            this.isLoading.set(windowId, false);
+            console.error(`VirtualScrollManager: Error loading ${windowId}:`, error);
+            container.innerHTML = `<div class="p-4 text-red-600">Error loading ${book} ${chapter}: ${error.message}</div>`;
         }
+    }
+    
+    // Keep the old method for backward compatibility with infinite scroll
+    async loadInitialVerses(windowId, book, chapter) {
+        console.log(`VirtualScrollManager: Redirecting to direct chapter load for ${windowId}`);
+        await this.loadChapterDirect(windowId, book, chapter);
     }
     
     async loadMoreVerses(windowId, direction) {
@@ -390,16 +452,7 @@ class VirtualScrollManager {
         });
     }
     
-    scrollToBookChapter(book, chapter) {
-        // Scroll all containers to the specified book/chapter
-        this.containers.forEach(async (container, windowId) => {
-            try {
-                await this.loadInitialVerses(windowId, book, chapter);
-            } catch (error) {
-                console.error(`Error scrolling ${windowId} to ${book} ${chapter}:`, error);
-            }
-        });
-    }
+
     
     updateNavigationFromScroll(windowId, container) {
         const scrollTop = container.scrollTop;
@@ -495,17 +548,51 @@ class VirtualScrollManager {
         if (windowId) {
             this.loadedVerses.get(windowId)?.clear();
             this.renderedVerses.get(windowId)?.clear();
+            this.currentChapterIndex.delete(windowId);
+            this.isLoading.set(windowId, false);
+            this.loadingDirection.set(windowId, null);
+            
             const container = this.containers.get(windowId);
             if (container) {
                 container.innerHTML = '';
+                container.scrollTop = 0;
             }
         } else {
             this.loadedVerses.forEach(map => map.clear());
             this.renderedVerses.forEach(set => set.clear());
+            this.currentChapterIndex.clear();
+            this.isLoading.forEach((_, windowId) => this.isLoading.set(windowId, false));
+            this.loadingDirection.forEach((_, windowId) => this.loadingDirection.set(windowId, null));
+            
             this.containers.forEach(container => {
                 container.innerHTML = '';
+                container.scrollTop = 0;
             });
         }
+    }
+    
+    // Emergency reset - completely clear everything
+    emergencyReset() {
+        console.log('VirtualScrollManager: EMERGENCY RESET - clearing all state');
+        
+        this.containers.forEach((container, windowId) => {
+            container.innerHTML = '';
+            container.scrollTop = 0;
+        });
+        
+        this.loadedVerses.clear();
+        this.renderedVerses.clear();
+        this.currentChapterIndex.clear();
+        this.isLoading.clear();
+        this.loadingDirection.clear();
+        
+        // Re-initialize maps
+        this.containers.forEach((container, windowId) => {
+            this.loadedVerses.set(windowId, new Map());
+            this.renderedVerses.set(windowId, new Set());
+            this.isLoading.set(windowId, false);
+            this.loadingDirection.set(windowId, null);
+        });
     }
     
     getDebugInfo() {
@@ -513,15 +600,22 @@ class VirtualScrollManager {
         this.containers.forEach((container, windowId) => {
             const loaded = this.loadedVerses.get(windowId);
             const rendered = this.renderedVerses.get(windowId);
+            const currentChapterIndex = this.currentChapterIndex.get(windowId);
+            
             info[windowId] = {
                 loadedCount: loaded ? loaded.size : 0,
                 renderedCount: rendered ? rendered.size : 0,
                 isLoading: this.isLoading.get(windowId),
                 loadingDirection: this.loadingDirection.get(windowId),
+                currentChapterIndex: currentChapterIndex,
                 scrollTop: container.scrollTop,
                 scrollHeight: container.scrollHeight,
                 clientHeight: container.clientHeight,
-                memoryOptimized: rendered ? rendered.size <= this.MAX_RENDERED_VERSES : true
+                memoryOptimized: rendered ? rendered.size <= this.MAX_RENDERED_VERSES : true,
+                loadedRange: loaded && loaded.size > 0 ? {
+                    min: Math.min(...loaded.keys()),
+                    max: Math.max(...loaded.keys())
+                } : null
             };
         });
         return info;
