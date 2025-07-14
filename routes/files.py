@@ -8,7 +8,7 @@ from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 import mimetypes
 
-from models import db, Project, ProjectFile, FineTuningJob
+from models import db, Project, FineTuningJob, Text
 from utils.file_helpers import save_project_file, detect_usfm_content, validate_text_file
 from utils.project_access import require_project_access
 from utils import process_file_upload, error_response, success_response, create_timestamped_filename, safe_filename_from_original
@@ -84,7 +84,7 @@ def read_file_content(file_obj, filename):
 def delete_project_file(project_id, file_id):
     require_project_access(project_id, 'editor')
     project = Project.query.get_or_404(project_id)
-    project_file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
+    project_file = Text.query.filter_by(id=file_id, project_id=project.id).first_or_404()
     
     fine_tuning_jobs = FineTuningJob.query.filter(
         db.or_(
@@ -425,18 +425,25 @@ def project_files(project_id):
     require_project_access(project_id, 'viewer')
     project = Project.query.get_or_404(project_id)
     
-    files = ProjectFile.query.filter_by(project_id=project.id).order_by(ProjectFile.created_at.desc()).all()
+    # Use unified Text model instead of legacy ProjectFile
+    from models import Text, Verse
+    texts = Text.query.filter_by(project_id=project.id).order_by(Text.created_at.desc()).all()
     
     file_data = []
-    for file in files:
+    for text in texts:
+        # Skip JSONL files if needed
+        if text.name and text.name.lower().endswith('.jsonl'):
+            continue
+            
+        verse_count = Verse.query.filter_by(text_id=text.id).count()
         file_data.append({
-            'id': file.id,
-            'filename': file.original_filename,
-            'file_type': file.file_type,
-            'file_size': file.file_size,
-            'line_count': file.line_count,
-            'created_at': file.created_at.isoformat(),
-            'purpose': file.purpose or ''
+            'id': text.id,
+            'filename': text.name,
+            'file_type': text.text_type,
+            'file_size': 0,  # Not tracked in unified schema
+            'line_count': verse_count,
+            'created_at': text.created_at.isoformat(),
+            'purpose': text.description or ''
         })
     
     return jsonify({'files': file_data})
@@ -446,7 +453,7 @@ def project_files(project_id):
 def download_project_file(project_id, file_id):
     require_project_access(project_id, 'viewer')
     project = Project.query.get_or_404(project_id)
-    project_file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
+    project_file = Text.query.filter_by(id=file_id, project_id=project.id).first_or_404()
     
     storage = get_storage()
     
@@ -462,7 +469,7 @@ def download_project_file(project_id, file_id):
 def update_file_purpose(project_id, file_id):
     require_project_access(project_id, 'editor')
     project = Project.query.get_or_404(project_id)
-    project_file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
+    project_file = Text.query.filter_by(id=file_id, project_id=project.id).first_or_404()
     
     purpose_description = request.json.get('purpose_description', '').strip()
     

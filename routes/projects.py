@@ -2,7 +2,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, flash, request, redirect, url_for, jsonify
 from flask_login import current_user, login_required
 
-from models import db, Project, ProjectFile, Translation
+from models import db, Project
 from utils.file_helpers import save_project_file
 from utils.project_helpers import save_language_rules, import_ulb_automatically
 from utils.project_access import ProjectAccess, require_project_access
@@ -142,16 +142,16 @@ def view_project(project_id):
     require_project_access(project_id, 'viewer')
     project = Project.query.get_or_404(project_id)
     
-    # Use unified approach like translate page - get both new and legacy records
-    from models import Text, Verse, ProjectFile, Translation
+    # Use unified schema only
+    from models import Text, Verse
     
     texts = []
     total_available_verses = 0
     
-    # NEW: Get unified Text records
-    unified_texts = Text.query.filter_by(project_id=project_id).order_by(Text.created_at.desc()).all()
+    # Get unified Text records
+    all_texts = Text.query.filter_by(project_id=project_id).order_by(Text.created_at.desc()).all()
     
-    for text in unified_texts:
+    for text in all_texts:
         # Skip JSONL files (those belong in fine-tuning tab)
         if text.name and text.name.lower().endswith('.jsonl'):
             continue
@@ -172,55 +172,6 @@ def view_project(project_id):
         # Track max verses for any text
         if verse_count > total_available_verses:
             total_available_verses = verse_count
-    
-    # LEGACY: Get old format records for backward compatibility during transition
-    # Only include if not already migrated to unified format
-    existing_names = {t['name'] for t in texts}
-    
-    # Legacy files
-    legacy_files = ProjectFile.query.filter_by(project_id=project_id).order_by(ProjectFile.created_at.desc()).all()
-    for file in legacy_files:
-        if file.original_filename not in existing_names:
-            # For legacy files, we can't easily count verses, so use a reasonable estimate
-            file_verse_count = file.line_count if file.line_count else 0
-            
-            text_data = {
-                'id': f'file_{file.id}',
-                'name': file.original_filename,
-                'verse_count': file_verse_count,
-                'created_at': file.created_at,
-                'purpose_description': file.purpose
-            }
-            
-            texts.append(text_data)
-            
-            # Track max verses for any text
-            if file_verse_count > total_available_verses:
-                total_available_verses = file_verse_count
-    
-    # Legacy translations
-    legacy_translations = Translation.query.filter_by(project_id=project_id).order_by(Translation.created_at.desc()).all()
-    for trans in legacy_translations:
-        if trans.name not in existing_names:
-            # For legacy translations, count from the translation verses
-            trans_verse_count = trans.non_empty_verses if trans.non_empty_verses else 0
-            
-            text_data = {
-                'id': f'translation_{trans.id}',
-                'name': trans.name,
-                'verse_count': trans_verse_count,
-                'created_at': trans.created_at,
-                'purpose_description': trans.description
-            }
-            
-            texts.append(text_data)
-            
-            # Track max verses for any text
-            if trans_verse_count > total_available_verses:
-                total_available_verses = trans_verse_count
-    
-    # Sort by creation date (newest first)
-    texts.sort(key=lambda x: x['created_at'], reverse=True)
 
     return render_template('project.html', 
                          project=project, 

@@ -4,7 +4,7 @@ import uuid
 import random
 from typing import Dict, List, Tuple, Optional, Any
 from openai import OpenAI
-from models import Project, ProjectFile, FineTuningJob, db
+from models import Project, Text, FineTuningJob, db
 from storage import get_storage
 
 
@@ -25,6 +25,25 @@ def safe_decode_content(file_content):
     if isinstance(file_content, bytes):
         return file_content.decode('utf-8', errors='replace')
     return str(file_content)
+
+
+def get_text_content_as_lines(text_id: int) -> List[str]:
+    """Get content from a unified Text record as list of lines for fine-tuning"""
+    from models import Verse
+    
+    # Get all verses for this text ordered by verse_index
+    verses = Verse.query.filter_by(text_id=text_id).order_by(Verse.verse_index).all()
+    
+    # Convert to lines with proper indexing
+    lines = []
+    for verse in verses:
+        # Extend list if needed to match verse_index
+        while len(lines) <= verse.verse_index:
+            lines.append('')
+        lines[verse.verse_index] = verse.verse_text
+    
+    return lines
+
 
 def _create_instruction_prompt(source_text: str, context_examples: List[str] = None) -> str:
     """Create instruction prompt with optional context examples"""
@@ -166,27 +185,21 @@ class FineTuningService:
         Get a preview of what a training example will look like.
         Returns a sample training example and summary stats.
         """
-        # Load source and target files
-        source_file = ProjectFile.query.get(source_file_id)
-        target_file = ProjectFile.query.get(target_file_id)
+        # Load source and target texts
+        source_text = Text.query.get(source_file_id)
+        target_text = Text.query.get(target_file_id)
         
-        if not source_file or not target_file:
-            raise ValueError("Source or target file not found")
+        if not source_text or not target_text:
+            raise ValueError("Source or target text not found")
         
         # Get project details for system prompt
         project = Project.query.get(project_id)
         if not project:
             raise ValueError("Project not found")
         
-        # Read file contents
-        source_file_content = self.storage.get_file(source_file.storage_path)
-        target_file_content = self.storage.get_file(target_file.storage_path)
-        source_content = safe_decode_content(source_file_content)
-        target_content = safe_decode_content(target_file_content)
-        
-        # CRITICAL: Maintain line alignment - don't filter empty lines independently
-        source_lines = [line.strip() for line in source_content.split('\n')]
-        target_lines = [line.strip() for line in target_content.split('\n')]
+        # Read text contents from unified schema
+        source_lines = get_text_content_as_lines(source_file_id)
+        target_lines = get_text_content_as_lines(target_file_id)
         
         # Ensure same number of lines
         if len(source_lines) != len(target_lines):
@@ -249,30 +262,24 @@ class FineTuningService:
     
     def create_training_data(self, source_file_id: int, target_file_id: int, project_id: int) -> Tuple[str, int]:
         """
-        Generate JSONL training data from paired source/target files.
+        Generate JSONL training data from paired source/target texts.
         Returns (jsonl_content, num_examples)
         """
-        # Load source and target files
-        source_file = ProjectFile.query.get(source_file_id)
-        target_file = ProjectFile.query.get(target_file_id)
+        # Load source and target texts from unified schema
+        source_text = Text.query.get(source_file_id)
+        target_text = Text.query.get(target_file_id)
         
-        if not source_file or not target_file:
-            raise ValueError("Source or target file not found")
+        if not source_text or not target_text:
+            raise ValueError("Source or target text not found")
         
         # Get project details for system prompt
         project = Project.query.get(project_id)
         if not project:
             raise ValueError("Project not found")
         
-        # Read file contents
-        source_file_content = self.storage.get_file(source_file.storage_path)
-        target_file_content = self.storage.get_file(target_file.storage_path)
-        source_content = safe_decode_content(source_file_content)
-        target_content = safe_decode_content(target_file_content)
-        
-        # CRITICAL: Maintain line alignment - don't filter empty lines independently
-        source_lines = [line.strip() for line in source_content.split('\n')]
-        target_lines = [line.strip() for line in target_content.split('\n')]
+        # Read text contents from unified schema
+        source_lines = get_text_content_as_lines(source_file_id)
+        target_lines = get_text_content_as_lines(target_file_id)
         
         # Ensure same number of lines
         if len(source_lines) != len(target_lines):
@@ -350,17 +357,8 @@ class FineTuningService:
             self.storage.store_file(jsonl_file, local_path)
             job.training_file_path = local_path
             
-            # Create a ProjectFile record for the JSONL file so it appears in the files section
-            jsonl_project_file = ProjectFile(
-                project_id=project_id,
-                original_filename=f"training_data_job_{job.id}.jsonl",
-                storage_path=local_path,
-                file_type='training_data',  # Special type for JSONL files
-                content_type='application/jsonl',
-                file_size=len(jsonl_content.encode('utf-8')),
-                line_count=num_examples
-            )
-            db.session.add(jsonl_project_file)
+            # Note: JSONL training files are stored in file storage, not database
+            # They're tracked via FineTuningJob.training_file_path
             db.session.commit()
             
             # Now try to upload to OpenAI (this might fail due to connection issues)
@@ -553,27 +551,21 @@ class FineTuningService:
         """
         from translation import _get_translation_examples
         
-        # Load source and target files
-        source_file = ProjectFile.query.get(source_file_id)
-        target_file = ProjectFile.query.get(target_file_id)
+        # Load source and target texts from unified schema
+        source_text = Text.query.get(source_file_id)
+        target_text = Text.query.get(target_file_id)
         
-        if not source_file or not target_file:
-            raise ValueError("Source or target file not found")
+        if not source_text or not target_text:
+            raise ValueError("Source or target text not found")
         
         # Get project details
         project = Project.query.get(project_id)
         if not project:
             raise ValueError("Project not found")
         
-        # Read file contents
-        source_file_content = self.storage.get_file(source_file.storage_path)
-        target_file_content = self.storage.get_file(target_file.storage_path)
-        source_content = safe_decode_content(source_file_content)
-        target_content = safe_decode_content(target_file_content)
-        
-        # CRITICAL: Maintain line alignment
-        source_lines = [line.strip() for line in source_content.split('\n')]
-        target_lines = [line.strip() for line in target_content.split('\n')]
+        # Read text contents from unified schema
+        source_lines = get_text_content_as_lines(source_file_id)
+        target_lines = get_text_content_as_lines(target_file_id)
         
         # Ensure same number of lines
         if len(source_lines) != len(target_lines):
@@ -679,12 +671,12 @@ class FineTuningService:
         """
         from translation import _get_translation_examples
         
-        # Load source and target files
-        source_file = ProjectFile.query.get(source_file_id)
-        target_file = ProjectFile.query.get(target_file_id)
+        # Load source and target texts from unified schema
+        source_text = Text.query.get(source_file_id)
+        target_text = Text.query.get(target_file_id)
         
-        if not source_file or not target_file:
-            raise ValueError("Source or target file not found")
+        if not source_text or not target_text:
+            raise ValueError("Source or target text not found")
         
         # Get project details
         project = Project.query.get(project_id)
@@ -692,17 +684,11 @@ class FineTuningService:
             raise ValueError("Project not found")
         
         if progress_callback:
-            progress_callback(0, max_examples, "Reading files...")
+            progress_callback(0, max_examples, "Reading texts...")
         
-        # Read file contents
-        source_file_content = self.storage.get_file(source_file.storage_path)
-        target_file_content = self.storage.get_file(target_file.storage_path)
-        source_content = safe_decode_content(source_file_content)
-        target_content = safe_decode_content(target_file_content)
-        
-        # CRITICAL: Maintain line alignment
-        source_lines = [line.strip() for line in source_content.split('\n')]
-        target_lines = [line.strip() for line in target_content.split('\n')]
+        # Read text contents from unified schema
+        source_lines = get_text_content_as_lines(source_file_id)
+        target_lines = get_text_content_as_lines(target_file_id)
         
         # Ensure same number of lines
         if len(source_lines) != len(target_lines):
@@ -829,17 +815,8 @@ class FineTuningService:
             self.storage.store_file(jsonl_file, local_path)
             job.training_file_path = local_path
             
-            # Create a ProjectFile record for the JSONL file
-            jsonl_project_file = ProjectFile(
-                project_id=project_id,
-                original_filename=f"instruction_training_job_{job.id}.jsonl",
-                storage_path=local_path,
-                file_type='training_data',
-                content_type='application/jsonl',
-                file_size=len(jsonl_content.encode('utf-8')),
-                line_count=num_examples
-            )
-            db.session.add(jsonl_project_file)
+            # Note: JSONL training files are stored in file storage, not database
+            # They're tracked via FineTuningJob.training_file_path
             db.session.commit()
             
             # Try to upload to OpenAI
@@ -888,21 +865,15 @@ class FineTuningService:
         Just counts valid lines and estimates cost.
         """
         # Load source and target files
-        source_file = ProjectFile.query.get(source_file_id)
-        target_file = ProjectFile.query.get(target_file_id)
+        source_text = Text.query.get(source_file_id)
+        target_text = Text.query.get(target_file_id)
         
-        if not source_file or not target_file:
-            raise ValueError("Source or target file not found")
+        if not source_text or not target_text:
+            raise ValueError("Source or target text not found")
         
-        # Read file contents
-        source_file_content = self.storage.get_file(source_file.storage_path)
-        target_file_content = self.storage.get_file(target_file.storage_path)
-        source_content = safe_decode_content(source_file_content)
-        target_content = safe_decode_content(target_file_content)
-        
-        # CRITICAL: Maintain line alignment
-        source_lines = [line.strip() for line in source_content.split('\n')]
-        target_lines = [line.strip() for line in target_content.split('\n')]
+        # Read text contents from unified schema
+        source_lines = get_text_content_as_lines(source_file_id)
+        target_lines = get_text_content_as_lines(target_file_id)
         
         # Ensure same number of lines
         if len(source_lines) != len(target_lines):
@@ -936,11 +907,11 @@ class FineTuningService:
         from translation import _get_translation_examples
         
         # Load source and target files
-        source_file = ProjectFile.query.get(source_file_id)
-        target_file = ProjectFile.query.get(target_file_id)
+        source_text = Text.query.get(source_file_id)
+        target_text = Text.query.get(target_file_id)
         
-        if not source_file or not target_file:
-            raise ValueError("Source or target file not found")
+        if not source_text or not target_text:
+            raise ValueError("Source or target text not found")
         
         # Get project details
         project = Project.query.get(project_id)
@@ -948,17 +919,11 @@ class FineTuningService:
             raise ValueError("Project not found")
         
         if progress_callback:
-            progress_callback(0, max_examples, "Reading files...")
+            progress_callback(0, max_examples, "Reading texts...")
         
-        # Read file contents
-        source_file_content = self.storage.get_file(source_file.storage_path)
-        target_file_content = self.storage.get_file(target_file.storage_path)
-        source_content = safe_decode_content(source_file_content)
-        target_content = safe_decode_content(target_file_content)
-        
-        # CRITICAL: Maintain line alignment
-        source_lines = [line.strip() for line in source_content.split('\n')]
-        target_lines = [line.strip() for line in target_content.split('\n')]
+        # Read text contents from unified schema
+        source_lines = get_text_content_as_lines(source_file_id)
+        target_lines = get_text_content_as_lines(target_file_id)
         
         # Ensure same number of lines
         if len(source_lines) != len(target_lines):
@@ -1100,11 +1065,11 @@ class FineTuningService:
         from translation import _get_translation_examples
         
         # Load source and target files
-        source_file = ProjectFile.query.get(source_file_id)
-        target_file = ProjectFile.query.get(target_file_id)
+        source_text = Text.query.get(source_file_id)
+        target_text = Text.query.get(target_file_id)
         
-        if not source_file or not target_file:
-            raise ValueError("Source or target file not found")
+        if not source_text or not target_text:
+            raise ValueError("Source or target text not found")
         
         # Get project details
         project = Project.query.get(project_id)
@@ -1112,17 +1077,11 @@ class FineTuningService:
             raise ValueError("Project not found")
         
         if progress_callback:
-            progress_callback(0, max_examples, "Reading files...")
+            progress_callback(0, max_examples, "Reading texts...")
         
-        # Read file contents
-        source_file_content = self.storage.get_file(source_file.storage_path)
-        target_file_content = self.storage.get_file(target_file.storage_path)
-        source_content = safe_decode_content(source_file_content)
-        target_content = safe_decode_content(target_file_content)
-        
-        # CRITICAL: Maintain line alignment
-        source_lines = [line.strip() for line in source_content.split('\n')]
-        target_lines = [line.strip() for line in target_content.split('\n')]
+        # Read text contents from unified schema
+        source_lines = get_text_content_as_lines(source_file_id)
+        target_lines = get_text_content_as_lines(target_file_id)
         
         # Ensure same number of lines
         if len(source_lines) != len(target_lines):

@@ -6,7 +6,7 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import current_user, login_required
 
-from models import db, Project, ProjectFile, FineTuningJob
+from models import db, Project, Text, FineTuningJob
 from utils.project_access import require_project_access
 from ai.fine_tuning import FineTuningService
 
@@ -44,8 +44,8 @@ def preview_training_example(project_id):
         return jsonify({'error': 'Both source_file_id and target_file_id are required'}), 400
     
     # Verify files belong to this project
-    source_file = ProjectFile.query.filter_by(id=source_file_id, project_id=project_id).first()
-    target_file = ProjectFile.query.filter_by(id=target_file_id, project_id=project_id).first()
+    source_file = Text.query.filter_by(id=source_file_id, project_id=project_id).first()
+    target_file = Text.query.filter_by(id=target_file_id, project_id=project_id).first()
     
     if not source_file or not target_file:
         return jsonify({'error': 'Source or target file not found in this project'}), 404
@@ -74,8 +74,8 @@ def create_fine_tuning_job(project_id):
         return jsonify({'error': 'Both source_file_id and target_file_id are required'}), 400
     
     # Verify files belong to this project
-    source_file = ProjectFile.query.filter_by(id=source_file_id, project_id=project_id).first()
-    target_file = ProjectFile.query.filter_by(id=target_file_id, project_id=project_id).first()
+    source_file = Text.query.filter_by(id=source_file_id, project_id=project_id).first()
+    target_file = Text.query.filter_by(id=target_file_id, project_id=project_id).first()
     
     if not source_file or not target_file:
         return jsonify({'error': 'Source or target file not found in this project'}), 404
@@ -216,8 +216,8 @@ def preview_instruction_training_example(project_id):
         max_examples = 50
     
     # Verify files belong to this project
-    source_file = ProjectFile.query.filter_by(id=source_file_id, project_id=project_id).first()
-    target_file = ProjectFile.query.filter_by(id=target_file_id, project_id=project_id).first()
+    source_file = Text.query.filter_by(id=source_file_id, project_id=project_id).first()
+    target_file = Text.query.filter_by(id=target_file_id, project_id=project_id).first()
     
     if not source_file or not target_file:
         return jsonify({'error': 'Source or target file not found in this project'}), 404
@@ -283,8 +283,8 @@ def preview_instruction_training_example(project_id):
                         'valid_pairs': num_examples,
                         'selected_examples': num_examples,
                         'max_examples': max_examples,
-                        'source_filename': source_file.original_filename,
-                        'target_filename': target_file.original_filename,
+                        'source_filename': source_file.name,
+                        'target_filename': target_file.name,
                         'preview_example': {
                             'line_number': 1,
                             'system_prompt': system_prompt,
@@ -375,8 +375,8 @@ def create_instruction_fine_tuning_job(project_id):
         max_examples = 100
     
     # Verify files belong to this project
-    source_file = ProjectFile.query.filter_by(id=source_file_id, project_id=project_id).first()
-    target_file = ProjectFile.query.filter_by(id=target_file_id, project_id=project_id).first()
+    source_file = Text.query.filter_by(id=source_file_id, project_id=project_id).first()
+    target_file = Text.query.filter_by(id=target_file_id, project_id=project_id).first()
     
     if not source_file or not target_file:
         return jsonify({'error': 'Source or target file not found in this project'}), 404
@@ -392,8 +392,8 @@ def create_instruction_fine_tuning_job(project_id):
         # Create fine-tuning job record with instruction type
         job = FineTuningJob(
             project_id=project_id,
-            source_file_id=source_file_id,
-            target_file_id=target_file_id,
+            source_text_id=source_file_id,
+            target_text_id=target_file_id,
             base_model=base_model,
             status='preparing',
             is_instruction_tuning=True,
@@ -428,17 +428,8 @@ def create_instruction_fine_tuning_job(project_id):
         ft_service.storage.store_file(jsonl_file, local_path)
         job.training_file_path = local_path
         
-        # Create a ProjectFile record for the JSONL file
-        jsonl_project_file = ProjectFile(
-            project_id=project_id,
-            original_filename=f"instruction_training_job_{job.id}.jsonl",
-            storage_path=local_path,
-            file_type='training_data',
-            content_type='application/jsonl',
-            file_size=len(jsonl_content.encode('utf-8')),
-            line_count=num_examples
-        )
-        db.session.add(jsonl_project_file)
+        # Note: JSONL training files are not created as Text records since they're not Bible content
+        # They're tracked via FineTuningJob.training_file_path
         db.session.commit()
         
         # Try to upload to OpenAI

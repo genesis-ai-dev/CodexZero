@@ -2,7 +2,7 @@ import os
 import json
 from datetime import datetime
 
-from models import db, LanguageRule, ProjectFile
+from models import db, LanguageRule, Text
 from utils.file_helpers import save_project_file
 
 
@@ -65,9 +65,9 @@ def import_ulb_automatically(project_id: int):
         return
     
     # Check if project already has a ULB file to avoid duplicates
-    existing_ulb = ProjectFile.query.filter(
-        ProjectFile.project_id == project_id,
-        ProjectFile.original_filename.contains('ULB')
+    existing_ulb = Text.query.filter(
+        Text.project_id == project_id,
+        Text.name.contains('ULB')
     ).first()
     
     if existing_ulb:

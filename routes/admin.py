@@ -6,7 +6,7 @@ from flask import Blueprint, render_template, request, flash, redirect, url_for,
 from flask_login import login_required, current_user
 from sqlalchemy import func, desc
 
-from models import db, User, Project, ProjectFile, Translation, FineTuningJob
+from models import db, User, Project, FineTuningJob, Text
 
 admin = Blueprint('admin', __name__)
 
@@ -92,8 +92,8 @@ def dashboard():
     
     # Project statistics  
     total_projects = Project.query.count()
-    total_files = ProjectFile.query.count()
-    total_translations = Translation.query.count()
+    total_files = Text.query.count()
+    # Note: Translation model has been removed in unified schema
     total_fine_tuning_jobs = FineTuningJob.query.count()
     
     # Recent activity
@@ -172,8 +172,8 @@ def user_detail(encoded_user_id):
     projects = Project.query.filter_by(user_id=user.id).order_by(desc(Project.created_at)).all()
     
     # Calculate totals for this user
-    total_files = db.session.query(func.count(ProjectFile.id)).join(Project).filter(Project.user_id == user.id).scalar()
-    total_translations = db.session.query(func.count(Translation.id)).join(Project).filter(Project.user_id == user.id).scalar()
+    total_files = db.session.query(func.count(Text.id)).join(Project).filter(Project.user_id == user.id).scalar()
+    # Note: Translation model has been removed in unified schema
     total_fine_tuning = db.session.query(func.count(FineTuningJob.id)).join(Project).filter(Project.user_id == user.id).scalar()
     
     return render_template('admin/user_detail.html',
@@ -222,7 +222,7 @@ def download_user_project_file(encoded_user_id, encoded_project_id, encoded_file
     # Verify user and project exist and are related
     user = User.query.get_or_404(user_id)
     project = Project.query.filter_by(id=project_id, user_id=user_id).first_or_404()
-    project_file = ProjectFile.query.filter_by(id=file_id, project_id=project.id).first_or_404()
+    project_file = Text.query.filter_by(id=file_id, project_id=project.id).first_or_404()
     
     storage = get_storage()
     

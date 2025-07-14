@@ -10,22 +10,17 @@ from thefuzz import fuzz
 from datetime import datetime
 from typing import Tuple, List, Dict, Any, Optional
 
-from models import Project, Translation, ProjectFile, ProjectFileVerse, TranslationVerse, Text, Verse, db
+from models import Project, Text, Verse, db
 from ai.bot import Chatbot, extract_translation_from_xml
 from ai.contextquery import ContextQuery, MemoryContextQuery, DatabaseContextQuery
 from utils.text_manager import TextManager
 from utils.project_access import require_project_access
-from utils.translation_manager import VerseReferenceManager, TranslationFileManager, TranslationDatabaseManager
+from utils.translation_manager import VerseReferenceManager
 from storage import get_storage
 
 translation = Blueprint('translation', __name__)
 
-def _get_translation_manager(translation):
-    """Get appropriate translation manager based on storage type"""
-    if translation.storage_type == 'database':
-        return TranslationDatabaseManager(translation.id)
-    else:
-        return TranslationFileManager(translation.storage_path)
+
 
 def _parse_source_filenames(job):
     """Parse source filenames from job with proper error handling"""
@@ -77,43 +72,20 @@ def _get_translation_examples(project_id, source_text_id, target_text_id, query_
         # Parse text IDs (supporting both old and new formats during transition)
         def parse_text_id(text_id_str):
             if text_id_str.startswith('text_'):
-                # New unified format
+                # Unified format
                 return int(text_id_str.replace('text_', '')), 'unified'
-            elif text_id_str.startswith('file_'):
-                # Legacy file format - map to corresponding Text record
-                file_id = int(text_id_str.replace('file_', ''))
-                # Find the migrated Text record for this file
-                from models import Text, ProjectFile
-                project_file = ProjectFile.query.get(file_id)
-                if project_file:
-                    text = Text.query.filter_by(
-                        project_id=project_file.project_id,
-                        name=project_file.original_filename
-                    ).first()
-                    return text.id if text else None, 'legacy'
-                return None, 'legacy'
-            elif text_id_str.startswith('translation_'):
-                # Legacy translation format - map to corresponding Text record
-                translation_id = int(text_id_str.replace('translation_', ''))
-                from models import Text, Translation
-                translation = Translation.query.get(translation_id)
-                if translation:
-                    text = Text.query.filter_by(
-                        project_id=translation.project_id,
-                        name=translation.name
-                    ).first()
-                    return text.id if text else None, 'legacy'
-                return None, 'legacy'
-            return None, 'unknown'
+            else:
+                # Legacy formats no longer supported - pure unified schema
+                return None, 'unsupported'
         
         # Get source and target text managers
         source_id, source_type = parse_text_id(source_text_id)
         target_id, target_type = parse_text_id(target_text_id)
         
         if not source_id or not target_id:
-            # Fall back to legacy system if unified format not available yet
-            print("DEBUG: Falling back to legacy system")
-            return _get_translation_examples_legacy(project_id, source_text_id, target_text_id, query_text, exclude_verse_index)
+            # Legacy formats no longer supported - return empty results
+            print("DEBUG: Unsupported text ID format, returning empty examples")
+            return [], "Unsupported text ID format - only text_ IDs are supported"
         
         source_manager = get_text_manager(source_id)
         target_manager = get_text_manager(target_id)
@@ -147,31 +119,6 @@ def _get_translation_examples(project_id, source_text_id, target_text_id, query_
         return _get_translation_examples_legacy(project_id, source_text_id, target_text_id, query_text, exclude_verse_index)
 
 
-def _get_translation_examples_legacy(project_id, source_text_id, target_text_id, query_text, exclude_verse_index=None):
-    """Legacy examples function - for backward compatibility during migration"""
-    print(f"DEBUG: Using legacy example retrieval")
-    
-    # Simplified legacy implementation - just get basic examples
-    examples = []
-    
-    try:
-        # Load content from legacy tables
-        if source_text_id.startswith('file_'):
-            file_id = int(source_text_id.replace('file_', ''))
-            from models import ProjectFileVerse
-            verses = ProjectFileVerse.query.filter_by(project_file_id=file_id).limit(5).all()
-            examples = [v.verse_text for v in verses if v.verse_text.strip()]
-        elif source_text_id.startswith('translation_'):
-            translation_id = int(source_text_id.replace('translation_', ''))
-            from models import TranslationVerse
-            verses = TranslationVerse.query.filter_by(translation_id=translation_id).limit(5).all()
-            examples = [v.verse_text for v in verses if v.verse_text.strip()]
-        
-        return examples[:3], f"Found {len(examples)} legacy examples"
-        
-    except Exception as e:
-        print(f"Legacy example retrieval error: {e}")
-        return [], "No examples available"
 
 def translate_text(project_id: int, text: str, model: Optional[str] = None, temperature: float = 0.2, 
                   source_file_id: Optional[str] = None, target_file_id: Optional[str] = None) -> Dict[str, Any]:
@@ -241,36 +188,20 @@ def translate_text(project_id: int, text: str, model: Optional[str] = None, temp
 
 
 def _get_file_purpose(project_id: int, file_id: str) -> str:
-    """Get purpose description for any text type - simplified approach"""
-    from models import ProjectFile, Translation, Text
-    
+    """Get purpose description for any text type - unified schema only"""
     if not file_id:
         return ""
     
-    # Extract numeric ID from any format
+    # Extract numeric ID from text_ format
     try:
-        if file_id.startswith(('file_', 'translation_', 'text_')):
+        if file_id.startswith('text_'):
             numeric_id = int(file_id.split('_', 1)[1])
         else:
             numeric_id = int(file_id)
     except (ValueError, TypeError):
         return ""
     
-    # Check all three tables for purpose description
-    # ProjectFile table
-    file_obj = ProjectFile.query.filter_by(id=numeric_id, project_id=project_id).first()
-    if file_obj:
-        if file_obj.purpose_description and file_obj.purpose_description.strip():
-            return file_obj.purpose_description.strip()
-        elif file_obj.file_purpose and file_obj.file_purpose.strip():
-            return file_obj.file_purpose.replace('_', ' ').title()
-    
-    # Translation table
-    translation = Translation.query.filter_by(id=numeric_id, project_id=project_id).first()
-    if translation and translation.description and translation.description.strip():
-        return translation.description.strip()
-    
-    # Text table
+    # Check Text table only (unified schema)
     text = Text.query.filter_by(id=numeric_id, project_id=project_id).first()
     if text and text.description and text.description.strip():
         return text.description.strip()
@@ -293,30 +224,21 @@ def _get_translation_instructions(project_id: int, source_file_id: str, target_f
     return "\n\n".join(instruction_parts) if instruction_parts else None
 
 
-def _get_verse_content(project_id, file_id, verse_index):
-    """Get content for a specific verse index"""
-    if file_id.startswith('file_'):
-        file_id_int = int(file_id.replace('file_', ''))
-        project_file = ProjectFile.query.filter_by(id=file_id_int, project_id=project_id).first()
-        if not project_file:
+def _get_verse_content(project_id, text_id, verse_index):
+    """Get content for a specific verse index - unified schema only"""
+    if text_id.startswith('text_'):
+        text_id_int = int(text_id.replace('text_', ''))
+        text = Text.query.filter_by(id=text_id_int, project_id=project_id).first()
+        if not text:
             return ""
         
-        # Get verse from database
-        verse = ProjectFileVerse.query.filter_by(
-            project_file_id=project_file.id,
+        # Get verse from unified schema
+        verse = Verse.query.filter_by(
+            text_id=text.id,
             verse_index=verse_index
         ).first()
         
         return verse.verse_text if verse else ""
-        
-    elif file_id.startswith('translation_'):
-        translation_id = int(file_id.replace('translation_', ''))
-        translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first()
-        if not translation:
-            return ""
-        
-        translation_manager = _get_translation_manager(translation)
-        return translation_manager.get_verse(verse_index)
     
     return ""
 
@@ -773,35 +695,7 @@ def list_all_texts(project_id):
             'is_unified': True  # Mark as using new system
         })
     
-    # LEGACY: Get old format records for backward compatibility during transition
-    # Only include if not already migrated to unified format
-    existing_names = {t['name'] for t in texts}
-    
-    # Legacy files
-    legacy_files = ProjectFile.query.filter_by(project_id=project_id).all()
-    for file in legacy_files:
-        if file.original_filename not in existing_names:
-            texts.append({
-                'id': f'file_{file.id}',
-                'name': file.original_filename,
-                'type': f'{file.file_type.replace("_", " ").title()} File',
-                'progress': 100,  # Files are complete when uploaded
-                'created_at': file.created_at.isoformat(),
-                'is_unified': False  # Mark as legacy
-            })
-    
-    # Legacy translations
-    legacy_translations = Translation.query.filter_by(project_id=project_id).all()
-    for trans in legacy_translations:
-        if trans.name not in existing_names:
-            texts.append({
-                'id': f'translation_{trans.id}',
-                'name': trans.name,
-                'type': 'Translation',
-                'progress': round(trans.progress_percentage or 0, 1),
-                'created_at': trans.created_at.isoformat(),
-                'is_unified': False  # Mark as legacy
-            })
+    # Legacy compatibility code removed - using pure unified schema
     
     # Sort by creation date (newest first)
     texts.sort(key=lambda x: x['created_at'], reverse=True)
@@ -893,7 +787,7 @@ def download_text(project_id, text_id):
 @translation.route('/project/<int:project_id>/translations', methods=['POST'])
 @login_required  
 def create_translation(project_id):
-    """Create new translation - UNIFIED SCHEMA (simplified!)"""
+    """Create new translation - unified schema only"""
     require_project_access(project_id, "editor")
     project = Project.query.get_or_404(project_id)
     
@@ -906,12 +800,9 @@ def create_translation(project_id):
     if len(name) > 255:
         return jsonify({'error': 'Translation name too long'}), 400
     
-    # Check if name already exists (check both new and legacy formats)
-    from models import Text
-    existing_unified = Text.query.filter_by(project_id=project_id, name=name).first()
-    existing_legacy = Translation.query.filter_by(project_id=project_id, name=name).first()
-    
-    if existing_unified or existing_legacy:
+    # Check if name already exists
+    existing_text = Text.query.filter_by(project_id=project_id, name=name).first()
+    if existing_text:
         return jsonify({'error': 'Translation name already exists'}), 400
     
     try:
@@ -930,13 +821,12 @@ def create_translation(project_id):
         return jsonify({
             'success': True,
             'translation': {
-                'id': f'text_{text.id}',  # New unified format
+                'id': f'text_{text.id}',
                 'name': text.name,
                 'progress': 0.0,
                 'translated_verses': 0,
                 'total_verses': text.total_verses,
-                'created_at': text.created_at.isoformat(),
-                'is_unified': True
+                'created_at': text.created_at.isoformat()
             }
         })
         
@@ -994,120 +884,35 @@ def get_chapter_verses(project_id, target_id, book, chapter):
         if not chapter_verses:
             return jsonify({'error': 'Chapter not found'}), 404
         
-        # Get target text and purpose information - handle both translation IDs and file IDs
+        # Get target text and purpose information - unified schema only
         target_texts = []
         target_purpose = ''
         
-        if target_id.startswith('file_'):
-            # Target is a file (eBible or back translation)
-            file_id = int(target_id.replace('file_', ''))
-            target_file = ProjectFile.query.filter_by(
-                id=file_id,
-                project_id=project_id
-            ).first_or_404()
-            
-            # Get purpose description from file
-            target_purpose = target_file.purpose_description or ''
-            
-            # OPTIMIZED: Single bulk query with proper indexing
-            verse_indices = [v['index'] for v in chapter_verses]
-            verses = ProjectFileVerse.query.filter(
-                ProjectFileVerse.project_file_id == target_file.id,
-                ProjectFileVerse.verse_index.in_(verse_indices)
-            ).order_by(ProjectFileVerse.verse_index).all()
-            
-            # Create a mapping for O(1) lookup
-            verse_map = {v.verse_index: v.verse_text for v in verses}
-            target_texts = [verse_map.get(idx, '') for idx in verse_indices]
-
-        elif target_id.startswith('translation_'):
-            # Target is a translation
-            translation_id = int(target_id.replace('translation_', ''))
-            translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
-            
-            # Get description from translation
-            target_purpose = translation.description or ''
-            
-            translation_manager = _get_translation_manager(translation)
-            verse_indices = [v['index'] for v in chapter_verses]
-            target_texts = translation_manager.get_chapter_verses(verse_indices)
-            
-        elif target_id.startswith('text_'):
-            # NEW: Target is a unified Text record (new schema)
+        if target_id.startswith('text_'):
+            # Target is a unified Text record
             text_id = int(target_id.replace('text_', ''))
-            from models import Text
-            from utils.text_manager import TextManager
-            
             target_text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
             target_purpose = target_text.description or ''
             
             text_manager = TextManager(text_id)
             verse_indices = [v['index'] for v in chapter_verses]
             target_texts = text_manager.get_verses(verse_indices)
-            
         else:
-            # Assume it's a direct translation ID (for backward compatibility)
-            try:
-                translation_id = int(target_id)
-                translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
-                
-                # Get description from translation
-                target_purpose = translation.description or ''
-                
-                translation_manager = _get_translation_manager(translation)
-                verse_indices = [v['index'] for v in chapter_verses]
-                target_texts = translation_manager.get_chapter_verses(verse_indices)
-            except ValueError:
-                return jsonify({'error': 'Invalid target_id format'}), 400
+            return jsonify({'error': 'Invalid target_id format - only text_ IDs supported'}), 400
         
-        # Get source text - handle both file and translation sources
+        # Get source text - unified schema only  
         source_verses = []
         
-        if source_id.startswith('file_'):
-            # eBible file source
-            file_id = int(source_id.replace('file_', ''))
-            source_file = ProjectFile.query.filter_by(
-                id=file_id,
-                project_id=project_id
-            ).first_or_404()
-            
-            # OPTIMIZED: Single bulk query with proper indexing
-            verse_indices = [v['index'] for v in chapter_verses]
-            verses = ProjectFileVerse.query.filter(
-                ProjectFileVerse.project_file_id == source_file.id,
-                ProjectFileVerse.verse_index.in_(verse_indices)
-            ).order_by(ProjectFileVerse.verse_index).all()
-            
-            # Create a mapping for O(1) lookup
-            verse_map = {v.verse_index: v.verse_text for v in verses}
-            source_verses = [verse_map.get(idx, '') for idx in verse_indices]
-        
-        elif source_id.startswith('translation_'):
-            # Translation source
-            source_translation_id = int(source_id.replace('translation_', ''))
-            source_translation = Translation.query.filter_by(
-                id=source_translation_id,
-                project_id=project_id
-            ).first_or_404()
-            
-            source_manager = _get_translation_manager(source_translation)
-            verse_indices = [v['index'] for v in chapter_verses]
-            source_verses = source_manager.get_chapter_verses(verse_indices)
-        
-        elif source_id.startswith('text_'):
-            # NEW: Source is a unified Text record (new schema)
+        if source_id.startswith('text_'):
+            # Source is a unified Text record
             text_id = int(source_id.replace('text_', ''))
-            from models import Text
-            from utils.text_manager import TextManager
-            
             source_text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
             
             text_manager = TextManager(text_id)
             verse_indices = [v['index'] for v in chapter_verses]
             source_verses = text_manager.get_verses(verse_indices)
-        
         else:
-            return jsonify({'error': 'Invalid source_id format'}), 400
+            return jsonify({'error': 'Invalid source_id format - only text_ IDs supported'}), 400
         
         # Build response
         verses_data = []
@@ -1155,50 +960,9 @@ def save_verse(project_id, target_id, verse_index):
     verse_text = ' '.join(verse_text.split())
     
     try:
-        if target_id.startswith('file_'):
-            # Target is a file - use database storage
-            file_id = int(target_id.replace('file_', ''))
-            target_file = ProjectFile.query.filter_by(
-                id=file_id,
-                project_id=project_id
-            ).first_or_404()
-            
-            # Update or create verse in database
-            existing_verse = ProjectFileVerse.query.filter_by(
-                project_file_id=target_file.id,
-                verse_index=verse_index
-            ).first()
-            
-            if existing_verse:
-                existing_verse.verse_text = verse_text
-            else:
-                new_verse = ProjectFileVerse(
-                    project_file_id=target_file.id,
-                    verse_index=verse_index,
-                    verse_text=verse_text
-                )
-                db.session.add(new_verse)
-            
-            db.session.commit()
-            
-        elif target_id.startswith('translation_'):
-            # Target is a translation
-            translation_id = int(target_id.replace('translation_', ''))
-            translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
-            
-            translation_manager = _get_translation_manager(translation)
-            translation_manager.save_verse(verse_index, verse_text)
-            
-            # Update progress
-            translation.updated_at = datetime.utcnow()
-            db.session.commit()
-            
-        elif target_id.startswith('text_'):
-            # NEW: Target is a unified Text record (new schema)
+        if target_id.startswith('text_'):
+            # Target is a unified Text record
             text_id = int(target_id.replace('text_', ''))
-            from models import Text
-            from utils.text_manager import TextManager
-            
             target_text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
             
             text_manager = TextManager(text_id)
@@ -1206,22 +970,8 @@ def save_verse(project_id, target_id, verse_index):
             
             if not success:
                 return jsonify({'error': 'Failed to save verse'}), 500
-            
         else:
-            # Assume it's a direct translation ID (for backward compatibility)
-            try:
-                translation_id = int(target_id)
-                translation = Translation.query.filter_by(id=translation_id, project_id=project_id).first_or_404()
-                
-                translation_manager = _get_translation_manager(translation)
-                translation_manager.save_verse(verse_index, verse_text)
-                
-                # Update progress
-                translation.updated_at = datetime.utcnow()
-                db.session.commit()
-                
-            except ValueError:
-                return jsonify({'error': 'Invalid target_id format'}), 400
+            return jsonify({'error': 'Invalid target_id format - only text_ IDs supported'}), 400
         
         return jsonify({'success': True})
         

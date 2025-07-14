@@ -7,7 +7,7 @@ import chardet
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
-from models import db, ProjectFile, LanguageRule
+from models import db, LanguageRule
 from storage import get_storage
 
 
@@ -107,82 +107,38 @@ def save_project_file(project_id: int, file_data, filename: str, file_type: str,
         file_content = content.decode('utf-8')
         file_data.seek(0)
     
-    # Determine if this is Bible text data or training data
-    is_bible_text = (
-        file_type in ['text', 'ebible', 'back_translation'] and
-        not filename.endswith('.jsonl') and 
-        not filename.endswith('.rtf')
+    # Use unified Text + Verse approach for all file types
+    from utils.text_manager import TextManager
+    
+    # Determine text_type for unified schema
+    if file_type == 'back_translation':
+        text_type = 'back_translation'
+    else:
+        text_type = 'source'  # All files are treated as source material
+    
+    # Create Text record
+    text_id = TextManager.create_text(
+        project_id=project_id,
+        name=filename,
+        text_type=text_type,
+        description=f"Uploaded {file_type} file"
     )
     
-    if is_bible_text:
-        # NEW UNIFIED APPROACH: Use Text + Verse tables
-        from utils.text_manager import TextManager
-        
-        # Determine text_type for unified schema
-        if file_type == 'back_translation':
-            text_type = 'back_translation'
-        else:
-            text_type = 'source'  # ebible and text files are source material
-        
-        # Create Text record
-        text_id = TextManager.create_text(
-            project_id=project_id,
-            name=filename,
-            text_type=text_type,
-            description=f"Uploaded {file_type} file"
-        )
-        
-        # Import verses 
+    # Import verses for Bible text files
+    if file_type in ['text', 'ebible', 'back_translation'] and not filename.endswith('.jsonl'):
         success = TextManager.import_verses(text_id, file_content)
         if not success:
             raise Exception("Failed to import verses to database")
-        
-        # Return a compatibility object that matches ProjectFile interface
-        class UnifiedFileResult:
-            def __init__(self, text_id, filename):
-                self.id = text_id  # For compatibility with existing code
-                self.text_id = text_id  # New unified ID
-                self.original_filename = filename
-                self.storage_type = 'unified'  # Mark as using new system
-                self.file_type = file_type
-                self.is_unified = True
-        
-        return UnifiedFileResult(text_id, filename)
     
-    else:
-        # LEGACY APPROACH: For non-Bible files (training data, etc.)
-        # Keep using ProjectFile + file storage for these
-        storage = get_storage()
-        file_id = str(uuid.uuid4())
-        storage_path = f"projects/{project_id}/{file_type}/{file_id}_{filename}"
-        
-        # Store file
-        if isinstance(file_data, str):
-            file_obj = io.BytesIO(file_data.encode('utf-8'))
-        else:
-            file_obj = file_data
-            
-        try:
-            storage.store_file(file_obj, storage_path)
-        except Exception as e:
-            print(f"Storage connection failed: {e}")
-            raise Exception(f"File storage unavailable: {str(e)}")
-        
-        # Create legacy project file record
-        project_file = ProjectFile(
-            project_id=project_id,
-            original_filename=filename,
-            storage_path=storage_path,
-            storage_type='file',
-            file_type=file_type,
-            content_type=content_type,
-            file_size=file_size,
-            line_count=len(file_content.splitlines())
-        )
-        db.session.add(project_file)
-        db.session.flush()
-        
-        return project_file
+    # Return a compatibility object
+    class UnifiedFileResult:
+        def __init__(self, text_id, filename, file_type):
+            self.id = text_id
+            self.text_id = text_id
+            self.original_filename = filename
+            self.file_type = file_type
+    
+    return UnifiedFileResult(text_id, filename, file_type)
 
 
 def safe_decode_content(file_content):
