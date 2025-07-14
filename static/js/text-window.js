@@ -512,7 +512,19 @@ class TextWindow {
         // PERFORMANCE: Batch all control creation to reduce DOM operations
         const fragment = document.createDocumentFragment();
         
-        // Only add controls for editors
+        // History button for all users (viewers can see history)
+        if (window.translationEditor) {
+            const historyButton = document.createElement('button');
+            historyButton.className = 'w-6 h-6 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm hover:text-gray-600 history-btn';
+            historyButton.innerHTML = '<i class="fas fa-history text-xs"></i>';
+            historyButton.title = 'View edit history';
+            historyButton.setAttribute('data-verse-index', verseData.index);
+            
+            historyButton.onclick = () => this.showVerseHistory(verseData, textarea);
+            fragment.appendChild(historyButton);
+        }
+        
+        // Only add editing controls for editors
         if (window.translationEditor?.canEdit) {
             // Primary window gets sparkle button
             if (this.type === 'primary') {
@@ -560,6 +572,21 @@ class TextWindow {
         
         // PERFORMANCE: Single DOM append instead of multiple
         controlsContainer.appendChild(fragment);
+    }
+    
+    showVerseHistory(verseData, textarea) {
+        // Get text ID from window ID (strip text_ prefix if present)
+        const textId = this.id.startsWith('text_') ? 
+            parseInt(this.id.replace('text_', '')) : 
+            parseInt(this.id);
+        
+        // Initialize history modal if not already done
+        if (!window.translationEditor.verseHistory) {
+            window.translationEditor.verseHistory = new VerseHistory(window.translationEditor);
+        }
+        
+        // Show history for this verse
+        window.translationEditor.verseHistory.showHistory(textId, verseData.index);
     }
     
     // Removed - using batched controls now

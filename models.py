@@ -183,16 +183,70 @@ class Verse(db.Model):
     verse_index = db.Column(db.Integer, nullable=False)  # 0-31169
     verse_text = db.Column(db.Text, nullable=False)
     
+    # Edit tracking fields
+    last_edited_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    last_edited_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    edit_count = db.Column(db.Integer, default=0)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    last_editor = db.relationship('User', foreign_keys=[last_edited_by], backref='last_edited_verses')
     
     __table_args__ = (
         db.UniqueConstraint('text_id', 'verse_index', name='unique_text_verse'),
         db.Index('idx_verse_lookup', 'text_id', 'verse_index'),
+        db.Index('idx_verse_last_edited', 'last_edited_by', 'last_edited_at'),
     )
+    
+    def get_edit_history(self, limit=50):
+        """Get edit history for this verse"""
+        return VerseEditHistory.query.filter_by(
+            text_id=self.text_id,
+            verse_index=self.verse_index
+        ).order_by(VerseEditHistory.edited_at.desc()).limit(limit).all()
     
     def __repr__(self):
         return f'<Verse {self.text_id}:{self.verse_index}>'
+
+
+class VerseEditHistory(db.Model):
+    """Track all edits made to verses"""
+    __tablename__ = 'verse_edit_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    text_id = db.Column(db.Integer, db.ForeignKey('texts.id'), nullable=False)
+    verse_index = db.Column(db.Integer, nullable=False)
+    
+    # Content tracking
+    previous_text = db.Column(db.Text)
+    new_text = db.Column(db.Text, nullable=False)
+    
+    # User and timing
+    edited_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    edited_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Edit metadata
+    edit_type = db.Column(db.Enum('create', 'update', 'delete', 'revert'), nullable=False, default='update')
+    edit_source = db.Column(db.Enum('manual', 'ai_translation', 'import', 'bulk_operation'), nullable=False, default='manual')
+    
+    # Optional context
+    edit_comment = db.Column(db.Text)
+    confidence_score = db.Column(db.Numeric(3, 2))
+    
+    # Relationships
+    text = db.relationship('Text', backref='edit_history')
+    editor = db.relationship('User', backref='verse_edits')
+    
+    __table_args__ = (
+        db.Index('idx_verse_history', 'text_id', 'verse_index', 'edited_at'),
+        db.Index('idx_user_edits', 'edited_by', 'edited_at'),
+        db.Index('idx_text_recent', 'text_id', 'edited_at'),
+    )
+    
+    def __repr__(self):
+        return f'<VerseEditHistory {self.text_id}:{self.verse_index} by {self.edited_by}>'
 
 
 class LanguageRule(db.Model):

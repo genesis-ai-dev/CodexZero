@@ -136,9 +136,13 @@ class FineTuningService:
         ).order_by(FineTuningJob.completed_at.desc()).all()
         
         for job in completed_jobs:
+            # Skip jobs with missing text references
+            if not job.source_text or not job.target_text:
+                continue
+                
             models[job.model_name] = {
                 'name': job.display_name,
-                'description': f"Custom model from {job.source_file.original_filename} → {job.target_file.original_filename}",
+                'description': f"Custom model from {job.source_text.name} → {job.target_text.name}",
                 'cost_per_1k_tokens': self.base_models.get('gpt-4.1-mini', {}).get('cost_per_1k_tokens', 0.003),
                 'max_context': 128000,
                 'type': 'fine_tuned',
@@ -167,9 +171,13 @@ class FineTuningService:
         ).order_by(FineTuningJob.completed_at.desc()).all()
         
         for job in completed_jobs:
+            # Skip jobs with missing text references
+            if not job.source_text or not job.target_text:
+                continue
+                
             models[job.model_name] = {
                 'name': job.display_name,
-                'description': f"Custom model from {job.source_file.original_filename} → {job.target_file.original_filename}",
+                'description': f"Custom model from {job.source_text.name} → {job.target_text.name}",
                 'cost_per_1k_tokens': self.base_models.get('gpt-4.1-mini', {}).get('cost_per_1k_tokens', 0.003),
                 'max_context': 128000,
                 'type': 'fine_tuned',
@@ -247,8 +255,8 @@ class FineTuningService:
             "total_lines": len(source_lines),
             "valid_examples": len(valid_examples),
             "filtered_out": len(source_lines) - len(valid_examples),
-            "source_filename": source_file.original_filename,
-            "target_filename": target_file.original_filename,
+            "source_filename": source_file.name,
+            "target_filename": target_file.name,
             "preview_example": {
                 "line_number": preview_example["line_number"],
                 "system_prompt": preview_example["messages"][0]["content"],
@@ -496,8 +504,8 @@ class FineTuningService:
                 'model_name': job.model_name,
                 'display_name': job.display_name,
                 'hidden': job.hidden,
-                'source_file': job.source_file.original_filename if job.source_file else 'Unknown',
-                'target_file': job.target_file.original_filename if job.target_file else 'Unknown',
+                'source_file': job.source_text.name if job.source_text else 'Unknown',
+                'target_file': job.target_text.name if job.target_text else 'Unknown',
                 'training_examples': job.training_examples,
                 'estimated_cost': job.estimated_cost,
                 'created_at': job.created_at.isoformat(),
@@ -647,8 +655,8 @@ class FineTuningService:
             "valid_pairs": len(valid_pairs),
             "selected_examples": len(selected_pairs),  # This is the actual number of training examples
             "max_examples": max_examples,
-            "source_filename": source_file.original_filename,
-            "target_filename": target_file.original_filename,
+            "source_filename": source_file.name,
+            "target_filename": target_file.name,
             "preview_example": {
                 "line_number": preview_pair["line_number"],
                 "system_prompt": system_prompt,
@@ -895,8 +903,8 @@ class FineTuningService:
             "valid_pairs": valid_pairs,
             "max_examples": max_examples,
             "actual_examples": actual_examples,
-            "source_filename": source_file.original_filename,
-            "target_filename": target_file.original_filename
+            "source_filename": source_file.name,
+            "target_filename": target_file.name
         }
     
     def create_instruction_training_data_with_progress(self, source_file_id: int, target_file_id: int, project_id: int, max_examples: int = 100, progress_callback=None) -> Tuple[str, int]:

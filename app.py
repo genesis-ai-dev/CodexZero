@@ -26,6 +26,7 @@ def run_performance_migrations():
         existing_tables = inspector.get_table_names()
         
         indexes_added = 0
+        migrations_run = 0
         
         # Helper function to create index safely
         def create_index_safe(index_name, table_name, columns):
@@ -42,6 +43,141 @@ def run_performance_migrations():
                 else:
                     print(f"Could not add {index_name}: {e}")
                     return False
+        
+        # Run verse edit history migration
+        def run_verse_edit_history_migration():
+            try:
+                local_migrations = 0
+                with db.engine.connect() as conn:
+                    # Check if verse_edit_history table exists
+                    result = conn.execute(db.text(
+                        "SELECT COUNT(*) as count FROM information_schema.tables "
+                        "WHERE table_schema = DATABASE() AND table_name = 'verse_edit_history'"
+                    )).fetchone()
+                    
+                    if result.count == 0:
+                        # Create verse_edit_history table
+                        conn.execute(db.text("""
+                            CREATE TABLE verse_edit_history (
+                                id INT AUTO_INCREMENT PRIMARY KEY,
+                                text_id INT NOT NULL,
+                                verse_index INT NOT NULL,
+                                previous_text TEXT,
+                                new_text TEXT NOT NULL,
+                                edited_by INT NOT NULL,
+                                edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                edit_type ENUM('create', 'update', 'delete', 'revert') NOT NULL DEFAULT 'update',
+                                edit_source ENUM('manual', 'ai_translation', 'import', 'bulk_operation') NOT NULL DEFAULT 'manual',
+                                edit_comment TEXT,
+                                confidence_score DECIMAL(3,2),
+                                
+                                FOREIGN KEY (text_id) REFERENCES texts(id) ON DELETE CASCADE,
+                                FOREIGN KEY (edited_by) REFERENCES users(id) ON DELETE SET NULL,
+                                
+                                INDEX idx_verse_history (text_id, verse_index, edited_at),
+                                INDEX idx_user_edits (edited_by, edited_at),
+                                INDEX idx_text_recent (text_id, edited_at DESC)
+                            )
+                        """))
+                        print("✅ Created verse_edit_history table")
+                        local_migrations += 1
+                    
+                    # Check if tracking columns exist in verses table
+                    if 'verses' in existing_tables:
+                        result = conn.execute(db.text(
+                            "SELECT COUNT(*) as count FROM information_schema.columns "
+                            "WHERE table_schema = DATABASE() AND table_name = 'verses' AND column_name = 'last_edited_by'"
+                        )).fetchone()
+                        
+                        if result.count == 0:
+                            # Add tracking columns to verses table
+                            conn.execute(db.text("""
+                                ALTER TABLE verses 
+                                ADD COLUMN last_edited_by INT,
+                                ADD COLUMN last_edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                ADD COLUMN edit_count INT DEFAULT 0,
+                                ADD FOREIGN KEY (last_edited_by) REFERENCES users(id) ON DELETE SET NULL,
+                                ADD INDEX idx_verse_last_edited (last_edited_by, last_edited_at)
+                            """))
+                            print("✅ Added edit tracking columns to verses table")
+                            local_migrations += 1
+                    
+                    conn.commit()
+                    return local_migrations
+            except Exception as e:
+                print(f"⚠️  Verse edit history migration warning: {e}")
+                return 0
+        
+        # Run fine-tuning table migration  
+        def run_fine_tuning_migration():
+            try:
+                local_migrations = 0
+                if 'fine_tuning_jobs' not in existing_tables:
+                    return 0
+                    
+                with db.engine.connect() as conn:
+                    # List of columns to check and add
+                    columns_to_add = [
+                        ('source_text_id', 'INT'),
+                        ('target_text_id', 'INT'),
+                        ('display_name', 'VARCHAR(255)'),
+                        ('hidden', 'BOOLEAN DEFAULT FALSE'),
+                        ('is_instruction_tuning', 'BOOLEAN DEFAULT FALSE'),
+                        ('query_text', 'TEXT'),
+                        ('max_examples', 'INT'),
+                        ('estimated_cost', 'DECIMAL(10,4)'),
+                        ('actual_cost', 'DECIMAL(10,4)'),
+                        ('trained_tokens', 'INT'),
+                        ('started_at', 'TIMESTAMP NULL'),
+                        ('completed_at', 'TIMESTAMP NULL')
+                    ]
+                    
+                    # Check and add each column individually
+                    for column_name, column_def in columns_to_add:
+                        result = conn.execute(db.text(
+                            "SELECT COUNT(*) as count FROM information_schema.columns "
+                            "WHERE table_schema = DATABASE() AND table_name = 'fine_tuning_jobs' "
+                            f"AND column_name = '{column_name}'"
+                        )).fetchone()
+                        
+                        if result.count == 0:
+                            conn.execute(db.text(f"ALTER TABLE fine_tuning_jobs ADD COLUMN {column_name} {column_def}"))
+                            print(f"✅ Added {column_name} column to fine_tuning_jobs")
+                            local_migrations += 1
+                    
+                    # Add foreign keys if columns were added
+                    if local_migrations > 0:
+                        # Check if foreign keys exist
+                        for fk_column in ['source_text_id', 'target_text_id']:
+                            try:
+                                conn.execute(db.text(f"""
+                                    ALTER TABLE fine_tuning_jobs 
+                                    ADD FOREIGN KEY ({fk_column}) REFERENCES texts(id) ON DELETE SET NULL
+                                """))
+                                print(f"✅ Added foreign key for {fk_column}")
+                            except Exception:
+                                pass  # Foreign key might already exist
+                        
+                        # Clean up orphaned jobs with missing text references
+                        try:
+                            result = conn.execute(db.text("""
+                                DELETE FROM fine_tuning_jobs 
+                                WHERE source_text_id IS NULL OR target_text_id IS NULL
+                            """))
+                            if result.rowcount > 0:
+                                print(f"✅ Cleaned up {result.rowcount} orphaned fine-tuning jobs")
+                        except Exception as e:
+                            print(f"⚠️  Could not clean up orphaned jobs: {e}")
+                    
+                    conn.commit()
+                    return local_migrations
+            except Exception as e:
+                print(f"⚠️  Fine-tuning migration warning: {e}")
+                return 0
+        
+        # Run migrations first
+        migrations_run = run_verse_edit_history_migration()
+        migrations_run += run_fine_tuning_migration()
         
         # CRITICAL: The most important indexes for verse lookups
         if 'verses' in existing_tables:
@@ -64,10 +200,11 @@ def run_performance_migrations():
             if create_index_safe('idx_projects_user_updated', 'projects', 'user_id, updated_at'):
                 indexes_added += 1
         
-        if indexes_added > 0:
-            print(f"✅ Applied {indexes_added} performance indexes automatically")
+        # Summary message
+        if migrations_run > 0 or indexes_added > 0:
+            print(f"✅ Database setup complete: {migrations_run} migrations, {indexes_added} indexes")
         else:
-            print("✅ All performance indexes already exist")
+            print("✅ Database already up to date")
             
     except Exception as e:
         print(f"⚠️  Could not run performance migrations: {e}")

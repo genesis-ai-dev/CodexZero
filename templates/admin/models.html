@@ -91,7 +91,7 @@
                         <div class="mt-3 ml-14">
                             <div class="paper-white p-3 marker-border-thin">
                                 <p class="text-sm text-neutral-700 font-medium">
-                                    {{ job.source_file.original_filename }} → {{ job.target_file.original_filename }}
+                                    {{ job.source_text.name }} → {{ job.target_text.name }}
                                 </p>
                                 {% if job.model_name %}
                                 <p class="text-xs text-neutral-500 mt-1 font-mono">{{ job.model_name }}</p>

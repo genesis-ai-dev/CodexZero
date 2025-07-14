@@ -60,8 +60,6 @@ def translate_page(project_id):
 
 def _get_translation_examples(project_id, source_text_id, target_text_id, query_text, exclude_verse_index=None):
     """Get examples using UNIFIED SCHEMA - dramatically simplified!"""
-    print(f"DEBUG: Getting examples for query: '{query_text}'")
-    print(f"DEBUG: source_text_id: {source_text_id}, target_text_id: {target_text_id}")
     
     if not query_text:
         return [], "No query text provided"
@@ -84,7 +82,6 @@ def _get_translation_examples(project_id, source_text_id, target_text_id, query_
         
         if not source_id or not target_id:
             # Legacy formats no longer supported - return empty results
-            print("DEBUG: Unsupported text ID format, returning empty examples")
             return [], "Unsupported text ID format - only text_ IDs are supported"
         
         source_manager = get_text_manager(source_id)
@@ -93,8 +90,6 @@ def _get_translation_examples(project_id, source_text_id, target_text_id, query_
         # Get non-empty verses from both texts
         source_data = source_manager.get_non_empty_verses()
         target_data = target_manager.get_non_empty_verses()
-        
-        print(f"DEBUG: Found {len(source_data)} source verses, {len(target_data)} target verses")
         
         # Use context query to find relevant examples
         from ai.contextquery import DatabaseContextQuery
@@ -390,16 +385,11 @@ def translate():
         examples = []
         source_info = "No examples used"
         
-        # Log the use_examples setting for debugging
-        print(f"Translation request - use_examples: {use_examples}, text: '{text_to_translate[:50]}...'")
-        
         if use_examples:
             examples, source_info = _get_translation_examples(
                 project_id, source_file_id, target_file_id, text_to_translate, exclude_verse_index
             )
-            print(f"Found {len(examples)} examples for in-context learning")
-        else:
-            print("In-context learning disabled - no examples will be used")
+        
         
         # Generate translation using project's selected model
         translation = _generate_translation_with_examples(
@@ -891,28 +881,40 @@ def get_chapter_verses(project_id, target_id, book, chapter):
         if target_id.startswith('text_'):
             # Target is a unified Text record
             text_id = int(target_id.replace('text_', ''))
-            target_text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
-            target_purpose = target_text.description or ''
-            
-            text_manager = TextManager(text_id)
-            verse_indices = [v['index'] for v in chapter_verses]
-            target_texts = text_manager.get_verses(verse_indices)
+        elif target_id.startswith('file_'):
+            # Legacy format conversion: file_36 -> text_36
+            text_id = int(target_id.replace('file_', ''))
         else:
-            return jsonify({'error': 'Invalid target_id format - only text_ IDs supported'}), 400
+            return jsonify({'error': 'Invalid target_id format - only text_ or file_ IDs supported'}), 400
+        
+        target_text = Text.query.filter_by(id=text_id, project_id=project_id).first()
+        if not target_text:
+            return jsonify({'error': f'Target text not found: {target_id}'}), 404
+        target_purpose = target_text.description or ''
+        
+        text_manager = TextManager(text_id)
+        verse_indices = [v['index'] for v in chapter_verses]
+        target_texts = text_manager.get_verses(verse_indices)
         
         # Get source text - unified schema only  
         source_verses = []
         
         if source_id.startswith('text_'):
             # Source is a unified Text record
-            text_id = int(source_id.replace('text_', ''))
-            source_text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
-            
-            text_manager = TextManager(text_id)
-            verse_indices = [v['index'] for v in chapter_verses]
-            source_verses = text_manager.get_verses(verse_indices)
+            source_text_id = int(source_id.replace('text_', ''))
+        elif source_id.startswith('file_'):
+            # Legacy format conversion: file_36 -> text_36  
+            source_text_id = int(source_id.replace('file_', ''))
         else:
-            return jsonify({'error': 'Invalid source_id format - only text_ IDs supported'}), 400
+            return jsonify({'error': 'Invalid source_id format - only text_ or file_ IDs supported'}), 400
+        
+        source_text = Text.query.filter_by(id=source_text_id, project_id=project_id).first()
+        if not source_text:
+            return jsonify({'error': f'Source text not found: {source_id}'}), 404
+        
+        text_manager = TextManager(source_text_id)
+        verse_indices = [v['index'] for v in chapter_verses]
+        source_verses = text_manager.get_verses(verse_indices)
         
         # Build response
         verses_data = []
@@ -946,7 +948,7 @@ def get_chapter_verses(project_id, target_id, book, chapter):
 @translation.route('/project/<int:project_id>/translation/<target_id>/verse/<int:verse_index>', methods=['POST'])
 @login_required
 def save_verse(project_id, target_id, verse_index):
-    """Save a single verse"""
+    """Save a single verse with edit history tracking"""
     require_project_access(project_id, "editor")
     project = Project.query.get_or_404(project_id)
     
@@ -955,6 +957,9 @@ def save_verse(project_id, target_id, verse_index):
         return jsonify({'error': 'Verse text is required'}), 400
     
     verse_text = data['text']
+    edit_comment = data.get('comment')
+    edit_source = data.get('source', 'manual')
+    confidence_score = data.get('confidence')
     
     # Strip newlines to maintain line alignment for context queries
     verse_text = ' '.join(verse_text.split())
@@ -965,19 +970,114 @@ def save_verse(project_id, target_id, verse_index):
             text_id = int(target_id.replace('text_', ''))
             target_text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
             
+            # Get current verse for history tracking
+            current_verse = Verse.query.filter_by(
+                text_id=text_id,
+                verse_index=verse_index
+            ).first()
+            
+            previous_text = current_verse.verse_text if current_verse else ''
+            
+            # Save the verse using existing logic
             text_manager = TextManager(text_id)
             success = text_manager.save_verse(verse_index, verse_text)
             
             if not success:
                 return jsonify({'error': 'Failed to save verse'}), 500
+            
+            # Record edit history
+            from utils.verse_history_service import VerseEditHistoryService
+            VerseEditHistoryService.record_edit(
+                text_id=text_id,
+                verse_index=verse_index,
+                previous_text=previous_text,
+                new_text=verse_text,
+                user_id=current_user.id,
+                edit_type='create' if not previous_text else 'update',
+                edit_source=edit_source,
+                comment=edit_comment,
+                confidence_score=confidence_score
+            )
+            
+            return jsonify({
+                'success': True,
+                'edit_recorded': True,
+                'editor': current_user.name
+            })
+            
         else:
             return jsonify({'error': 'Invalid target_id format - only text_ IDs supported'}), 400
         
-        return jsonify({'success': True})
-        
     except Exception as e:
+        db.session.rollback()
         print(f"Error saving verse: {e}")
         return jsonify({'error': 'Failed to save verse'}), 500
+
+
+@translation.route('/project/<int:project_id>/verse/<int:text_id>/<int:verse_index>/history')
+@login_required
+def get_verse_history(project_id, text_id, verse_index):
+    """Get edit history for a specific verse"""
+    require_project_access(project_id, "viewer")
+    
+    # Verify text belongs to project
+    text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
+    
+    from utils.verse_history_service import VerseEditHistoryService
+    history = VerseEditHistoryService.get_verse_history(text_id, verse_index)
+    
+    return jsonify({'history': history})
+
+
+@translation.route('/project/<int:project_id>/verse/<int:text_id>/<int:verse_index>/revert', methods=['POST'])
+@login_required
+def revert_verse(project_id, text_id, verse_index):
+    """Revert a verse to a previous version"""
+    require_project_access(project_id, "editor")
+    
+    # Verify text belongs to project
+    text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
+    
+    data = request.get_json()
+    target_edit_id = data.get('edit_id')
+    
+    if not target_edit_id:
+        return jsonify({'error': 'Edit ID required'}), 400
+    
+    from utils.verse_history_service import VerseEditHistoryService
+    success = VerseEditHistoryService.revert_verse(
+        text_id, verse_index, target_edit_id, current_user.id
+    )
+    
+    if success:
+        return jsonify({'success': True, 'message': 'Verse reverted successfully'})
+    else:
+        return jsonify({'error': 'Failed to revert verse'}), 500
+
+
+@translation.route('/project/<int:project_id>/activity')
+@login_required
+def get_project_activity(project_id):
+    """Get recent edit activity for a project"""
+    require_project_access(project_id, "viewer")
+    
+    # Get all texts in project
+    texts = Text.query.filter_by(project_id=project_id).all()
+    
+    all_activity = []
+    from utils.verse_history_service import VerseEditHistoryService
+    
+    for text in texts:
+        activity = VerseEditHistoryService.get_recent_activity(text.id, limit=20)
+        for item in activity:
+            item['text_name'] = text.name
+        all_activity.extend(activity)
+    
+    # Sort by most recent and limit
+    all_activity.sort(key=lambda x: x['edited_at'], reverse=True)
+    recent_activity = all_activity[:50]
+    
+    return jsonify({'activity': recent_activity})
 
 
 

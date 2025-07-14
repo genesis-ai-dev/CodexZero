@@ -945,8 +945,8 @@ class TranslationEditor {
         return await this.saveSystem.saveAllChanges();
     }
     
-    async saveVerse(verseIndex, text) {
-        return await this.saveSystem.saveVerse(verseIndex, text);
+    async saveVerse(verseIndex, text, targetId = null, metadata = null) {
+        return await this.saveSystem.saveVerse(verseIndex, text, targetId, metadata);
     }
     
     async translateFromDrag(dragData, targetTextarea, targetWindow = null) {
@@ -982,6 +982,39 @@ class TranslationEditor {
             return null;
         }
     }
+    
+    showMessage(message, type = 'info') {
+        // Create a simple toast notification
+        const toast = document.createElement('div');
+        toast.className = `fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg max-w-sm transition-all duration-300 ${
+            type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' :
+            type === 'error' ? 'bg-red-100 text-red-800 border border-red-200' :
+            'bg-blue-100 text-blue-800 border border-blue-200'
+        }`;
+        
+        toast.innerHTML = `
+            <div class="flex items-center gap-2">
+                <i class="fas ${
+                    type === 'success' ? 'fa-check-circle' :
+                    type === 'error' ? 'fa-exclamation-circle' :
+                    'fa-info-circle'
+                }"></i>
+                <span class="text-sm font-medium">${message}</span>
+                <button class="ml-2 text-gray-500 hover:text-gray-700" onclick="this.parentElement.parentElement.remove()">×</button>
+            </div>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Auto-remove after 4 seconds
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, 4000);
+    }
 }
 
 // PERFORMANCE: Simplest possible initialization - no virtual scrolling
@@ -996,6 +1029,7 @@ document.addEventListener('DOMContentLoaded', () => {
 {% block scripts %}
 <!-- Translation Editor JavaScript Components - OPTIMIZED with defer for faster loading -->
 <script defer src="{{ url_for('static', filename='js/ui-utilities.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/verse-history.js') }}"></script>
     <!-- Virtual scroll removed for performance -->
 <script defer src="{{ url_for('static', filename='js/purpose-manager.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/audio-manager.js') }}"></script>

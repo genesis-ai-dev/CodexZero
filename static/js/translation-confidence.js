@@ -119,15 +119,30 @@ class TranslationConfidence {
         // Buffer the change for save tracking
         translationEditor.bufferVerseChange(verseIndex, translation);
         
-        // Auto-save the translation when accepted with specific target ID
+        // Auto-save the translation when accepted with AI source tracking
         try {
-            await translationEditor.saveVerse(verseIndex, translation, targetId);
+            const confidence = this.verseConfidenceData[verseIndex]?.confidence;
+            const averageConfidence = this.calculateAverageConfidence(confidence);
+            
+            await translationEditor.saveVerse(verseIndex, translation, targetId, {
+                source: 'ai_translation',
+                confidence: averageConfidence,
+                comment: 'AI translation accepted by user'
+            });
+            
             // Remove from unsaved changes since it's now saved
             translationEditor.unsavedChanges.delete(verseIndex);
             translationEditor.updateSaveButtonState();
         } catch (error) {
             console.error('Error saving accepted translation:', error);
         }
+    }
+    
+    calculateAverageConfidence(confidence) {
+        if (!confidence?.segments?.length) return null;
+        
+        const total = confidence.segments.reduce((sum, segment) => sum + (segment.confidence || 0), 0);
+        return total / confidence.segments.length;
     }
     
     getTextWindowForTextarea(textarea, translationEditor) {

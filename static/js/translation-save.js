@@ -135,7 +135,7 @@ class TranslationSave {
         }
     }
     
-    async saveVerse(verseIndex, text, targetId = null) {
+    async saveVerse(verseIndex, text, targetId = null, metadata = null) {
         const saveTargetId = targetId || this.editor.primaryTextId;
         
         if (!saveTargetId) {
@@ -144,14 +144,19 @@ class TranslationSave {
         }
         
         try {
+            const requestBody = {
+                text: text,
+                source: metadata?.source || 'manual',
+                confidence: metadata?.confidence || null,
+                comment: metadata?.comment || null
+            };
+            
             const response = await fetch(`/project/${this.editor.projectId}/translation/${saveTargetId}/verse/${verseIndex}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    text: text
-                })
+                body: JSON.stringify(requestBody)
             });
             
             if (!response.ok) {

@@ -22,8 +22,8 @@ translation = Blueprint('translation', __name__)
 def _parse_source_filenames(job):
     """Parse source filenames from job with proper error handling"""
     try:
-        source_filename = job.source_file.original_filename if job.source_file else "Unknown Source"
-        target_filename = job.target_file.original_filename if job.target_file else "Unknown Target"
+        source_filename = job.source_text.name if job.source_text else "Unknown Source"
+        target_filename = job.target_text.name if job.target_text else "Unknown Target"
         return source_filename, target_filename
     except Exception as e:
         print(f"Error parsing filenames: {e}")
