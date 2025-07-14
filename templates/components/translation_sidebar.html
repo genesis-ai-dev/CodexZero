@@ -30,11 +30,6 @@
             </div>
         </div>
         
-        <!-- Model Info -->
-        <div id="model-info" class="hidden p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div id="model-description" class="text-sm text-blue-900 font-medium"></div>
-            <div id="model-type" class="text-xs text-blue-700 mt-1"></div>
-        </div>
     </div>
     
     <!-- Navigation Section -->
@@ -147,21 +142,9 @@ window.setModelDropdownOption = function(value, text, description = '', type = '
     // Store the value on the button for retrieval
     button.dataset.value = value;
     
-    // Update model info if provided
-    if (description || type) {
-        const modelInfo = document.getElementById('model-info');
-        const modelDescription = document.getElementById('model-description');
-        const modelType = document.getElementById('model-type');
-        
-        if (modelDescription) modelDescription.textContent = description;
-        if (modelType) modelType.textContent = type;
-        
-        if (description || type) {
-            modelInfo.classList.remove('hidden');
-        } else {
-            modelInfo.classList.add('hidden');
-        }
-    }
+    // Remove model info update (description/type)
+    const modelInfo = document.getElementById('model-info');
+    if (modelInfo) modelInfo.classList.add('hidden');
     
     // Close dropdown
     dropdown.classList.add('hidden');
@@ -207,7 +190,6 @@ window.populateModelDropdown = function(models) {
         option.className = 'dropdown-option px-3 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer border-b border-neutral-100 last:border-b-0';
         option.innerHTML = `
             <div class="font-medium">${model.name}</div>
-            ${model.description ? `<div class="text-xs text-neutral-500 mt-1">${model.description}</div>` : ''}
         `;
         option.addEventListener('click', () => {
             setModelDropdownOption(model.value, model.name, model.description, model.type);

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Philosophy - CodexZero{% endblock %}
+
+{% block content %}
+<section class="py-12 px-6">
+    <div class="max-w-4xl mx-auto">
+        <div class="mb-16">
+            <h1 class="text-4xl font-bold tracking-tight mb-4">
+                Our Translation Philosophy
+            </h1>
+            <p class="text-xl text-neutral-600">
+                Principles guiding our platform and community
+            </p>
+        </div>
+
+        <div class="space-y-16">
+            <!-- Philosophy -->
+            <div>
+                <h2 class="text-2xl font-semibold text-neutral-900 mb-8">Philosophy</h2>
+                <div class="space-y-8">
+                    <div class="bg-neutral-50 border-l-4 border-blue-500 rounded-lg p-6">
+                        <div class="flex items-center mb-4">
+                            <i class="fas fa-book-open text-blue-500 text-xl mr-3"></i>
+                            <h3 class="text-lg font-medium">Essential Fluency</h3>
+                        </div>
+                        <p class="text-neutral-700">
+                            Biblical, cultural, and language fluency are required to produce a good translation. Technology amplifies these qualities, but can exacerbate their loss when they are missing.
+                        </p>
+                    </div>
+
+                    <div class="bg-neutral-50 border-l-4 border-amber-500 rounded-lg p-6">
+                        <div class="flex items-center mb-4">
+                            <i class="fas fa-exclamation-triangle text-amber-500 text-xl mr-3"></i>
+                            <h3 class="text-lg font-medium">The Risk of Poor Translation</h3>
+                        </div>
+                        <p class="text-neutral-700">
+                            Unfortunately, it is possible to produce and distribute a "bad translation" that severely skews the message of the Bible. Technology can help prevent this, but not alone, and not unless each translation team is committed to it as well.
+                        </p>
+                    </div>
+
+                    <div class="bg-neutral-50 border-l-4 border-green-500 rounded-lg p-6">
+                        <div class="flex items-center mb-4">
+                            <i class="fas fa-users text-green-500 text-xl mr-3"></i>
+                            <h3 class="text-lg font-medium">Local Authority</h3>
+                        </div>
+                        <p class="text-neutral-700">
+                            Translation teams should not have their choices dictated to them by us or anyone unfamiliar with the target languages and cultures.
+                        </p>
+                    </div>
+
+                    <div class="bg-neutral-50 border-l-4 border-purple-500 rounded-lg p-6">
+                        <div class="flex items-center mb-4">
+                            <i class="fas fa-unlock text-purple-500 text-xl mr-3"></i>
+                            <h3 class="text-lg font-medium">Open is Best</h3>
+                        </div>
+                        <p class="text-neutral-700">
+                            We advocate for not copyrighting a Bible translation and making it freely accessible, but we do not require it.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Guidelines -->
+            <div>
+                <h2 class="text-2xl font-semibold text-neutral-900 mb-6">Guidelines</h2>
+                <div class="prose prose-neutral max-w-none">
+                    <p class="text-neutral-700 mb-6">
+                        We have loose guidelines because we trust that those closest to the target language are more equipped than anyone to make translation choices, but we do not allow:
+                    </p>
+                    
+                    <div class="space-y-6">
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+                            <div class="flex items-center mb-3">
+                                <i class="fas fa-ban text-red-500 text-lg mr-3"></i>
+                                <h3 class="font-medium text-red-900">Non-Biblical Text</h3>
+                            </div>
+                            <p class="text-red-800">
+                                We may support this sometime, but for now please use it only for Bible translation.
+                            </p>
+                        </div>
+
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+                            <div class="flex items-center mb-3">
+                                <i class="fas fa-ban text-red-500 text-lg mr-3"></i>
+                                <h3 class="font-medium text-red-900">Stolen Drafts</h3>
+                            </div>
+                            <p class="text-red-800">
+                                You may not use this platform to "autocomplete" the rest of a Bible based on data you do not have permission to use.
+                            </p>
+                        </div>
+
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+                            <div class="flex items-center mb-3">
+                                <i class="fas fa-eye text-red-500 text-lg mr-3"></i>
+                                <h3 class="font-medium text-red-900">Human Oversight Required</h3>
+                            </div>
+                            <p class="text-red-800">
+                                A human that knows the target language must at some point read all text drafted here.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+ 
+    </div>
+</section>
+{% endblock %} 

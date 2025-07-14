@@ -15,41 +15,61 @@
         </div>
 
         <div class="space-y-8">
-            <!-- Most Important Questions -->
             <div>
                 <div class="space-y-6">
                     <div class="border-b border-neutral-200 pb-6">
-                        <h3 class="text-lg font-medium text-neutral-900 mb-3">What is file pairing and why do I need it?</h3>
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Can I import from Paratext?</h3>
                         <p class="text-neutral-700 leading-relaxed">
-                            File pairing links two files that are line-by-line translations of each other (like English and Spanish versions of the same text). This is essential for fine-tuning custom AI models and providing translation examples. Upload both files to your project, then click the "Pair" button next to one file and select the matching file.
+                            Yes.
                         </p>
                     </div>
 
                     <div class="border-b border-neutral-200 pb-6">
-                        <h3 class="text-lg font-medium text-neutral-900 mb-3">What is fine-tuning and should I use it?</h3>
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Can I use offline?</h3>
                         <p class="text-neutral-700 leading-relaxed">
-                            Fine-tuning creates custom AI models trained on your specific translation pairs. This significantly improves translation quality for your target language and style. You need paired files with at least 50 examples (500+ recommended). Training takes 1-3 hours, and the system provides cost estimates before starting.
+                            No, for offline use see the Codex app and LangQuest.
                         </p>
                     </div>
 
                     <div class="border-b border-neutral-200 pb-6">
-                        <h3 class="text-lg font-medium text-neutral-900 mb-3">What file formats can I upload?</h3>
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Does the AI know my language?</h3>
                         <p class="text-neutral-700 leading-relaxed">
-                            CodexZero supports .txt files (UTF-8 encoded), USFM files (.usfm, .sfm) from Paratext, and direct text pasting. The system automatically detects USFM format and provides specialized import tools. You can also import from the built-in eBible corpus.
+                            Probably, and if it doesn't it will learn as you translate more text. The AI adapts to your language patterns and style the more examples you provide.
                         </p>
                     </div>
 
                     <div class="border-b border-neutral-200 pb-6">
-                        <h3 class="text-lg font-medium text-neutral-900 mb-3">How do translation instructions work?</h3>
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Can I translate anything besides the Bible?</h3>
                         <p class="text-neutral-700 leading-relaxed">
-                            Translation instructions are custom guidelines that help the AI understand your specific needs. Include guidance like "Use simple vocabulary for young adults," "Avoid passive voice," or "Maintain formal tone in prayer passages." The more specific you are, the better the AI will follow your style preferences.
+                            No, please see Codex and LangQuest if you need that kind of support. CodexZero is meant to be completely fine-tuned for Bible translation in the best possible way.
+                        </p>
+                    </div>
+
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Are these models better than No Language Left Behind?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            We've found that giving an LLM (large language model) relevant examples from your corpus performs on par with translation models like NLLB with added benefits like prompt adherence and cultural understanding. We also support fine-tuning LLMs which can give the best of both worlds.
+                        </p>
+                    </div>
+
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Do I need to request access for CodexZero?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            No, unlike some other Bible translation software, CodexZero does not require any approval process. Though we reserve the right to withhold access if needed (capacity limits etc.) for any reason, we trust you to know more about your translation project than we do!
+                        </p>
+                    </div>
+
+                    <div class="border-b border-neutral-200 pb-6">
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Will CodexZero translate theologically correct high quality translations?</h3>
+                        <p class="text-neutral-700 leading-relaxed">
+                            That is up to you! We hope you understand the cultural and linguistic nuances of the language you are translating into, if you don't then please have someone else do the translation! While we hope this software will speed you up, translation quality is up to you.
                         </p>
                     </div>
 
                     <div>
-                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Is CodexZero really free?</h3>
+                        <h3 class="text-lg font-medium text-neutral-900 mb-3">Are there any platform guidelines?</h3>
                         <p class="text-neutral-700 leading-relaxed">
-                            Yes, CodexZero is completely free to use! The platform provides AI translation services at no cost. If you'd like to support the project, you can contact us about making a donation.
+                            Yes, we have community guidelines focused on ethical translation practices, respecting the work of others, and our approach to Bible translation. <a href="{{ url_for('main.philosophy') }}" class="text-blue-600 hover:text-blue-800 underline">View our full philosophy and guidelines →</a>
                         </p>
                     </div>
                 </div>

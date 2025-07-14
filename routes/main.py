@@ -45,4 +45,10 @@ def health():
 @main.route('/faq')
 def faq():
     """FAQ page"""
-    return render_template('faq.html') 
+    return render_template('faq.html')
+
+
+@main.route('/philosophy')
+def philosophy():
+    """Philosophy and guidelines page"""
+    return render_template('philosophy.html') 

@@ -234,7 +234,7 @@ def edit_project(project_id):
     """Show edit project form"""
     require_project_access(project_id, 'editor')
     project = Project.query.get_or_404(project_id)
-    return render_template('edit_project.html', project=project)
+    return render_template('new_project.html', project=project)
 
 
 @projects.route('/project/<int:project_id>/update', methods=['POST'])
