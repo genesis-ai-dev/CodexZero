@@ -267,7 +267,20 @@ class TranslationDragDrop {
         // Show loading state on all target verses first
         const targetTextareas = [];
         for (const verse of verses) {
-            const textarea = actualTargetWindow.element?.querySelector(`textarea[data-verse="${verse.verse}"]`);
+            let textarea = actualTargetWindow.element?.querySelector(`textarea[data-verse="${verse.verse}"]`);
+            
+            // If verse is not currently rendered, try to scroll to it first
+            if (!textarea && window.translationEditor?.virtualScrollManager) {
+                // Try to find the verse index and ensure it's loaded
+                const verseIndex = this.findVerseIndex(verse.verse, actualTargetWindow.id);
+                if (verseIndex !== null) {
+                    await window.translationEditor.virtualScrollManager.scrollToVerseIndex(actualTargetWindow.id, verseIndex);
+                    // Wait a bit for rendering
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    textarea = actualTargetWindow.element?.querySelector(`textarea[data-verse="${verse.verse}"]`);
+                }
+            }
+            
             if (textarea) {
                 targetTextareas.push(textarea);
                 // Initial loading state
@@ -276,6 +289,10 @@ class TranslationDragDrop {
                 textarea.style.backgroundColor = '#fffbeb';
                 textarea.disabled = true;
                 textarea.placeholder = 'Queued for translation...';
+            } else {
+                // Verse not found - add placeholder
+                targetTextareas.push(null);
+                console.warn(`Could not find textarea for verse ${verse.verse} in window ${actualTargetWindow.id}`);
             }
         }
         
@@ -389,6 +406,22 @@ class TranslationDragDrop {
             textarea.style.backgroundColor = '#fef2f2';
             textarea.placeholder = 'Translation failed';
         }
+    }
+    
+    findVerseIndex(verseNumber, windowId) {
+        // Try to find verse index from loaded ranges in virtual scroll manager
+        const virtualScrollManager = window.translationEditor?.virtualScrollManager;
+        if (!virtualScrollManager) return null;
+        
+        const ranges = virtualScrollManager.loadedRanges.get(windowId) || [];
+        for (const range of ranges) {
+            const verse = range.verses.find(v => v.verse === verseNumber);
+            if (verse) {
+                return verse.index;
+            }
+        }
+        
+        return null;
     }
 }
 

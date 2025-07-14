@@ -1101,6 +1101,174 @@ def get_project_activity(project_id):
     return jsonify({'activity': recent_activity})
 
 
+@translation.route('/project/<int:project_id>/translation/<target_id>/verse-range/<int:start_index>/<int:end_index>')
+@login_required
+def get_verse_range(project_id, target_id, start_index, end_index):
+    """Get a range of verses for infinite scrolling"""
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
+    
+    source_id = request.args.get('source_id')
+    if not source_id:
+        return jsonify({'error': 'source_id is required'}), 400
+    
+    # Validate range
+    if start_index < 0 or end_index >= 41899 or start_index > end_index:
+        return jsonify({'error': 'Invalid verse range'}), 400
+    
+    # Limit range size to prevent excessive loading
+    max_range_size = 500  # About 10-15 chapters worth of verses
+    if end_index - start_index > max_range_size:
+        return jsonify({'error': f'Range too large. Maximum {max_range_size} verses allowed'}), 400
+    
+    try:
+        # Get verse reference manager for looking up references
+        verse_ref_manager = VerseReferenceManager()
+        
+        # Get target text and purpose information - unified schema only
+        target_texts = []
+        target_purpose = ''
+        
+        if target_id.startswith('text_'):
+            text_id = int(target_id.replace('text_', ''))
+        elif target_id.startswith('file_'):
+            text_id = int(target_id.replace('file_', ''))
+        else:
+            return jsonify({'error': 'Invalid target_id format - only text_ or file_ IDs supported'}), 400
+        
+        target_text = Text.query.filter_by(id=text_id, project_id=project_id).first()
+        if not target_text:
+            return jsonify({'error': f'Target text not found: {target_id}'}), 404
+        target_purpose = target_text.description or ''
+        
+        text_manager = TextManager(text_id)
+        verse_indices = list(range(start_index, end_index + 1))
+        target_texts = text_manager.get_verses(verse_indices)
+        
+        # Get source text - unified schema only  
+        source_verses = []
+        
+        if source_id.startswith('text_'):
+            source_text_id = int(source_id.replace('text_', ''))
+        elif source_id.startswith('file_'):
+            source_text_id = int(source_id.replace('file_', ''))
+        else:
+            return jsonify({'error': 'Invalid source_id format - only text_ or file_ IDs supported'}), 400
+        
+        source_text = Text.query.filter_by(id=source_text_id, project_id=project_id).first()
+        if not source_text:
+            return jsonify({'error': f'Source text not found: {source_id}'}), 404
+        
+        text_manager = TextManager(source_text_id)
+        source_verses = text_manager.get_verses(verse_indices)
+        
+        # Build response with verse references
+        verses_data = []
+        for i, verse_index in enumerate(verse_indices):
+            source_text = source_verses[i] if i < len(source_verses) else ''
+            target_text = target_texts[i] if i < len(target_texts) else ''
+            
+            # Get verse reference from index
+            verse_reference = verse_ref_manager.get_verse_reference(verse_index)
+            if verse_reference:
+                # Parse reference to get verse number
+                parts = verse_reference.split()
+                if len(parts) == 2 and ':' in parts[1]:
+                    verse_num = int(parts[1].split(':')[1])
+                else:
+                    verse_num = i + 1  # fallback
+            else:
+                verse_num = i + 1  # fallback
+            
+            verses_data.append({
+                'verse': verse_num,
+                'reference': verse_reference or f'Verse {verse_index}',
+                'source_text': source_text,
+                'target_text': target_text,
+                'index': verse_index
+            })
+        
+        return jsonify({
+            'start_index': start_index,
+            'end_index': end_index,
+            'verses': verses_data,
+            'source_id': source_id,
+            'target_id': target_id,
+            'purpose_description': target_purpose,
+            'description': target_purpose  # Include both for compatibility
+        })
+        
+    except Exception as e:
+        print(f"Error getting verse range: {e}")
+        return jsonify({'error': 'Failed to load verse range'}), 500
+
+
+@translation.route('/project/<int:project_id>/verse-info/<int:verse_index>')
+@login_required
+def get_verse_info(project_id, verse_index):
+    """Get verse reference information by index"""
+    require_project_access(project_id, "viewer")
+    
+    if verse_index < 0 or verse_index >= 41899:
+        return jsonify({'error': 'Invalid verse index'}), 400
+    
+    try:
+        verse_ref_manager = VerseReferenceManager()
+        verse_reference = verse_ref_manager.get_verse_reference(verse_index)
+        
+        if verse_reference:
+            # Parse reference to get book, chapter, verse
+            parts = verse_reference.split()
+            if len(parts) == 2 and ':' in parts[1]:
+                book = parts[0]
+                chapter_verse = parts[1].split(':')
+                chapter = int(chapter_verse[0])
+                verse = int(chapter_verse[1])
+                
+                return jsonify({
+                    'index': verse_index,
+                    'reference': verse_reference,
+                    'book': book,
+                    'chapter': chapter,
+                    'verse': verse
+                })
+        
+        return jsonify({'error': 'Verse reference not found'}), 404
+        
+    except Exception as e:
+        print(f"Error getting verse info: {e}")
+        return jsonify({'error': 'Failed to get verse info'}), 500
+
+
+@translation.route('/project/<int:project_id>/verse-index/<book>/<int:chapter>')
+@login_required
+def get_chapter_start_index(project_id, book, chapter):
+    """Get the starting verse index for a specific book/chapter"""
+    require_project_access(project_id, "viewer")
+    
+    try:
+        verse_ref_manager = VerseReferenceManager()
+        chapter_verses = verse_ref_manager.get_chapter_verses(book, chapter)
+        
+        if not chapter_verses:
+            return jsonify({'error': 'Chapter not found'}), 404
+        
+        start_index = chapter_verses[0]['index']
+        end_index = chapter_verses[-1]['index']
+        
+        return jsonify({
+            'book': book,
+            'chapter': chapter,
+            'start_index': start_index,
+            'end_index': end_index,
+            'verse_count': len(chapter_verses)
+        })
+        
+    except Exception as e:
+        print(f"Error getting chapter start index: {e}")
+        return jsonify({'error': 'Failed to get chapter index'}), 500
+
+
 
 
 

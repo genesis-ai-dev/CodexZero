@@ -106,7 +106,13 @@ class TranslationNavigation {
         }
         
         this.updateChapterTitle();
-        this.editor.refreshAllTexts();
+        
+        // Use virtual scroll manager if available, otherwise fall back to refresh
+        if (this.editor.virtualScrollManager) {
+            this.editor.virtualScrollManager.scrollToBookChapter(this.editor.currentBook, chapter);
+        } else {
+            this.editor.refreshAllTexts();
+        }
     }
     
     jumpToBook(book) {
@@ -124,7 +130,13 @@ class TranslationNavigation {
         
         this.updateChapterOptions();
         this.updateChapterTitle();
-        this.editor.refreshAllTexts();
+        
+        // Use virtual scroll manager if available, otherwise fall back to refresh
+        if (this.editor.virtualScrollManager) {
+            this.editor.virtualScrollManager.scrollToBookChapter(book, 1);
+        } else {
+            this.editor.refreshAllTexts();
+        }
     }
     
     addToRecentChapters() {
@@ -183,7 +195,13 @@ class TranslationNavigation {
                 
                 this.updateChapterOptions();
                 this.updateChapterTitle();
-                this.editor.refreshAllTexts();
+                
+                // Use virtual scroll manager if available, otherwise fall back to refresh
+                if (this.editor.virtualScrollManager) {
+                    this.editor.virtualScrollManager.scrollToBookChapter(book, chapter);
+                } else {
+                    this.editor.refreshAllTexts();
+                }
             });
         });
     }

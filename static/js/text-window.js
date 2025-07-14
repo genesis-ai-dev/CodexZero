@@ -33,6 +33,20 @@ class TextWindow {
         return textWindow;
     }
     
+    destroy() {
+        // Clean up virtual scrolling
+        if (window.translationEditor?.virtualScrollManager) {
+            window.translationEditor.virtualScrollManager.unregisterContainer(this.id);
+        }
+        
+        // Remove element from DOM
+        if (this.element && this.element.parentNode) {
+            this.element.parentNode.removeChild(this.element);
+        }
+        
+        console.log(`TextWindow: Destroyed ${this.id}`);
+    }
+    
 
     
 
@@ -561,17 +575,22 @@ class TextWindow {
         content.className = 'flex-1 overflow-y-auto overflow-x-hidden p-4 leading-tight text-sm bg-white';
         content.setAttribute('data-window-content', 'true');
         
-        if (!this.data?.verses) {
-            content.innerHTML = '<div class="text-neutral-400 text-center py-8">No verses loaded</div>';
-            return content;
-        }
-        
         // Add purpose section
         const purposeSection = this.createPurposeSection();
         content.appendChild(purposeSection);
         
-        // PERFORMANCE: Simple rendering - no virtual scrolling
-        this.renderAllVerses(content);
+        // Check if virtual scrolling is available
+        if (window.translationEditor?.virtualScrollManager) {
+            // Use virtual scrolling for infinite scroll
+            this.setupVirtualScrolling(content);
+        } else {
+            // Fallback to traditional rendering
+            if (!this.data?.verses) {
+                content.innerHTML += '<div class="text-neutral-400 text-center py-8">No verses loaded</div>';
+                return content;
+            }
+            this.renderAllVerses(content);
+        }
         
         return content;
     }
@@ -587,8 +606,11 @@ class TextWindow {
         
         container.appendChild(fragment);
         
-        // PERFORMANCE: Simple scroll sync between windows
-        this.setupScrollSync(container);
+        // PERFORMANCE: Scroll sync now handled by VirtualScrollManager
+        // Only set up legacy scroll sync if virtual scrolling is not available
+        if (!window.translationEditor?.virtualScrollManager) {
+            this.setupScrollSync(container);
+        }
     }
     
     setupScrollSync(container) {
@@ -657,6 +679,27 @@ class TextWindow {
         return purposeSection;
     }
     
+    setupVirtualScrolling(container) {
+        // Register this container with the virtual scroll manager
+        const virtualScrollManager = window.translationEditor.virtualScrollManager;
+        virtualScrollManager.registerContainer(this.id, container);
+        
+        // Load initial verses based on current navigation
+        const editor = window.translationEditor;
+        const currentBook = editor.currentBook;
+        const currentChapter = editor.currentChapter;
+        
+        if (currentBook && currentChapter) {
+            // Load verses for current chapter
+            virtualScrollManager.loadInitialVerses(this.id, currentBook, currentChapter);
+        } else {
+            // Default to Genesis 1 if no navigation state
+            virtualScrollManager.loadInitialVerses(this.id, 'GEN', 1);
+        }
+        
+        console.log(`TextWindow: Setup virtual scrolling for ${this.id}`);
+    }
+    
     renderAllVerses(container) {
         // PERFORMANCE: Use DocumentFragment for batch DOM updates
         const fragment = document.createDocumentFragment();
@@ -719,6 +762,7 @@ class TextWindow {
         textarea.placeholder = `Edit verse ${verseData.verse} or drop text here...`;
         textarea.dataset.verse = verseData.verse;
         textarea.dataset.verseIndex = verseData.index;
+        textarea.dataset.reference = verseData.reference || `Verse ${verseData.verse}`;
         textarea.value = verseData.target_text || verseData.source_text || '';
         textarea.draggable = false;
         

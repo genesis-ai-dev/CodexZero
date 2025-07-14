@@ -120,6 +120,7 @@ class TranslationEditor {
         this.ui = new TranslationUI();  // No longer needs editor reference
         this.testResults = new TranslationTestResults(this);
         this.dragDrop = new TranslationDragDrop(this);
+        this.virtualScrollManager = new VirtualScrollManager(this);
         
         // Restore navigation state
         const navState = this.storage.getNavigationState();
@@ -833,7 +834,12 @@ class TranslationEditor {
             const textIds = Array.from(this.textWindows.keys());
             const currentPrimaryId = this.primaryTextId;
             
-            // Clear windows
+            // Clean up existing windows properly
+            this.textWindows.forEach(window => {
+                if (window.destroy) {
+                    window.destroy();
+                }
+            });
             this.textWindows.clear();
             this.primaryTextId = null;
             
@@ -1015,12 +1021,72 @@ class TranslationEditor {
             }
         }, 4000);
     }
+    
+    // Debug method to show virtual scroll performance
+    showVirtualScrollStats() {
+        if (!this.virtualScrollManager) return;
+        
+        const debugInfo = this.virtualScrollManager.getDebugInfo();
+        console.log('Virtual Scroll Debug Info:', debugInfo);
+        
+        return debugInfo;
+    }
 }
 
-// PERFORMANCE: Simplest possible initialization - no virtual scrolling
+// Initialize with virtual scrolling for infinite scroll
 document.addEventListener('DOMContentLoaded', () => {
     const editor = new TranslationEditor();
-    // Just start the editor - no complex systems
+    
+    // Make editor available globally for debugging
+    window.translationEditor = editor;
+    
+    // Add debug commands for console
+    window.debugVirtualScroll = () => editor.showVirtualScrollStats();
+    window.getVirtualScrollMetrics = () => {
+        if (editor.virtualScrollManager) {
+            const metrics = editor.virtualScrollManager.getPerformanceMetrics();
+            console.log('Virtual Scroll Performance Metrics:', metrics);
+            return metrics;
+        }
+    };
+    window.clearVirtualScrollCache = () => {
+        if (editor.virtualScrollManager) {
+            editor.virtualScrollManager.clearCache();
+            console.log('Virtual scroll cache cleared');
+        }
+    };
+    
+    // Set up close button listeners for text windows
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('close-text-btn')) {
+            const textId = e.target.dataset.textId;
+            if (textId && editor.textWindows.has(textId)) {
+                const window = editor.textWindows.get(textId);
+                if (window.destroy) {
+                    window.destroy();
+                }
+                editor.textWindows.delete(textId);
+                
+                // If this was the primary text, clear it
+                if (editor.primaryTextId === textId) {
+                    editor.primaryTextId = null;
+                }
+                
+                // Re-render the UI
+                editor.renderPrimaryText();
+                editor.renderReferenceTexts();
+                editor.saveLayoutState();
+            }
+        }
+    });
+    
+    // Performance monitoring (for development)
+    if (window.location.hostname === 'localhost' || window.location.hostname.includes('dev')) {
+        console.log('🚀 Translation Editor with Optimized Infinite Scroll initialized');
+        console.log('📊 Use debugVirtualScroll() to see detailed debug info');
+        console.log('📈 Use getVirtualScrollMetrics() to see performance metrics');
+        console.log('🧹 Use clearVirtualScrollCache() to clear memory cache');
+    }
 });
 </script>
 
@@ -1030,7 +1096,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- Translation Editor JavaScript Components - OPTIMIZED with defer for faster loading -->
 <script defer src="{{ url_for('static', filename='js/ui-utilities.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/verse-history.js') }}"></script>
-    <!-- Virtual scroll removed for performance -->
+<script defer src="{{ url_for('static', filename='js/virtual-scroll-manager.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/purpose-manager.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/audio-manager.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/theme-manager.js') }}"></script>
