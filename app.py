@@ -95,28 +95,11 @@ def create_app():
         response.headers['Cache-Control'] = 'public, max-age=86400'  # Cache for 1 day
         return response
     
-    # Create database tables and run migrations
+    # Initialize database tables
     with app.app_context():
         try:
             db.create_all()
-            print("Database tables created successfully")
-            
-            # Add voice_profile column to projects table if it doesn't exist
-            try:
-                from sqlalchemy import text
-                # Check if voice_profile column exists
-                result = db.session.execute(text("SHOW COLUMNS FROM projects LIKE 'voice_profile'"))
-                if not result.fetchone():
-                    print("Adding voice_profile column to projects table...")
-                    db.session.execute(text("ALTER TABLE projects ADD COLUMN voice_profile TEXT NULL"))
-                    db.session.commit()
-                    print("voice_profile column added successfully")
-                else:
-                    print("voice_profile column already exists")
-            except Exception as migration_error:
-                print(f"Migration error: {migration_error}")
-                # Continue running even if migration fails
-            
+            print("Database tables initialized successfully")
         except Exception as e:
             print(f"Database connection failed during startup: {e}")
             print("App will start without database initialization")
