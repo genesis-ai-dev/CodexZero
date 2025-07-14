@@ -119,7 +119,7 @@ class FineTuningService:
         # Add only Claude 3.5 Sonnet for translation
         models['claude-3-5-sonnet-20241022'] = {
             'name': 'Claude 3.5 Sonnet',
-            'description': 'Anthropic\'s most capable model for complex reasoning',
+            'description': 'Anthropic\'s most capable model for translation.',
             'cost_per_1k_tokens': 0.015,
             'max_context': 200000,
             'type': 'base'

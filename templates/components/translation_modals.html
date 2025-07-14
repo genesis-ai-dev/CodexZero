@@ -37,12 +37,19 @@
         <h3 class="text-2xl font-bold text-neutral-900 mb-6 tracking-tight">Load Text</h3>
         <div class="space-y-6">
             <div>
-                <label for="text-select" class="block text-sm font-medium text-neutral-700 mb-3">
+                <label for="text-select-button" class="block text-sm font-medium text-neutral-700 mb-3">
                     Select Text to Load
                 </label>
-                <select id="text-select" class="w-full p-4 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-medium">
-                    <option value="">Choose a text...</option>
-                </select>
+                <!-- Custom Text Dropdown -->
+                <div class="relative">
+                    <button id="text-select-button" class="w-full p-4 bg-white border border-neutral-200 rounded-xl text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
+                        <span id="text-select-text" class="flex-1 truncate">Choose a text...</span>
+                        <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="text-select-chevron"></i>
+                    </button>
+                    <div id="text-select-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-xl shadow-lg hidden max-h-60 overflow-y-auto">
+                        <div class="p-4 text-sm text-neutral-500 text-center">Loading texts...</div>
+                    </div>
+                </div>
             </div>
             
             <div id="text-info" class="hidden p-4 bg-blue-50 border border-blue-200 rounded-xl">
@@ -63,4 +70,109 @@
         </div>
     </div>
 </div>
+
+<script>
+// Custom dropdown functionality for text selection modal
+function initializeTextSelectionDropdown() {
+    const button = document.getElementById('text-select-button');
+    const dropdown = document.getElementById('text-select-dropdown');
+    const chevron = document.getElementById('text-select-chevron');
+    
+    if (!button || !dropdown || !chevron) return;
+    
+    // Toggle dropdown
+    button.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = !dropdown.classList.contains('hidden');
+        
+        if (isOpen) {
+            dropdown.classList.add('hidden');
+            chevron.style.transform = 'rotate(0deg)';
+        } else {
+            dropdown.classList.remove('hidden');
+            chevron.style.transform = 'rotate(180deg)';
+        }
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!button.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.add('hidden');
+            chevron.style.transform = 'rotate(0deg)';
+        }
+    });
+}
+
+// Helper functions for text selection dropdown
+window.setTextDropdownOption = function(value, text, metadata = {}) {
+    const button = document.getElementById('text-select-button');
+    const textElement = document.getElementById('text-select-text');
+    const dropdown = document.getElementById('text-select-dropdown');
+    const chevron = document.getElementById('text-select-chevron');
+    const addBtn = document.getElementById('add-text-btn');
+    const textInfo = document.getElementById('text-info');
+    const textDetails = document.getElementById('text-details');
+    
+    if (textElement) {
+        textElement.textContent = text;
+    }
+    
+    // Store the value and metadata on the button for retrieval
+    button.dataset.value = value;
+    button.dataset.metadata = JSON.stringify(metadata);
+    
+    // Show text info and add button if a text is selected
+    if (value && addBtn) {
+        addBtn.classList.remove('hidden');
+        
+        if (textInfo && textDetails && metadata) {
+            textDetails.textContent = `${metadata.name || text}${metadata.progress !== undefined ? ` (${metadata.progress}% complete)` : ''}`;
+            textInfo.classList.remove('hidden');
+        }
+    }
+    
+    // Close dropdown
+    dropdown.classList.add('hidden');
+    chevron.style.transform = 'rotate(0deg)';
+    
+    // Trigger change event for compatibility
+    const event = new CustomEvent('change', { detail: { value: value, metadata: metadata } });
+    button.dispatchEvent(event);
+};
+
+window.populateTextDropdown = function(texts) {
+    const dropdown = document.getElementById('text-select-dropdown');
+    if (!dropdown) return;
+    
+    dropdown.innerHTML = '';
+    
+    if (!texts || texts.length === 0) {
+        dropdown.innerHTML = '<div class="p-4 text-sm text-neutral-500 text-center italic">No texts available</div>';
+        return;
+    }
+    
+    texts.forEach(text => {
+        const option = document.createElement('div');
+        option.className = 'dropdown-option px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 cursor-pointer border-b border-neutral-100 last:border-b-0 transition-all duration-200 flex items-center justify-between group';
+        option.innerHTML = `
+            <div class="flex-1">
+                <div class="font-medium text-neutral-900">${text.name}</div>
+                ${text.progress !== undefined ? `<div class="text-xs text-neutral-500 mt-1">${text.progress}% complete</div>` : ''}
+            </div>
+            <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <i class="fas fa-check text-neutral-400 text-xs"></i>
+            </div>
+        `;
+        option.addEventListener('click', () => {
+            setTextDropdownOption(text.value, text.name, text);
+        });
+        dropdown.appendChild(option);
+    });
+};
+
+// Initialize when modal is shown
+document.addEventListener('DOMContentLoaded', () => {
+    initializeTextSelectionDropdown();
+});
+</script>
 {% endmacro %} 

@@ -21,13 +21,19 @@
         
         <!-- Custom Model Dropdown -->
         <div class="relative mb-3">
-            <button id="translation-model-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50" type="button">
-                <span id="translation-model-text">Loading models...</span>
-                <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200" id="translation-model-chevron"></i>
+            <button id="translation-model-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
+                <span id="translation-model-text" class="flex-1 truncate">Loading models...</span>
+                <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="translation-model-chevron"></i>
             </button>
             <div id="translation-model-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
                 <div class="p-2 text-sm text-neutral-500 text-center">Loading models...</div>
             </div>
+        </div>
+        
+        <!-- Model Info -->
+        <div id="model-info" class="hidden mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div id="model-description" class="text-sm text-blue-900 mb-1"></div>
+            <div id="model-type" class="text-xs text-blue-700 font-medium"></div>
         </div>
         
     </div>
@@ -40,9 +46,9 @@
         <div class="mb-4">
             <label class="block text-sm font-medium text-neutral-600 mb-2">Book</label>
             <div class="relative">
-                <button id="goto-book-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50" type="button">
-                    <span id="goto-book-text">Select Book...</span>
-                    <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200" id="goto-book-chevron"></i>
+                <button id="goto-book-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
+                    <span id="goto-book-text" class="flex-1 truncate">Select Book...</span>
+                    <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="goto-book-chevron"></i>
                 </button>
                 <div id="goto-book-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
                     <div class="p-2 text-sm text-neutral-500 text-center">Select a book...</div>
@@ -54,9 +60,9 @@
         <div class="mb-6">
             <label class="block text-sm font-medium text-neutral-600 mb-2">Chapter</label>
             <div class="relative">
-                <button id="goto-chapter-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50" type="button">
-                    <span id="goto-chapter-text">Select Chapter...</span>
-                    <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200" id="goto-chapter-chevron"></i>
+                <button id="goto-chapter-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
+                    <span id="goto-chapter-text" class="flex-1 truncate">Select Chapter...</span>
+                    <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="goto-chapter-chevron"></i>
                 </button>
                 <div id="goto-chapter-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
                     <div class="p-2 text-sm text-neutral-500 text-center">Select a chapter...</div>
@@ -187,9 +193,15 @@ window.populateModelDropdown = function(models) {
     
     models.forEach(model => {
         const option = document.createElement('div');
-        option.className = 'dropdown-option px-3 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer border-b border-neutral-100 last:border-b-0';
+        option.className = 'dropdown-option px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 cursor-pointer border-b border-neutral-100 last:border-b-0 transition-all duration-200 flex items-center justify-between group';
         option.innerHTML = `
-            <div class="font-medium">${model.name}</div>
+            <div class="flex-1">
+                <div class="font-medium text-neutral-900">${model.name}</div>
+                ${model.description ? `<div class="text-xs text-neutral-500 mt-1">${model.description}</div>` : ''}
+            </div>
+            <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <i class="fas fa-check text-neutral-400 text-xs"></i>
+            </div>
         `;
         option.addEventListener('click', () => {
             setModelDropdownOption(model.value, model.name, model.description, model.type);
@@ -209,8 +221,13 @@ window.populateBookDropdown = function(books) {
     
     books.forEach(book => {
         const option = document.createElement('div');
-        option.className = 'dropdown-option px-3 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer border-b border-neutral-100 last:border-b-0';
-        option.textContent = book.name;
+        option.className = 'dropdown-option px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 cursor-pointer border-b border-neutral-100 last:border-b-0 transition-all duration-200 flex items-center justify-between group';
+        option.innerHTML = `
+            <div class="font-medium text-neutral-900">${book.name}</div>
+            <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <i class="fas fa-check text-neutral-400 text-xs"></i>
+            </div>
+        `;
         option.addEventListener('click', () => {
             setBookDropdownOption(book.value, book.name);
             // Trigger change event for compatibility
@@ -229,8 +246,13 @@ window.populateChapterDropdown = function(chapters) {
     
     chapters.forEach(chapter => {
         const option = document.createElement('div');
-        option.className = 'dropdown-option px-3 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer border-b border-neutral-100 last:border-b-0';
-        option.textContent = chapter.name;
+        option.className = 'dropdown-option px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 cursor-pointer border-b border-neutral-100 last:border-b-0 transition-all duration-200 flex items-center justify-between group';
+        option.innerHTML = `
+            <div class="font-medium text-neutral-900">${chapter.name}</div>
+            <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <i class="fas fa-check text-neutral-400 text-xs"></i>
+            </div>
+        `;
         option.addEventListener('click', () => {
             setChapterDropdownOption(chapter.value, chapter.name);
             // Trigger change event for compatibility

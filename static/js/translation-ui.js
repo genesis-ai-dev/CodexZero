@@ -151,6 +151,8 @@ class TranslationUI {
         const descriptionDiv = document.getElementById('model-description');
         const typeDiv = document.getElementById('model-type');
         
+        if (!descriptionDiv || !typeDiv) return;
+        
         descriptionDiv.textContent = modelInfo.description;
         
         let typeText = modelInfo.type === 'fine_tuned' ? 'Fine-tuned Model' : 'Base Model';
@@ -164,7 +166,10 @@ class TranslationUI {
         
         typeDiv.textContent = typeText;
         
-        infoDiv.classList.remove('hidden');
+        // Show the model info div
+        if (infoDiv) {
+            infoDiv.classList.remove('hidden');
+        }
     }
     
     showModelUpdateFeedback(message) {
@@ -276,36 +281,46 @@ class TranslationUI {
 
     showTextSelectionModal(isPrimary) {
         const modal = document.getElementById('text-selection-modal');
-        const select = document.getElementById('text-select');
+        const button = document.getElementById('text-select-button');
         const addBtn = document.getElementById('add-text-btn');
         const newTranslationBtn = document.getElementById('new-translation-btn');
         const cancelBtn = document.getElementById('cancel-text-selection');
+        const textInfo = document.getElementById('text-info');
 
-        if (!modal || !select || !addBtn || !cancelBtn || !newTranslationBtn) return;
+        if (!modal || !button || !addBtn || !cancelBtn || !newTranslationBtn) return;
 
         modal.dataset.isPrimary = isPrimary.toString();
         modal.classList.remove('hidden');
-        select.value = '';
-        addBtn.classList.add('hidden'); // Hide load text button initially
+        
+        // Reset dropdown and hide buttons
+        const textElement = document.getElementById('text-select-text');
+        if (textElement) {
+            textElement.textContent = 'Choose a text...';
+        }
+        button.dataset.value = '';
+        button.dataset.metadata = '';
+        addBtn.classList.add('hidden');
+        if (textInfo) {
+            textInfo.classList.add('hidden');
+        }
 
         const newAddBtn = addBtn.cloneNode(true);
         const newNewTranslationBtn = newTranslationBtn.cloneNode(true);
         const newCancelBtn = cancelBtn.cloneNode(true);
-        const newSelect = select.cloneNode(true);
         
         addBtn.parentNode.replaceChild(newAddBtn, addBtn);
         newTranslationBtn.parentNode.replaceChild(newNewTranslationBtn, newTranslationBtn);
         cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-        select.parentNode.replaceChild(newSelect, select);
         
         // Populate the dropdown with available texts
-        this.populateTextSelection(newSelect);
+        this.populateTextSelection(button);
         
-        newSelect.focus();
+        button.focus();
 
         // Show/hide buttons based on selection
-        newSelect.addEventListener('change', () => {
-            if (newSelect.value) {
+        button.addEventListener('change', (e) => {
+            const selectedValue = e.detail?.value || button.dataset.value;
+            if (selectedValue) {
                 newAddBtn.classList.remove('hidden');
                 newNewTranslationBtn.classList.add('hidden');
             } else {
@@ -328,8 +343,9 @@ class TranslationUI {
         });
 
         newAddBtn.addEventListener('click', async () => {
-            if (newSelect.value) {
-                await window.translationEditor.loadText(newSelect.value, isPrimary);
+            const selectedValue = button.dataset.value;
+            if (selectedValue) {
+                await window.translationEditor.loadText(selectedValue, isPrimary);
                 modal.classList.add('hidden');
                 document.getElementById('text-info').classList.add('hidden');
             }
@@ -371,13 +387,16 @@ class TranslationUI {
         });
     }
 
-    populateTextSelection(select) {
-        // Clear existing options except the first one
-        select.innerHTML = '<option value="">Choose a text...</option>';
-        
+    populateTextSelection(buttonOrSelect) {
         // Get text metadata from the editor
         const textMetadata = window.translationEditor?.textMetadata;
-        if (!textMetadata) return;
+        if (!textMetadata) {
+            // Use the new dropdown population function with empty array
+            if (window.populateTextDropdown) {
+                window.populateTextDropdown([]);
+            }
+            return;
+        }
         
         // Get all texts without type distinction
         const allTexts = [];
@@ -389,16 +408,17 @@ class TranslationUI {
         // Sort all texts by name
         allTexts.sort((a, b) => a[1].name.localeCompare(b[1].name));
         
-        // Add all texts in a single group
-        allTexts.forEach(([textId, metadata]) => {
-            const option = document.createElement('option');
-            option.value = textId;
-            option.textContent = metadata.name;
-            if (metadata.progress !== undefined) {
-                option.textContent += ` (${metadata.progress}% complete)`;
-            }
-            select.appendChild(option);
-        });
+        // Convert to dropdown format
+        const dropdownTexts = allTexts.map(([textId, metadata]) => ({
+            value: textId,
+            name: metadata.name,
+            progress: metadata.progress
+        }));
+        
+        // Use the new dropdown population function
+        if (window.populateTextDropdown) {
+            window.populateTextDropdown(dropdownTexts);
+        }
     }
 }
 

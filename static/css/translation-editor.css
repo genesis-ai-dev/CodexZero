@@ -21,15 +21,31 @@
 /* Custom Dropdown Styles */
 .dropdown-option {
     transition: all 0.15s ease-in-out;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 500;
+    letter-spacing: -0.025em;
 }
 
 .dropdown-option:hover {
     background-color: #f8fafc;
     transform: translateX(2px);
+    box-shadow: inset 3px 0 0 #3b82f6;
 }
 
 .dropdown-option:active {
     background-color: #e2e8f0;
+    transform: translateX(1px);
+}
+
+.dropdown-option:first-child {
+    border-top-left-radius: 0.5rem;
+    border-top-right-radius: 0.5rem;
+}
+
+.dropdown-option:last-child {
+    border-bottom-left-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+    border-bottom: none;
 }
 
 /* Dropdown scrollbar styling */
@@ -39,6 +55,7 @@
 
 [id$="-dropdown"]::-webkit-scrollbar-track {
     background: #f1f5f9;
+    border-radius: 3px;
 }
 
 [id$="-dropdown"]::-webkit-scrollbar-thumb {
@@ -48,6 +65,14 @@
 
 [id$="-dropdown"]::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
+}
+
+/* Enhanced dropdown container styling */
+[id$="-dropdown"] {
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    backdrop-filter: blur(8px);
+    background-color: rgba(255, 255, 255, 0.95);
 }
 
 /* Dropdown animation */
