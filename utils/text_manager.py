@@ -148,12 +148,11 @@ class TextManager:
             print(f"Error updating progress: {e}")
     
     @staticmethod
-    def create_text(project_id: int, name: str, text_type: str, description: str = None) -> int:
+    def create_text(project_id: int, name: str, description: str = None) -> int:
         """Create a new text and return its ID"""
         text = Text(
             project_id=project_id,
             name=name,
-            text_type=text_type,
             description=description
         )
         db.session.add(text)

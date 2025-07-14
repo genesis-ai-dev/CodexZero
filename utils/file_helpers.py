@@ -110,17 +110,10 @@ def save_project_file(project_id: int, file_data, filename: str, file_type: str,
     # Use unified Text + Verse approach for all file types
     from utils.text_manager import TextManager
     
-    # Determine text_type for unified schema
-    if file_type == 'back_translation':
-        text_type = 'back_translation'
-    else:
-        text_type = 'source'  # All files are treated as source material
-    
-    # Create Text record
+    # Create Text record - no type distinction
     text_id = TextManager.create_text(
         project_id=project_id,
         name=filename,
-        text_type=text_type,
         description=f"Uploaded {file_type} file"
     )
     

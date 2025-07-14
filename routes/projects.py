@@ -145,13 +145,14 @@ def view_project(project_id):
     # Use unified schema only
     from models import Text, Verse
     
-    texts = []
+    # Get all texts - no distinction between types
+    all_texts = []
     total_available_verses = 0
     
     # Get unified Text records
-    all_texts = Text.query.filter_by(project_id=project_id).order_by(Text.created_at.desc()).all()
+    text_records = Text.query.filter_by(project_id=project_id).order_by(Text.created_at.desc()).all()
     
-    for text in all_texts:
+    for text in text_records:
         # Skip JSONL files (those belong in fine-tuning tab)
         if text.name and text.name.lower().endswith('.jsonl'):
             continue
@@ -167,7 +168,7 @@ def view_project(project_id):
             'purpose_description': text.description
         }
         
-        texts.append(text_data)
+        all_texts.append(text_data)
         
         # Track max verses for any text
         if verse_count > total_available_verses:
@@ -176,7 +177,7 @@ def view_project(project_id):
     return render_template('project.html', 
                          project=project, 
                          total_available_verses=total_available_verses, 
-                         texts=texts)
+                         texts=all_texts)
 
 
 @projects.route('/project/<int:project_id>/edit')

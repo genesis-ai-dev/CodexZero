@@ -379,52 +379,26 @@ class TranslationUI {
         const textMetadata = window.translationEditor?.textMetadata;
         if (!textMetadata) return;
         
-        // Group texts by type
-        const sourceTexts = [];
-        const translations = [];
+        // Get all texts without type distinction
+        const allTexts = [];
         
         textMetadata.forEach((metadata, textId) => {
-            if (metadata.type === 'Translation') {
-                translations.push([textId, metadata]);
-            } else {
-                sourceTexts.push([textId, metadata]);
-            }
+            allTexts.push([textId, metadata]);
         });
         
-        // Sort translations by name
-        translations.sort((a, b) => a[1].name.localeCompare(b[1].name));
+        // Sort all texts by name
+        allTexts.sort((a, b) => a[1].name.localeCompare(b[1].name));
         
-        // Sort source texts by name
-        sourceTexts.sort((a, b) => a[1].name.localeCompare(b[1].name));
-        
-        // Add translations first (if any)
-        if (translations.length > 0) {
-            const translationGroup = document.createElement('optgroup');
-            translationGroup.label = '📝 Translations';
-            translations.forEach(([textId, metadata]) => {
-                const option = document.createElement('option');
-                option.value = textId;
-                option.textContent = metadata.name;
-                if (metadata.progress !== undefined) {
-                    option.textContent += ` (${metadata.progress}% complete)`;
-                }
-                translationGroup.appendChild(option);
-            });
-            select.appendChild(translationGroup);
-        }
-        
-        // Add source texts
-        if (sourceTexts.length > 0) {
-            const sourceGroup = document.createElement('optgroup');
-            sourceGroup.label = '📖 Source Texts';
-            sourceTexts.forEach(([textId, metadata]) => {
-                const option = document.createElement('option');
-                option.value = textId;
-                option.textContent = metadata.name;
-                sourceGroup.appendChild(option);
-            });
-            select.appendChild(sourceGroup);
-        }
+        // Add all texts in a single group
+        allTexts.forEach(([textId, metadata]) => {
+            const option = document.createElement('option');
+            option.value = textId;
+            option.textContent = metadata.name;
+            if (metadata.progress !== undefined) {
+                option.textContent += ` (${metadata.progress}% complete)`;
+            }
+            select.appendChild(option);
+        });
     }
 }
 

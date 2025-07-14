@@ -208,7 +208,7 @@ def list_all_texts(project_id):
         texts.append({
             'id': f"text_{text.id}",
             'name': text.name,
-            'type': text.text_type.title(),
+            'type': 'Text',
             'progress': text.progress_percentage,
             'created_at': text.created_at.isoformat()
         })

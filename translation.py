@@ -679,7 +679,7 @@ def list_all_texts(project_id):
         texts.append({
             'id': f'text_{text.id}',  # New unified format
             'name': text.name,
-            'type': text.text_type.replace('_', ' ').title(),  # source -> Source, back_translation -> Back Translation  
+            'type': 'Text',  # All texts are the same type now
             'progress': round(text.progress_percentage or 0, 1),
             'created_at': text.created_at.isoformat(),
             'is_unified': True  # Mark as using new system
@@ -796,13 +796,12 @@ def create_translation(project_id):
         return jsonify({'error': 'Translation name already exists'}), 400
     
     try:
-        # Create new unified Text record for draft translation
+        # Create new unified Text record
         from utils.text_manager import TextManager
         
         text_id = TextManager.create_text(
             project_id=project_id,
             name=name,
-            text_type='draft',  # translations are drafts in the unified schema
             description=f'Translation workspace created by {current_user.name}'
         )
         

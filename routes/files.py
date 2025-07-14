@@ -223,12 +223,11 @@ def usfm_status(project_id):
     # Count from unified Text records (USFM uploads use this)
     from models import Text, Verse
     
-    source_texts = Text.query.filter_by(
-        project_id=project_id, 
-        text_type='source'
+    all_texts = Text.query.filter_by(
+        project_id=project_id
     ).all()
     
-    for text in source_texts:
+    for text in all_texts:
         # Count all verses for this text
         verses = Verse.query.filter_by(text_id=text.id).all()
         total_verses += len(verses)
@@ -439,7 +438,7 @@ def project_files(project_id):
         file_data.append({
             'id': text.id,
             'filename': text.name,
-            'file_type': text.text_type,
+            'file_type': 'text',  # All files are now just text files
             'file_size': 0,  # Not tracked in unified schema
             'line_count': verse_count,
             'created_at': text.created_at.isoformat(),

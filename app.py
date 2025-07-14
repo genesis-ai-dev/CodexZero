@@ -108,6 +108,44 @@ def run_performance_migrations():
                 print(f"⚠️  Verse edit history migration warning: {e}")
                 return 0
         
+        # Run text_type removal migration
+        def run_text_type_removal_migration():
+            try:
+                local_migrations = 0
+                if 'texts' not in existing_tables:
+                    return 0
+                    
+                with db.engine.connect() as conn:
+                    # Check if text_type column exists
+                    result = conn.execute(db.text(
+                        "SELECT COUNT(*) as count FROM information_schema.columns "
+                        "WHERE table_schema = DATABASE() AND table_name = 'texts' AND column_name = 'text_type'"
+                    )).fetchone()
+                    
+                    if result.count > 0:
+                        print("🔄 Removing text_type column to unify all texts...")
+                        
+                        # Drop the old index first (if it exists)
+                        try:
+                            conn.execute(db.text("DROP INDEX idx_project_texts ON texts"))
+                        except Exception:
+                            pass  # Index may not exist
+                        
+                        # Drop the text_type column
+                        conn.execute(db.text("ALTER TABLE texts DROP COLUMN text_type"))
+                        
+                        # Recreate the index without text_type
+                        conn.execute(db.text("CREATE INDEX idx_project_texts ON texts (project_id)"))
+                        
+                        print("✅ Removed text_type column - all texts are now treated equally")
+                        local_migrations += 1
+                    
+                    conn.commit()
+                    return local_migrations
+            except Exception as e:
+                print(f"⚠️  Text type removal migration warning: {e}")
+                return 0
+
         # Run fine-tuning table migration  
         def run_fine_tuning_migration():
             try:
@@ -177,6 +215,7 @@ def run_performance_migrations():
         
         # Run migrations first
         migrations_run = run_verse_edit_history_migration()
+        migrations_run += run_text_type_removal_migration()
         migrations_run += run_fine_tuning_migration()
         
         # CRITICAL: The most important indexes for verse lookups
@@ -193,7 +232,7 @@ def run_performance_migrations():
                 indexes_added += 1
         
         if 'texts' in existing_tables:
-            if create_index_safe('idx_texts_project_type', 'texts', 'project_id, text_type'):
+            if create_index_safe('idx_texts_project_type', 'texts', 'project_id'):
                 indexes_added += 1
         
         if 'projects' in existing_tables:

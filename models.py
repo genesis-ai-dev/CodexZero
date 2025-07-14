@@ -147,13 +147,12 @@ class ProjectMember(db.Model):
         return f'<ProjectMember {self.user_id}:{self.project_id} ({self.role})>'
 
 class Text(db.Model):
-    """Unified model for all Bible text sources - replaces ProjectFile and Translation"""
+    """Unified model for all Bible texts - no distinction between source and draft"""
     __tablename__ = 'texts'
     
     id = db.Column(db.Integer, primary_key=True)
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
     name = db.Column(db.String(255), nullable=False)
-    text_type = db.Column(db.Enum('source', 'draft', 'back_translation'), nullable=False)
     description = db.Column(db.Text)
     
     # Progress tracking
@@ -168,11 +167,11 @@ class Text(db.Model):
     verses = db.relationship('Verse', backref='text', lazy='dynamic', cascade='all, delete-orphan')
     
     __table_args__ = (
-        db.Index('idx_project_texts', 'project_id', 'text_type'),
+        db.Index('idx_project_texts', 'project_id'),
     )
     
     def __repr__(self):
-        return f'<Text {self.name} ({self.text_type})>'
+        return f'<Text {self.name}>'
 
 class Verse(db.Model):
     """Unified verse storage - replaces ProjectFileVerse and TranslationVerse"""
