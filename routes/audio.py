@@ -246,4 +246,53 @@ def apply_audio_iteration(project_id, text_id, verse_index):
         db.session.add(new_audio)
     
     db.session.commit()
-    return jsonify({'success': True}) 
+    return jsonify({'success': True})
+
+
+@audio.route('/project/<int:project_id>/audio/splice', methods=['POST'])
+@login_required
+def splice_audio_files(project_id):
+    """Splice multiple audio files together into one file"""
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
+    
+    data = request.get_json()
+    audio_ids = data.get('audio_ids', [])
+    filename = data.get('filename', 'spliced_audio.mp3')
+    
+    if not audio_ids:
+        return jsonify({'error': 'No audio IDs provided'}), 400
+    
+    try:
+        # Get all audio files
+        audio_files = []
+        storage = get_storage()
+        
+        for audio_id in audio_ids:
+            audio_record = VerseAudio.query.filter_by(
+                id=audio_id, 
+                project_id=project_id
+            ).first()
+            
+            if audio_record:
+                audio_data = storage.get_file(audio_record.storage_path)
+                audio_files.append(audio_data)
+        
+        if not audio_files:
+            return jsonify({'error': 'No valid audio files found'}), 404
+        
+        # Simple concatenation for MP3 files
+        # Note: This is a basic implementation. For production, consider using ffmpeg
+        spliced_data = b''.join(audio_files)
+        
+        # Return the spliced file
+        response = send_file(
+            io.BytesIO(spliced_data),
+            download_name=filename,
+            mimetype='audio/mpeg'
+        )
+        return response
+        
+    except Exception as e:
+        print(f"Error splicing audio files: {e}")
+        return jsonify({'error': 'Failed to splice audio files'}), 500 

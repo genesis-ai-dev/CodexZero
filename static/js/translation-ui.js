@@ -120,7 +120,7 @@ class TranslationUI {
             baseModels.forEach(([modelId, modelInfo]) => {
                 dropdownModels.push({
                     value: modelId,
-                    name: `🧠 ${modelInfo.name}`,
+                    name: `${modelInfo.name}`,
                     description: modelInfo.description,
                     type: modelInfo.type
                 });
@@ -135,7 +135,7 @@ class TranslationUI {
         // Set current selection
         if (currentModel && models[currentModel]) {
             const modelInfo = models[currentModel];
-            const prefix = modelInfo.type === 'fine_tuned' ? '🎯 ' : '🧠 ';
+            const prefix = modelInfo.type === 'fine_tuned' ? '🎯 ' : ' ';
             if (window.setModelDropdownOption) {
                 window.setModelDropdownOption(currentModel, prefix + modelInfo.name, modelInfo.description, modelInfo.type);
             }

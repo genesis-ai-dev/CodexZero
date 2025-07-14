@@ -124,6 +124,37 @@ class TextWindow {
         downloadDropdown.appendChild(txtButton);
         downloadDropdown.appendChild(usfmButton);
         
+        // Add audio download options for primary windows
+        if (this.type === 'primary' && window.translationEditor?.canEdit) {
+            // Separator
+            const separator = document.createElement('hr');
+            separator.className = 'my-2 border-gray-200';
+            downloadDropdown.appendChild(separator);
+            
+            // Individual audio files button
+            const audioIndividualButton = document.createElement('button');
+            audioIndividualButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center';
+            audioIndividualButton.innerHTML = '<i class="fas fa-volume-up mr-2 text-gray-500"></i>Download Audio Files';
+            audioIndividualButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.downloadAudioFiles('individual');
+                downloadDropdown.classList.add('hidden');
+            });
+            
+            // Spliced audio button
+            const audioSplicedButton = document.createElement('button');
+            audioSplicedButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center';
+            audioSplicedButton.innerHTML = '<i class="fas fa-music mr-2 text-gray-500"></i>Download Spliced Audio';
+            audioSplicedButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.downloadAudioFiles('spliced');
+                downloadDropdown.classList.add('hidden');
+            });
+            
+            downloadDropdown.appendChild(audioIndividualButton);
+            downloadDropdown.appendChild(audioSplicedButton);
+        }
+        
         downloadToggle.addEventListener('click', (e) => {
             e.stopPropagation();
             downloadDropdown.classList.toggle('hidden');
@@ -276,10 +307,7 @@ class TextWindow {
                 audio.play().catch(reject);
             });
 
-            // Small delay between verses
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            // Play next
+            // Play next immediately without delay
             await this.playNextInQueue(button);
 
         } catch (error) {
@@ -448,6 +476,84 @@ class TextWindow {
         };
         
         return bookCodes[bookName] || bookName.substring(0, 3).toUpperCase();
+    }
+    
+    async downloadAudioFiles(type) {
+        const projectId = window.location.pathname.split('/')[2];
+        const editor = window.translationEditor;
+        const book = editor?.currentBook || 'Unknown';
+        const chapter = editor?.currentChapter || '1';
+        
+        // Collect all verses with audio
+        const audioVerses = [];
+        const verseElements = this.element.querySelectorAll('[data-verse-cell]');
+        
+        for (const verseElement of verseElements) {
+            let audioControls = null;
+            const allElements = verseElement.querySelectorAll('*');
+            for (const el of allElements) {
+                if (el._audioId) {
+                    audioControls = el;
+                    break;
+                }
+            }
+            
+            if (audioControls && audioControls._audioId) {
+                audioVerses.push({
+                    verse: verseElement.dataset.verse,
+                    audioId: audioControls._audioId
+                });
+            }
+        }
+        
+        if (audioVerses.length === 0) {
+            alert('No audio files found to download.');
+            return;
+        }
+        
+        if (type === 'individual') {
+            // Download each audio file individually
+            for (const verseAudio of audioVerses) {
+                const link = document.createElement('a');
+                link.href = `/project/${projectId}/verse-audio/${verseAudio.audioId}/download`;
+                link.download = `${book}_${chapter}_verse_${verseAudio.verse}.mp3`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Small delay between downloads to avoid overwhelming the browser
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        } else if (type === 'spliced') {
+            // Request spliced audio from backend
+            try {
+                const response = await fetch(`/project/${projectId}/audio/splice`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        audio_ids: audioVerses.map(v => v.audioId),
+                        filename: `${book}_${chapter}_complete.mp3`
+                    })
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${book}_${chapter}_complete.mp3`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                } else {
+                    alert('Failed to create spliced audio file.');
+                }
+            } catch (error) {
+                console.error('Error downloading spliced audio:', error);
+                alert('Failed to download spliced audio.');
+            }
+        }
     }
     
     createContent() {
@@ -710,6 +816,25 @@ class TextWindow {
             
             historyButton.onclick = () => this.showVerseHistory(verseData, textarea);
             rightFragment.appendChild(historyButton);
+            
+            // Audio download button for primary windows
+            if (this.type === 'primary') {
+                const audioDownloadButton = document.createElement('button');
+                audioDownloadButton.className = 'w-6 h-6 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm hover:text-gray-600 audio-download-btn';
+                audioDownloadButton.innerHTML = '<i class="fas fa-download text-xs"></i>';
+                audioDownloadButton.title = 'Download verse audio';
+                audioDownloadButton.style.display = 'none'; // Hidden by default, shown when audio exists
+                
+                audioDownloadButton.onclick = (e) => {
+                    e.stopPropagation();
+                    this.downloadVerseAudio(verseData, verseWrapper);
+                };
+                
+                rightFragment.appendChild(audioDownloadButton);
+                
+                // Store reference for later visibility control
+                verseWrapper._audioDownloadButton = audioDownloadButton;
+            }
         }
         
         // Only add editing controls for editors
@@ -767,6 +892,36 @@ class TextWindow {
         
         // Show history for this verse
         window.translationEditor.verseHistory.showHistory(textId, verseData.index);
+    }
+    
+    downloadVerseAudio(verseData, verseWrapper) {
+        // Find audio controls for this verse
+        let audioControls = null;
+        const allElements = verseWrapper.querySelectorAll('*');
+        for (const el of allElements) {
+            if (el._audioId) {
+                audioControls = el;
+                break;
+            }
+        }
+        
+        if (!audioControls || !audioControls._audioId) {
+            alert('No audio file available for this verse.');
+            return;
+        }
+        
+        const projectId = window.location.pathname.split('/')[2];
+        const editor = window.translationEditor;
+        const book = editor?.currentBook || 'Unknown';
+        const chapter = editor?.currentChapter || '1';
+        
+        // Create download link
+        const link = document.createElement('a');
+        link.href = `/project/${projectId}/verse-audio/${audioControls._audioId}/download`;
+        link.download = `${book}_${chapter}_verse_${verseData.verse}.mp3`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
     
     // Removed - using batched controls now
