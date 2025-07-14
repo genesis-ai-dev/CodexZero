@@ -255,8 +255,8 @@ class FineTuningService:
             "total_lines": len(source_lines),
             "valid_examples": len(valid_examples),
             "filtered_out": len(source_lines) - len(valid_examples),
-            "source_filename": source_file.name,
-            "target_filename": target_file.name,
+            "source_filename": source_text.name,
+            "target_filename": target_text.name,
             "preview_example": {
                 "line_number": preview_example["line_number"],
                 "system_prompt": preview_example["messages"][0]["content"],
@@ -655,8 +655,8 @@ class FineTuningService:
             "valid_pairs": len(valid_pairs),
             "selected_examples": len(selected_pairs),  # This is the actual number of training examples
             "max_examples": max_examples,
-            "source_filename": source_file.name,
-            "target_filename": target_file.name,
+            "source_filename": source_text.name,
+            "target_filename": target_text.name,
             "preview_example": {
                 "line_number": preview_pair["line_number"],
                 "system_prompt": system_prompt,
@@ -903,8 +903,8 @@ class FineTuningService:
             "valid_pairs": valid_pairs,
             "max_examples": max_examples,
             "actual_examples": actual_examples,
-            "source_filename": source_file.name,
-            "target_filename": target_file.name
+            "source_filename": source_text.name,
+            "target_filename": target_text.name
         }
     
     def create_instruction_training_data_with_progress(self, source_file_id: int, target_file_id: int, project_id: int, max_examples: int = 100, progress_callback=None) -> Tuple[str, int]:

@@ -170,6 +170,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const filePairSelect = document.getElementById('file-pair-select');
     const baseModelSelect = document.getElementById('base-model-select');
     const modelNameInput = document.getElementById('model-name-input');
+    
+    // Style dropdowns on load
+    styleDropdowns();
     const startFineTuningBtn = document.getElementById('start-fine-tuning-btn');
     const previewExampleBtn = document.getElementById('preview-example-btn');
     const fineTuningEstimate = document.getElementById('fine-tuning-estimate');
@@ -723,9 +726,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const option = document.createElement('option');
                 option.value = key;
                 option.textContent = `${model.name} - ${model.description}`;
-                if (key === 'gpt-4o-mini') {
-                    option.selected = true; // Default selection
-                    option.setAttribute('selected', 'selected'); // Ensure it's actually selected
+                if (key === 'gpt-4.1-mini') {
+                    option.selected = true;
                 }
                 baseGroup.appendChild(option);
             });
@@ -1913,4 +1915,30 @@ document.addEventListener('DOMContentLoaded', function() {
             if (progressElement) progressElement.classList.add('hidden');
         });
     }
+
+    function styleDropdowns() {
+        // Just ensure proper styling is applied - everything else is handled by CSS
+        console.log('Dropdowns styled with modern CSS');
+    }
+
+    // Simple text name editing
+    window.editTextName = function(element, textId) {
+        const newName = prompt('Enter new name:', element.textContent);
+        if (newName && newName.trim() !== element.textContent) {
+            fetch(`/project/${projectId}/text/${textId}/rename`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newName.trim() })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    element.textContent = newName.trim();
+                } else {
+                    alert('Failed to rename: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(() => alert('Failed to rename text'));
+        }
+    };
 }); 

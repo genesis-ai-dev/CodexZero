@@ -2,7 +2,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, flash, request, redirect, url_for, jsonify
 from flask_login import current_user, login_required
 
-from models import db, Project
+from models import db, Project, Text
 from utils.file_helpers import save_project_file
 from utils.project_helpers import save_language_rules, import_ulb_automatically
 from utils.project_access import ProjectAccess, require_project_access
@@ -187,6 +187,28 @@ def edit_project(project_id):
     require_project_access(project_id, 'editor')
     project = Project.query.get_or_404(project_id)
     return render_template('new_project.html', project=project)
+
+
+@projects.route('/project/<int:project_id>/text/<int:text_id>/rename', methods=['POST'])
+@login_required
+def rename_text(project_id, text_id):
+    """Rename a text"""
+    require_project_access(project_id, 'editor')
+    
+    data = request.get_json()
+    new_name = data.get('name', '').strip()
+    
+    if not new_name:
+        return jsonify({'success': False, 'error': 'Name cannot be empty'})
+    
+    text = Text.query.filter_by(id=text_id, project_id=project_id).first()
+    if not text:
+        return jsonify({'success': False, 'error': 'Text not found'})
+    
+    text.name = new_name
+    db.session.commit()
+    
+    return jsonify({'success': True})
 
 
 @projects.route('/project/<int:project_id>/update', methods=['POST'])

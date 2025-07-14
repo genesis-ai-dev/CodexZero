@@ -199,8 +199,31 @@ def view_user_project(encoded_user_id, encoded_project_id):
     user = User.query.get_or_404(user_id)
     project = Project.query.filter_by(id=project_id, user_id=user_id).first_or_404()
     
+    # Prepare texts data same as regular project route
+    from models import Text, Verse
+    all_texts = []
+    text_records = Text.query.filter_by(project_id=project_id).order_by(Text.created_at.desc()).all()
+    
+    for text in text_records:
+        # Skip JSONL files (those belong in fine-tuning tab)
+        if text.name and text.name.lower().endswith('.jsonl'):
+            continue
+            
+        # Count verses for this text (can be 0 for empty translations)
+        verse_count = Verse.query.filter_by(text_id=text.id).count()
+        
+        text_data = {
+            'id': f'text_{text.id}',
+            'name': text.name,
+            'verse_count': verse_count,
+            'created_at': text.created_at,
+            'purpose_description': text.description
+        }
+        
+        all_texts.append(text_data)
+    
     # Use the same template as the regular project view, but with admin context
-    return render_template('project.html', project=project, admin_view=True, project_owner=user, encode_id=encode_id)
+    return render_template('project.html', project=project, admin_view=True, project_owner=user, encode_id=encode_id, texts=all_texts)
 
 @admin.route('/admin/user/<encoded_user_id>/project/<encoded_project_id>/file/<encoded_file_id>/download')
 @login_required

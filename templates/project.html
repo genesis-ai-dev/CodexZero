@@ -181,7 +181,9 @@
                             <!-- Translation Header -->
                             <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
                                 <div class="min-w-0 flex-1">
-                                    <h3 class="text-lg sm:text-xl font-bold text-neutral-900 mb-2 break-words">{{ text.name }}</h3>
+                                    <h3 class="text-lg sm:text-xl font-bold text-neutral-900 mb-2 break-words cursor-pointer hover:text-blue-600 transition-colors" 
+                                        onclick="editTextName(this, {{ text.id|replace('text_', '') }})"
+                                        title="Click to edit">{{ text.name }}</h3>
                                     <div class="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-neutral-600">
                                         <span class="bg-neutral-100 px-2 py-1 rounded-lg">{{ text.verse_count }} verses</span>
                                         <span>{{ text.created_at.strftime('%b %d') }}</span>
@@ -316,26 +318,33 @@
                                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-sm font-bold text-neutral-700 mb-2">Source-Target Pair</label>
-                                        <select id="file-pair-select" class="w-full p-3 border border-neutral-200 bg-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent rounded-lg">
+                                        <select id="file-pair-select" class="w-full p-3 bg-white/90 border-2 border-neutral-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 hover:border-neutral-400 shadow-sm appearance-none cursor-pointer">
                                             <option value="">Select translations for training...</option>
                                             {% set all_texts = texts %}
                                             {% for text1 in all_texts %}
                                                 {% for text2 in all_texts %}
-                                                    {% if text1.id != text2.id and text1.verse_count == text2.verse_count and text1.verse_count > 0 %}
-                                                        <option value="{{ text1.id }},{{ text2.id }}">
-                                                            {{ text1.name }} → {{ text2.name }}
+                                                    {% set min_verses = [text1.verse_count, text2.verse_count]|min %}
+                                                    {% if text1.id != text2.id and min_verses > 100 %}
+                                                        <option value="{{ text1.id|replace('text_', '') }},{{ text2.id|replace('text_', '') }}">
+                                                            {{ text1.name }} → {{ text2.name }} ({{ min_verses }} aligned verses)
                                                         </option>
                                                     {% endif %}
                                                 {% endfor %}
                                             {% endfor %}
                                         </select>
+                                        <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none mt-6">
+                                            <i class="fas fa-chevron-down text-neutral-400 text-sm"></i>
+                                        </div>
                                     </div>
                                     
                                     <div>
                                         <label class="block text-sm font-bold text-neutral-700 mb-2">Base Model</label>
-                                        <select id="base-model-select" class="w-full p-3 border border-neutral-200 bg-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent rounded-lg">
+                                        <select id="base-model-select" class="w-full p-3 bg-white/90 border-2 border-neutral-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 hover:border-neutral-400 shadow-sm appearance-none cursor-pointer">
                                             <option value="">Loading models...</option>
                                         </select>
+                                        <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none mt-6">
+                                            <i class="fas fa-chevron-down text-neutral-400 text-sm"></i>
+                                        </div>
                                     </div>
                                 </div>
                                 

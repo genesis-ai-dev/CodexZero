@@ -74,6 +74,8 @@ coverage.xml
 
 # Testing
 .pytest_cache/
+__pycache__/
+*.pyc
 .tox/
 __pycache__/
 
