@@ -368,4 +368,49 @@ def set_translation_model(project_id):
     except Exception as e:
         print(f"Error setting translation model: {e}")
         db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@projects.route('/project/<int:project_id>/voice-profile', methods=['GET'])
+@login_required
+def get_voice_profile(project_id):
+    """Get the voice profile for a project"""
+    try:
+        require_project_access(project_id, 'viewer')
+        project = Project.query.get_or_404(project_id)
+        
+        return jsonify({
+            'success': True,
+            'voice_profile': project.voice_profile or ''
+        })
+        
+    except Exception as e:
+        print(f"Error getting voice profile: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@projects.route('/project/<int:project_id>/voice-profile', methods=['POST'])
+@login_required
+def set_voice_profile(project_id):
+    """Set the voice profile for a project"""
+    try:
+        require_project_access(project_id, 'editor')
+        project = Project.query.get_or_404(project_id)
+        
+        data = request.get_json()
+        voice_profile = data.get('voice_profile', '').strip()
+        
+        # Update project
+        project.voice_profile = voice_profile if voice_profile else None
+        project.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Voice profile updated successfully'
+        })
+        
+    except Exception as e:
+        print(f"Error setting voice profile: {e}")
+        db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500 

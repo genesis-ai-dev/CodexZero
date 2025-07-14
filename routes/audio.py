@@ -33,9 +33,15 @@ def generate_tts(project_id, text_id, verse_index):
         "input": text
     }
     
-    # Add instructions if provided (only works with gpt-4o-mini-tts)
+    # Combine voice profile with specific instructions
+    combined_instructions = []
+    if project.voice_profile:
+        combined_instructions.append(project.voice_profile.strip())
     if instructions:
-        speech_params["instructions"] = instructions
+        combined_instructions.append(instructions.strip())
+    
+    if combined_instructions:
+        speech_params["instructions"] = " ".join(combined_instructions)
     
     response = client.audio.speech.create(**speech_params)
     
@@ -167,9 +173,15 @@ def generate_tts_iteration(project_id, text_id, verse_index):
         "input": text
     }
     
-    # Add instructions if provided (only works with gpt-4o-mini-tts)
+    # Combine voice profile with specific instructions
+    combined_instructions = []
+    if project.voice_profile:
+        combined_instructions.append(project.voice_profile.strip())
     if instructions:
-        speech_params["instructions"] = instructions
+        combined_instructions.append(instructions.strip())
+    
+    if combined_instructions:
+        speech_params["instructions"] = " ".join(combined_instructions)
     
     response = client.audio.speech.create(**speech_params)
     

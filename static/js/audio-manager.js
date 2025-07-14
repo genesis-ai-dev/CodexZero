@@ -2,55 +2,94 @@
 class AudioManager {
     constructor(windowId) {
         this.windowId = windowId;
+        this.defaultVoice = 'onyx';
+    }
+    
+    // Static method to get current global voice preference
+    static getCurrentVoice() {
+        return localStorage.getItem('preferredVoice') || 'onyx';
+    }
+    
+    // Static method to set global voice preference and sync all dropdowns
+    static setGlobalVoice(voice) {
+        localStorage.setItem('preferredVoice', voice);
+        // Update all voice dropdowns on the page
+        document.querySelectorAll('.voice-text').forEach(voiceText => {
+            voiceText.textContent = voice.charAt(0).toUpperCase() + voice.slice(1);
+        });
     }
     
     createAudioControls(container, verseData, textarea) {
-        const audioDiv = document.createElement('div');
-        audioDiv.className = 'audio-controls absolute top-1 left-2 opacity-100 flex items-center gap-1 z-50';
-        audioDiv.innerHTML = `
-            <select class="voice-selector text-xs px-1 py-0 border border-gray-300 bg-gray-100 text-gray-500 rounded cursor-pointer focus:outline-none h-5 text-xs leading-none" style="font-size: 10px;">
-                ${this.getVoiceOptions()}
-            </select>
-            <button class="tts-btn w-5 h-5 flex items-center justify-center bg-gray-100 text-gray-500 rounded focus:outline-none" title="Generate audio">
-                <i class="fas fa-microphone" style="font-size: 8px;"></i>
+        const currentVoice = AudioManager.getCurrentVoice();
+        
+        // Create voice dropdown
+        const voiceContainer = document.createElement('div');
+        voiceContainer.className = 'relative';
+        voiceContainer.innerHTML = `
+            <button class="voice-selector-btn w-20 h-6 p-1 border border-neutral-200 bg-white rounded text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50" type="button">
+                <span class="voice-text">${currentVoice.charAt(0).toUpperCase() + currentVoice.slice(1)}</span>
+                <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 voice-chevron" style="font-size: 6px;"></i>
             </button>
-            <button class="play-audio-btn w-5 h-5 flex items-center justify-center bg-gray-100 text-gray-500 rounded focus:outline-none" title="Play audio" style="display: none;">
-                <i class="fas fa-play" style="font-size: 8px;"></i>
-            </button>
-            <button class="pause-audio-btn w-5 h-5 flex items-center justify-center bg-gray-100 text-gray-500 rounded focus:outline-none" title="Pause audio" style="display: none;">
-                <i class="fas fa-pause" style="font-size: 8px;"></i>
-            </button>
-            <button class="audio-tuning-btn w-5 h-5 flex items-center justify-center bg-gray-100 text-gray-500 rounded focus:outline-none" title="Audio settings" style="display: none;">
-                <i class="fas fa-sliders-h" style="font-size: 8px;"></i>
-            </button>
+            <div class="voice-dropdown absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-40 overflow-y-auto">
+                ${this.getVoiceDropdownOptions()}
+            </div>
         `;
         
-        container.appendChild(audioDiv);
+        // Create buttons more efficiently
+        const buttons = this.createAudioButtons();
         
-        // Store audio state on the container
-        audioDiv._currentAudio = null;
-        audioDiv._audioId = null;
+        // Add all elements to container
+        container.appendChild(voiceContainer);
+        buttons.forEach(button => container.appendChild(button));
         
-        // PERFORMANCE: Cache all button elements once
-        const elements = {
-            voiceSelector: audioDiv.querySelector('.voice-selector'),
-            ttsBtn: audioDiv.querySelector('.tts-btn'),
-            playBtn: audioDiv.querySelector('.play-audio-btn'),
-            pauseBtn: audioDiv.querySelector('.pause-audio-btn'),
-            tuningBtn: audioDiv.querySelector('.audio-tuning-btn')
+        // Store state and cache elements
+        container._currentAudio = null;
+        container._audioId = null;
+        container._elements = {
+            voiceSelectorBtn: voiceContainer.querySelector('.voice-selector-btn'),
+            voiceDropdown: voiceContainer.querySelector('.voice-dropdown'),
+            voiceText: voiceContainer.querySelector('.voice-text'),
+            voiceChevron: voiceContainer.querySelector('.voice-chevron'),
+            ...buttons.reduce((acc, btn, idx) => {
+                const names = ['ttsBtn', 'playBtn', 'pauseBtn', 'tuningBtn'];
+                acc[names[idx]] = btn;
+                return acc;
+            }, {})
         };
-        audioDiv._elements = elements;
         
-        this.setupAudioListeners(verseData, textarea, audioDiv);
-        this.checkExistingAudio(audioDiv, verseData);
+        this.setupAudioListeners(verseData, textarea, container);
+        this.setupVoiceDropdown(container);
+        this.checkExistingAudio(container, verseData);
         
-        return audioDiv;
+        return container;
     }
     
-    getVoiceOptions() {
+    createAudioButtons() {
+        const buttonConfigs = [
+            { class: 'tts-btn', icon: 'fa-volume-up', size: '10px', title: 'Generate audio', display: 'flex' },
+            { class: 'play-audio-btn', icon: 'fa-play', size: '8px', title: 'Play audio', display: 'none' },
+            { class: 'pause-audio-btn', icon: 'fa-pause', size: '8px', title: 'Pause audio', display: 'none' },
+            { class: 'audio-tuning-btn', icon: 'fa-sliders-h', size: '8px', title: 'Audio settings', display: 'none' }
+        ];
+        
+        return buttonConfigs.map(config => {
+            const button = document.createElement('button');
+            button.className = `${config.class} w-6 h-6 flex items-center justify-center bg-white border border-neutral-200 text-neutral-600 rounded hover:bg-neutral-50 hover:text-neutral-900 focus:outline-none transition-all duration-200 shadow-sm`;
+            button.title = config.title;
+            button.style.display = config.display;
+            button.innerHTML = `<i class="fas ${config.icon}" style="font-size: ${config.size};"></i>`;
+            return button;
+        });
+    }
+    
+
+    
+    getVoiceDropdownOptions() {
         const voices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer'];
         return voices.map(voice => 
-            `<option value="${voice}" ${voice === 'onyx' ? 'selected' : ''}>${voice.charAt(0).toUpperCase() + voice.slice(1)}</option>`
+            `<div class="voice-option px-3 py-2 text-xs text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer border-b border-neutral-100 last:border-b-0" data-voice="${voice}">
+                <div class="font-medium">${voice.charAt(0).toUpperCase() + voice.slice(1)}</div>
+            </div>`
         ).join('');
     }
     
@@ -60,7 +99,7 @@ class AudioManager {
         
         elements.ttsBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
-            const voice = elements.voiceSelector.value;
+            const voice = AudioManager.getCurrentVoice(); // Use global voice preference
             this.generateAudio(verseData, textarea.value, voice, audioControls);
         });
         
@@ -77,6 +116,65 @@ class AudioManager {
         elements.tuningBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
             this.openAudioTuningModal(verseData, textarea, audioControls);
+        });
+    }
+    
+    setupVoiceDropdown(audioControls) {
+        const elements = audioControls._elements;
+        
+        // Toggle dropdown
+        elements.voiceSelectorBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleDropdown(elements);
+        });
+        
+        // Handle voice selection with global sync
+        elements.voiceDropdown.addEventListener('click', (e) => {
+            const option = e.target.closest('.voice-option');
+            if (option) {
+                const voice = option.dataset.voice;
+                AudioManager.setGlobalVoice(voice); // This syncs all dropdowns
+                this.closeDropdown(elements);
+            }
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!audioControls.contains(e.target)) {
+                this.closeDropdown(elements);
+            }
+        });
+    }
+    
+    toggleDropdown(elements) {
+        const isOpen = !elements.voiceDropdown.classList.contains('hidden');
+        
+        // Close all other dropdowns first
+        this.closeAllDropdowns();
+        
+        // Toggle this dropdown
+        if (isOpen) {
+            this.closeDropdown(elements);
+        } else {
+            this.openDropdown(elements);
+        }
+    }
+    
+    openDropdown(elements) {
+        elements.voiceDropdown.classList.remove('hidden');
+        elements.voiceChevron.style.transform = 'rotate(180deg)';
+    }
+    
+    closeDropdown(elements) {
+        elements.voiceDropdown.classList.add('hidden');
+        elements.voiceChevron.style.transform = 'rotate(0deg)';
+    }
+    
+    closeAllDropdowns() {
+        document.querySelectorAll('.voice-dropdown').forEach(dropdown => {
+            dropdown.classList.add('hidden');
+            const chevron = dropdown.parentElement.querySelector('.voice-chevron');
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
         });
     }
     

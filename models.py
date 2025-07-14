@@ -50,6 +50,9 @@ class Project(db.Model):
     # Translation model selection
     translation_model = db.Column(db.String(255), nullable=True)  # Selected model for translations
     
+    # Voice profile for TTS
+    voice_profile = db.Column(db.Text, nullable=True)  # Global voice characteristics for the project
+    
     # Project metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -1,37 +1,12 @@
 {% macro verse_cell() %}
 <!-- PERFORMANCE: VerseCell class removed - functionality moved to optimized AudioManager in text-window.js -->
-<!-- Audio controls are now handled directly by AudioManager with better performance -->
+<!-- Audio controls are now always created by AudioManager with improved styling and UX -->
 
 <template id="verse-cell-template">
     <div class="verse-cell" data-verse-cell>
         <div class="verse-cell-header">
             <span class="verse-number">Verse {number}</span>
-            <div class="audio-controls absolute top-1 left-2 opacity-100 flex items-center gap-1 z-50">
-                <select class="voice-selector text-xs px-1 py-0 border border-gray-300 bg-gray-100 text-gray-500 rounded cursor-pointer focus:outline-none h-5 text-xs leading-none" style="z-index: 9999; position: relative; font-size: 10px;">
-                    <option value="alloy">Alloy</option>
-                    <option value="ash">Ash</option>
-                    <option value="ballad">Ballad</option>
-                    <option value="coral">Coral</option>
-                    <option value="echo">Echo</option>
-                    <option value="fable">Fable</option>
-                    <option value="nova">Nova</option>
-                    <option value="onyx" selected>Onyx</option>
-                    <option value="sage">Sage</option>
-                    <option value="shimmer">Shimmer</option>
-                </select>
-                <button class="tts-btn w-5 h-5 flex items-center justify-center bg-gray-100 text-gray-500 rounded focus:outline-none" title="Generate audio">
-                    <i class="fas fa-microphone" style="font-size: 8px;"></i>
-                </button>
-                <button class="play-audio-btn w-5 h-5 flex items-center justify-center bg-gray-100 text-gray-500 rounded focus:outline-none" title="Play audio" style="display: none;">
-                    <i class="fas fa-play" style="font-size: 8px;"></i>
-                </button>
-                <button class="pause-audio-btn w-5 h-5 flex items-center justify-center bg-gray-100 text-gray-500 rounded focus:outline-none" title="Pause audio" style="display: none;">
-                    <i class="fas fa-pause" style="font-size: 8px;"></i>
-                </button>
-                <button class="audio-tuning-btn w-5 h-5 flex items-center justify-center bg-gray-100 text-gray-500 rounded focus:outline-none" title="Audio settings" style="display: none;">
-                    <i class="fas fa-sliders-h" style="font-size: 8px;"></i>
-                </button>
-            </div>
+            <!-- Audio controls will be dynamically created by AudioManager -->
         </div>
         <div class="verse-cell-content">
             <textarea placeholder="Enter verse translation..."></textarea>

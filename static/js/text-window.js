@@ -12,7 +12,6 @@ class TextWindow {
         // PERFORMANCE: Simple rendering - no virtual scrolling
         
         // PERFORMANCE: Lazy loading flags
-        this.audioControlsLoaded = false;
         this.dragListenersSetup = false;
     }
     
@@ -46,6 +45,7 @@ class TextWindow {
         
         const downloadButton = this.createDownloadButton();
         const plusButton = this.createPlusButton();
+        const playAllButton = this.createPlayAllButton();
         const closeButton = `<button class="text-red-600 rounded p-1 close-text-btn" 
                        data-text-id="${this.id}" 
                        title="Remove this text">
@@ -65,6 +65,11 @@ class TextWindow {
         const rightContainer = header.querySelector('div:last-child');
         rightContainer.insertBefore(downloadButton, rightContainer.firstChild);
         rightContainer.insertBefore(plusButton, rightContainer.firstChild);
+        
+        // Only add play all button for primary windows with audio capability
+        if (this.type === 'primary' && window.translationEditor?.canEdit) {
+            rightContainer.insertBefore(playAllButton, rightContainer.firstChild);
+        }
         
         header.addEventListener('dragstart', (e) => {
             const windowData = {
@@ -162,6 +167,158 @@ class TextWindow {
     openTextSelectionModal() {
         const isPrimary = this.type === 'primary';
         window.translationEditor.ui.showTextSelectionModal(isPrimary);
+    }
+
+    createPlayAllButton() {
+        const playAllButton = document.createElement('button');
+        playAllButton.className = 'text-gray-600 rounded p-1 play-all-btn';
+        playAllButton.title = 'Play all audio in sequence';
+        playAllButton.innerHTML = '<i class="fas fa-play-circle text-xs"></i>';
+        
+        // State management
+        playAllButton._isPlaying = false;
+        playAllButton._currentIndex = 0;
+        playAllButton._audioQueue = [];
+
+        playAllButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.togglePlayAll(playAllButton);
+        });
+
+        return playAllButton;
+    }
+
+    async togglePlayAll(button) {
+        if (button._isPlaying) {
+            this.stopPlayAll(button);
+        } else {
+            await this.startPlayAll(button);
+        }
+    }
+
+    async startPlayAll(button) {
+        // Find all verses with audio
+        const audioQueue = [];
+        const verseElements = this.element.querySelectorAll('[data-verse-cell]');
+        
+        for (const verseElement of verseElements) {
+            const verseIndex = verseElement.dataset.verse;
+            // Find the audio controls container created by AudioManager
+            // Search for any element with _audioId property within this verse
+            let audioControls = null;
+            const allElements = verseElement.querySelectorAll('*');
+            for (const el of allElements) {
+                if (el._audioId) {
+                    audioControls = el;
+                    break;
+                }
+            }
+            
+            if (audioControls && audioControls._audioId) {
+                audioQueue.push({
+                    verseIndex: parseInt(verseIndex),
+                    verseElement: verseElement,
+                    audioControls: audioControls
+                });
+            }
+        }
+
+        if (audioQueue.length === 0) {
+            alert('No audio files found. Generate audio for some verses first.');
+            return;
+        }
+
+        button._isPlaying = true;
+        button._currentIndex = 0;
+        button._audioQueue = audioQueue;
+        
+        // Update button appearance
+        button.innerHTML = '<i class="fas fa-stop text-xs"></i>';
+        button.title = 'Stop playing all audio';
+        button.classList.add('text-blue-600');
+
+        await this.playNextInQueue(button);
+    }
+
+    async playNextInQueue(button) {
+        if (!button._isPlaying || button._currentIndex >= button._audioQueue.length) {
+            this.stopPlayAll(button);
+            return;
+        }
+
+        const currentItem = button._audioQueue[button._currentIndex];
+        const audioControls = currentItem.audioControls;
+
+        // Highlight current verse
+        this.highlightCurrentVerse(currentItem.verseElement, true);
+
+        try {
+            // Create audio element
+            const projectId = window.location.pathname.split('/')[2];
+            const audioUrl = `/project/${projectId}/verse-audio/${audioControls._audioId}/download`;
+            const audio = new Audio(audioUrl);
+
+            // Play the audio
+            await new Promise((resolve, reject) => {
+                audio.onended = () => {
+                    this.highlightCurrentVerse(currentItem.verseElement, false);
+                    button._currentIndex++;
+                    resolve();
+                };
+
+                audio.onerror = () => {
+                    this.highlightCurrentVerse(currentItem.verseElement, false);
+                    console.error('Failed to play audio for verse', currentItem.verseIndex);
+                    button._currentIndex++;
+                    resolve(); // Continue to next even on error
+                };
+
+                audio.play().catch(reject);
+            });
+
+            // Small delay between verses
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Play next
+            await this.playNextInQueue(button);
+
+        } catch (error) {
+            console.error('Error playing audio:', error);
+            this.highlightCurrentVerse(currentItem.verseElement, false);
+            button._currentIndex++;
+            await this.playNextInQueue(button);
+        }
+    }
+
+    stopPlayAll(button) {
+        button._isPlaying = false;
+        button._currentIndex = 0;
+        
+        // Clear highlighting
+        if (button._audioQueue) {
+            button._audioQueue.forEach(item => {
+                this.highlightCurrentVerse(item.verseElement, false);
+            });
+        }
+        
+        button._audioQueue = [];
+        
+        // Reset button appearance
+        button.innerHTML = '<i class="fas fa-play-circle text-xs"></i>';
+        button.title = 'Play all audio in sequence';
+        button.classList.remove('text-blue-600');
+    }
+
+    highlightCurrentVerse(verseElement, highlight) {
+        if (highlight) {
+            verseElement.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
+            verseElement.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+            });
+        } else {
+            verseElement.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50');
+        }
     }
 
     downloadChapter(format) {
@@ -420,18 +577,23 @@ class TextWindow {
         const navBar = document.createElement('div');
         navBar.className = 'flex items-center justify-between px-3 py-0.5 bg-gray-50 border-b border-gray-200 min-h-[22px]';
         
-        // PERFORMANCE: Reuse verse label
+        // Left side: Audio controls container
+        const leftControlsContainer = document.createElement('div');
+        leftControlsContainer.className = 'flex items-center gap-1';
+        
+        // Center: Verse label
         const verseLabel = document.createElement('div');
         const labelClasses = this.type === 'primary' ? 
             'text-red-600 bg-red-50' : 
             'text-blue-600 bg-blue-50';
-        verseLabel.className = `text-xs font-semibold px-2 py-1 rounded-sm ${labelClasses}`;
+        verseLabel.className = `text-xs font-semibold px-2 py-1 rounded-sm ${labelClasses} absolute left-1/2 transform -translate-x-1/2`;
         verseLabel.textContent = verseData.reference;
         
-        // PERFORMANCE: Reuse controls container
+        // Right side: Other controls container
         const controlsContainer = document.createElement('div');
         controlsContainer.className = 'flex items-center gap-1';
         
+        navBar.appendChild(leftControlsContainer);
         navBar.appendChild(verseLabel);
         navBar.appendChild(controlsContainer);
         verseWrapper.appendChild(navBar);
@@ -440,7 +602,7 @@ class TextWindow {
         verseWrapper.appendChild(textarea);
         
         // PERFORMANCE: Batch control setup to reduce DOM queries
-        this.setupVerseControlsBatched(controlsContainer, verseData, textarea, verseWrapper);
+        this.setupVerseControlsBatched(controlsContainer, leftControlsContainer, verseData, textarea, verseWrapper);
         
         return verseWrapper;
     }
@@ -534,9 +696,9 @@ class TextWindow {
     
     // PERFORMANCE: Resize functions removed - textareas are proper size from start
     
-    setupVerseControlsBatched(controlsContainer, verseData, textarea, verseWrapper) {
+    setupVerseControlsBatched(rightControlsContainer, leftControlsContainer, verseData, textarea, verseWrapper) {
         // PERFORMANCE: Batch all control creation to reduce DOM operations
-        const fragment = document.createDocumentFragment();
+        const rightFragment = document.createDocumentFragment();
         
         // History button for all users (viewers can see history)
         if (window.translationEditor) {
@@ -547,25 +709,17 @@ class TextWindow {
             historyButton.setAttribute('data-verse-index', verseData.index);
             
             historyButton.onclick = () => this.showVerseHistory(verseData, textarea);
-            fragment.appendChild(historyButton);
+            rightFragment.appendChild(historyButton);
         }
         
         // Only add editing controls for editors
         if (window.translationEditor?.canEdit) {
-            // Primary window gets sparkle button
+            // Primary window gets audio controls on the left and sparkle button on the right
             if (this.type === 'primary') {
-                // PERFORMANCE: Create audio placeholder
-                const audioPlaceholder = document.createElement('div');
-                audioPlaceholder.className = 'audio-placeholder w-5 h-5 bg-gray-100 rounded cursor-pointer flex items-center justify-center';
-                audioPlaceholder.innerHTML = '<i class="fas fa-volume-up text-xs text-gray-400"></i>';
-                audioPlaceholder.title = 'Click to load audio controls';
+                // PERFORMANCE: Always create audio controls on the left side
+                this.audioManager.createAudioControls(leftControlsContainer, verseData, textarea);
                 
-                // PERFORMANCE: Use single onclick handler
-                audioPlaceholder.onclick = () => this.loadAudioControls(controlsContainer, audioPlaceholder, verseData, textarea);
-                
-                fragment.appendChild(audioPlaceholder);
-                
-                // PERFORMANCE: Create sparkle button
+                // PERFORMANCE: Create sparkle button on the right side
                 const sparkleButton = document.createElement('button');
                 sparkleButton.className = 'w-7 h-7 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm sparkle-translate-btn';
                 sparkleButton.innerHTML = '<i class="fas fa-magic text-sm"></i>';
@@ -577,10 +731,10 @@ class TextWindow {
                 sparkleButton._clickHandler = (e) => this.handleSparkleClick(e, verseData, textarea, sparkleButton);
                 sparkleButton.onclick = sparkleButton._clickHandler;
                 
-                fragment.appendChild(sparkleButton);
+                rightFragment.appendChild(sparkleButton);
             }
             
-            // PERFORMANCE: Create drag handle
+            // PERFORMANCE: Create drag handle on the right side
             const dragHandle = document.createElement('div');
             dragHandle.className = 'w-7 h-7 bg-gray-100 border border-gray-300 rounded-sm cursor-move flex items-center justify-center sparkle-drag-handle';
             dragHandle.innerHTML = '<i class="fas fa-arrows-alt text-sm text-gray-500"></i>';
@@ -593,11 +747,11 @@ class TextWindow {
             dragHandle.ondragstart = dragHandle._dragStartHandler;
             dragHandle.ondragend = dragHandle._dragEndHandler;
             
-            fragment.appendChild(dragHandle);
+            rightFragment.appendChild(dragHandle);
         }
         
         // PERFORMANCE: Single DOM append instead of multiple
-        controlsContainer.appendChild(fragment);
+        rightControlsContainer.appendChild(rightFragment);
     }
     
     showVerseHistory(verseData, textarea) {
@@ -751,14 +905,7 @@ class TextWindow {
         }
     }
 
-    // PERFORMANCE: Optimized audio loading
-    loadAudioControls(controlsContainer, placeholder, verseData, textarea) {
-        if (!this.audioControlsLoaded) {
-            controlsContainer.removeChild(placeholder);
-            this.audioManager.createAudioControls(controlsContainer, verseData, textarea);
-            this.audioControlsLoaded = true;
-        }
-    }
+    // Audio controls are now always created immediately - no lazy loading needed
     
     // PERFORMANCE: Optimized sparkle click handler
     async handleSparkleClick(e, verseData, textarea, sparkleButton) {
