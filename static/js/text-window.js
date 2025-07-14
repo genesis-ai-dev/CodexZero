@@ -476,11 +476,14 @@ class TextWindow {
     
     attachOptimizedTextareaListeners(textarea) {
         // PERFORMANCE: SIMPLEST POSSIBLE - just store the value
-        let currentValue = '';
+        let currentValue = textarea.value || '';
         let resizeTimeout;
+        let hasChanges = false;
         
         textarea.addEventListener('input', (e) => {
-            currentValue = e.target.value; // Just store, no processing
+            const newValue = e.target.value;
+            hasChanges = (newValue !== currentValue);
+            currentValue = newValue;
             
             // PERFORMANCE: Debounce height adjustment to prevent scroll jank
             clearTimeout(resizeTimeout);
@@ -493,17 +496,40 @@ class TextWindow {
             }, 150); // Debounce for 150ms
         }, { passive: true });
         
-        // PERFORMANCE: Only process on blur
+        // AUTO-SAVE: Save when user moves to different cell or leaves the textarea
         textarea.addEventListener('blur', () => {
-            if (window.translationEditor?.saveSystem) {
+            if (hasChanges && window.translationEditor?.saveSystem) {
                 const verseIndex = parseInt(textarea.dataset.verseIndex);
                 if (!isNaN(verseIndex)) {
                     window.translationEditor.saveSystem.bufferVerseChange(verseIndex, currentValue);
+                    hasChanges = false; // Reset change tracking
                 }
             }
         }, { passive: true });
         
-        // PERFORMANCE: Remove all other listeners - no focus handlers, no resize handlers
+        // Track when user focuses on this textarea 
+        textarea.addEventListener('focus', () => {
+            // Auto-save any previously focused textarea
+            if (window.translationEditor?.saveSystem?.currentFocusedTextarea && 
+                window.translationEditor.saveSystem.currentFocusedTextarea !== textarea) {
+                const prevTextarea = window.translationEditor.saveSystem.currentFocusedTextarea;
+                const prevVerseIndex = parseInt(prevTextarea.dataset.verseIndex);
+                const prevValue = prevTextarea.value || '';
+                
+                if (!isNaN(prevVerseIndex)) {
+                    window.translationEditor.saveSystem.bufferVerseChange(prevVerseIndex, prevValue);
+                }
+            }
+            
+            // Update focus tracking
+            if (window.translationEditor?.saveSystem) {
+                window.translationEditor.saveSystem.currentFocusedTextarea = textarea;
+            }
+            
+            // Update current value for this textarea
+            currentValue = textarea.value || '';
+            hasChanges = false;
+        }, { passive: true });
     }
     
     // PERFORMANCE: Resize functions removed - textareas are proper size from start

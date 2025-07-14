@@ -6,8 +6,8 @@ class TranslationSave {
         // PERFORMANCE: Cache the save button element
         this.saveBtn = document.getElementById('save-changes-btn');
         
-        // PERFORMANCE: Simple auto-save with debouncing
-        this.autoSaveTimeout = null;
+        // Track currently focused textarea for auto-save
+        this.currentFocusedTextarea = null;
     }
     
     bufferVerseChange(verseIndex, text) {
@@ -15,14 +15,57 @@ class TranslationSave {
         this.editor.unsavedChanges.set(verseIndex, text);
         this.editor.hasUnsavedChanges = true;
         
-        // PERFORMANCE: Simple debounced save button update
+        // PERFORMANCE: Simple save button update
         this.updateSaveButtonState();
         
-        // PERFORMANCE: Simple auto-save after 2 seconds of inactivity
-        if (this.autoSaveTimeout) clearTimeout(this.autoSaveTimeout);
-        this.autoSaveTimeout = setTimeout(() => {
-            this.saveAllChanges();
-        }, 2000);
+        // Auto-save immediately when user moves between cells
+        this.autoSaveVerse(verseIndex, text);
+    }
+    
+    async autoSaveVerse(verseIndex, text) {
+        // Find the target to save to
+        const targetId = this.editor.currentTranslation || this.editor.primaryTextId;
+        
+        if (!targetId) {
+            console.log('No target to save to for auto-save');
+            return;
+        }
+        
+        try {
+            // Find the textarea for this verse to determine correct target
+            const textarea = document.querySelector(`textarea[data-verse-index="${verseIndex}"]`);
+            let correctTargetId = targetId;
+            
+            if (textarea && !correctTargetId) {
+                // Find which window contains this textarea
+                for (const [id, window] of this.editor.textWindows) {
+                    if (window.element?.contains(textarea)) {
+                        correctTargetId = id;
+                        break;
+                    }
+                }
+            }
+            
+            await this.saveVerse(verseIndex, text, correctTargetId);
+            
+            // Remove from unsaved changes since it's now saved
+            this.editor.unsavedChanges.delete(verseIndex);
+            this.editor.hasUnsavedChanges = this.editor.unsavedChanges.size > 0;
+            this.updateSaveButtonState();
+            
+            // Show subtle success indicator
+            if (textarea) {
+                const originalBorder = textarea.style.borderColor;
+                textarea.style.borderColor = '#10b981';
+                setTimeout(() => {
+                    textarea.style.borderColor = originalBorder;
+                }, 500);
+            }
+            
+        } catch (error) {
+            console.error(`Auto-save failed for verse ${verseIndex}:`, error);
+            // Keep in unsaved changes on error
+        }
     }
     
     updateSaveButtonState() {
@@ -30,7 +73,11 @@ class TranslationSave {
         if (this.saveBtn) {
             const hasChanges = this.editor.unsavedChanges.size > 0;
             this.saveBtn.disabled = !hasChanges;
-            this.saveBtn.textContent = hasChanges ? 'Save Changes' : 'No Changes';
+            if (hasChanges) {
+                this.saveBtn.textContent = `Save ${this.editor.unsavedChanges.size} Changes`;
+            } else {
+                this.saveBtn.textContent = 'Auto-Saved';
+            }
         }
     }
     
@@ -45,15 +92,22 @@ class TranslationSave {
     }
     
     setupAutoSave() {
-        setInterval(async () => {
-            if (this.editor.hasUnsavedChanges) {
-                try {
-                    await this.saveAllChanges();
-                } catch (error) {
-                    console.error('Auto-save failed:', error);
+        // Auto-save now happens immediately on focus changes
+        // Also save when clicking outside of textareas
+        document.addEventListener('click', (e) => {
+            // If clicking outside any textarea, save the currently focused one
+            if (!e.target.closest('textarea') && this.currentFocusedTextarea) {
+                const prevTextarea = this.currentFocusedTextarea;
+                const prevVerseIndex = parseInt(prevTextarea.dataset.verseIndex);
+                const prevValue = prevTextarea.value || '';
+                
+                if (!isNaN(prevVerseIndex)) {
+                    this.bufferVerseChange(prevVerseIndex, prevValue);
                 }
+                
+                this.currentFocusedTextarea = null;
             }
-        }, 30000);
+        });
     }
     
     async saveAllChanges() {
