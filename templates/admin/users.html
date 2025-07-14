@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}User Management - Admin - CodexZero{% endblock %}
+
+{% block content %}
+<section class="min-h-screen paper-white">
+    <!-- Header -->
+    <div class="paper-cream border-b marker-border-thin">
+        <div class="max-w-7xl mx-auto px-6 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-6">
+                    <a href="{{ url_for('admin.dashboard') }}" class="nav-link text-sm font-medium">
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        Admin Dashboard
+                    </a>
+                    <div class="h-6 w-px marker-border-thin"></div>
+                    <div>
+                        <h1 class="text-3xl font-bold" style="color: #2d2d2d;">User Management</h1>
+                        <p class="text-sm text-neutral-700 mt-1 font-medium">{{ users.total }} total users</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="max-w-7xl mx-auto px-6 py-6">
+        <div class="paper-cream p-6 marker-border mb-6">
+            <form method="GET" class="flex items-center space-x-4">
+                <div class="flex-1">
+                    <input type="text" 
+                           name="search" 
+                           value="{{ search }}" 
+                           placeholder="Search by name or email..."
+                           class="w-full px-4 py-2 paper-white marker-border-thin text-neutral-900 placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <button type="submit" class="btn-marker">
+                    <i class="fas fa-search mr-2"></i>
+                    Search
+                </button>
+                {% if search %}
+                <a href="{{ url_for('admin.users') }}" class="px-4 py-2 text-neutral-600 hover:text-neutral-800 font-medium">
+                    Clear
+                </a>
+                {% endif %}
+            </form>
+        </div>
+
+        <!-- Users List -->
+        <div class="paper-cream marker-border">
+            <!-- Header -->
+            <div class="px-6 py-4 paper-light border-b marker-border-thin">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xl font-bold" style="color: #2d2d2d;">Users</h2>
+                    <div class="text-sm text-neutral-600 font-medium">
+                        {% if search %}
+                            Search results for "{{ search }}"
+                        {% else %}
+                            All users
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Table -->
+            {% if users.items %}
+                <div class="divide-y divide-neutral-200">
+                    {% for user in users.items %}
+                    <div class="px-6 py-4 hover:paper-light transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-4">
+                                <div class="w-10 h-10 paper-white marker-border-thin flex items-center justify-center">
+                                    <i class="fas fa-user text-blue-600"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold" style="color: #2d2d2d;">{{ user.name }}</h3>
+                                    <p class="text-sm text-neutral-600 font-medium">
+                                        {{ user.email }}
+                                        {% if user.projects|length > 0 %}
+                                        • {{ user.projects|length }} project{{ 's' if user.projects|length != 1 else '' }}
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center space-x-6 text-sm">
+                                <div class="text-right text-xs text-neutral-500 font-medium">
+                                    <div>Joined {{ user.created_at.strftime('%b %d, %Y') }}</div>
+                                    {% if user.last_login %}
+                                    <div>Active {{ user.last_login.strftime('%b %d, %Y') }}</div>
+                                    {% else %}
+                                    <div>Never logged in</div>
+                                    {% endif %}
+                                </div>
+                                <a href="{{ url_for('admin.user_detail', encoded_user_id=encode_id(user.id, 'user')) }}" 
+                                   class="px-4 py-2 paper-white marker-border-thin text-blue-600 hover:text-blue-800 hover:paper-light transition-colors font-medium">
+                                    <i class="fas fa-eye mr-2"></i>
+                                    View
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Pagination -->
+                {% if users.pages > 1 %}
+                <div class="px-6 py-4 paper-light border-t marker-border-thin">
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm text-neutral-600 font-medium">
+                            Showing {{ (users.page - 1) * users.per_page + 1 }} to 
+                            {{ users.page * users.per_page if users.page * users.per_page < users.total else users.total }} 
+                            of {{ users.total }} users
+                        </div>
+                        
+                        <div class="flex items-center space-x-2">
+                            {% if users.has_prev %}
+                                <a href="{{ url_for('admin.users', page=users.prev_num, search=search) }}" 
+                                   class="px-3 py-2 paper-white marker-border-thin text-neutral-700 hover:text-neutral-900 font-medium">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            {% endif %}
+                            
+                            {% for page_num in users.iter_pages() %}
+                                {% if page_num %}
+                                    {% if page_num != users.page %}
+                                        <a href="{{ url_for('admin.users', page=page_num, search=search) }}" 
+                                           class="px-3 py-2 paper-white marker-border-thin text-neutral-700 hover:text-neutral-900 font-medium">
+                                            {{ page_num }}
+                                        </a>
+                                    {% else %}
+                                        <span class="px-3 py-2 btn-marker">{{ page_num }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="px-3 py-2 text-neutral-400">…</span>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if users.has_next %}
+                                <a href="{{ url_for('admin.users', page=users.next_num, search=search) }}" 
+                                   class="px-3 py-2 paper-white marker-border-thin text-neutral-700 hover:text-neutral-900 font-medium">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+            {% else %}
+                <div class="px-6 py-12 text-center">
+                    <div class="w-16 h-16 paper-light marker-border-thin flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-search text-neutral-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-bold mb-2" style="color: #2d2d2d;">No users found</h3>
+                    {% if search %}
+                        <p class="text-neutral-600 mb-4 font-medium">No users match your search for "{{ search }}"</p>
+                        <a href="{{ url_for('admin.users') }}" class="text-blue-600 hover:text-blue-800 font-medium">
+                            View all users
+                        </a>
+                    {% else %}
+                        <p class="text-neutral-600 font-medium">No users have signed up yet</p>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %} 

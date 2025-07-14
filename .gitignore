@@ -76,5 +76,7 @@ coverage.xml
 .pytest_cache/
 .tox/
 __pycache__/
-storage/
+
+# Corpus files (ignore all except specific exemptions)
 Corpus/
+!Corpus/eng-engULB.txt

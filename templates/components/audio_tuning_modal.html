@@ -1,0 +1,520 @@
+{% macro audio_tuning_modal() %}
+<div id="audio-tuning-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col border border-neutral-200">
+            <div class="flex items-center justify-between p-6 border-b border-neutral-200">
+                <h3 class="text-xl font-bold text-neutral-900 tracking-tight">Fine-tune Audio</h3>
+                <button onclick="closeModal()" class="text-neutral-400 hover:text-neutral-600 p-2 rounded-lg hover:bg-neutral-100 transition-all duration-200">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+            
+            <!-- Voice Profile Section - Top of Modal -->
+            <div class="p-6 bg-blue-50 border-b border-blue-200">
+                <div class="flex items-center justify-between mb-3">
+                    <label class="text-lg font-bold text-blue-900 tracking-tight">Project Voice Profile</label>
+                    <button onclick="saveVoiceProfile()" id="save-profile-btn" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 font-medium shadow-sm">
+                        Save Profile
+                    </button>
+                </div>
+                <textarea 
+                    id="voice-profile-input" 
+                    placeholder="Describe the voice characteristics for this project (e.g., 'warm, authoritative tone with slight British accent, speak slowly and clearly')"
+                    class="w-full border border-blue-300 rounded-xl px-4 py-3 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-none shadow-sm"
+                    rows="3"
+                    maxlength="500"
+                ></textarea>
+                <div class="flex justify-between items-center mt-2">
+                    <span class="text-sm text-blue-700 font-medium">Applied to all audio generated in this project</span>
+                    <span class="text-sm text-blue-600 profile-char-counter font-mono">0/500</span>
+                </div>
+            </div>
+            
+            <div class="p-6 bg-neutral-50 border-b border-neutral-200">
+                <div class="text-sm font-medium text-neutral-600 mb-2">Original Text:</div>
+                <div id="original-text" class="text-neutral-900 font-semibold text-lg"></div>
+            </div>
+            
+            <!-- Chat-like iterations list -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-4" id="iterations-list">
+                <!-- Iterations will be added here -->
+            </div>
+            
+            <!-- Input area -->
+            <div class="border-t border-neutral-200 p-6">
+                <div class="flex items-center space-x-4 mb-4">
+                    <!-- Custom Voice Dropdown -->
+                    <div class="relative">
+                        <button id="voice-dropdown-btn" class="flex items-center justify-between w-32 px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-200 rounded-xl hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm">
+                            <span id="voice-dropdown-text">Onyx</span>
+                            <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200" id="voice-dropdown-chevron"></i>
+                        </button>
+                        <div id="voice-dropdown-menu" class="absolute z-50 w-40 mt-2 bg-white border border-neutral-200 rounded-xl shadow-lg hidden max-h-64 overflow-y-auto">
+                            <div class="py-2">
+                                <div class="voice-option px-4 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer transition-all duration-200" data-voice="alloy">Alloy</div>
+                                <div class="voice-option px-4 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer transition-all duration-200" data-voice="ash">Ash</div>
+                                <div class="voice-option px-4 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer transition-all duration-200" data-voice="ballad">Ballad</div>
+                                <div class="voice-option px-4 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer transition-all duration-200" data-voice="coral">Coral</div>
+                                <div class="voice-option px-4 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer transition-all duration-200" data-voice="echo">Echo</div>
+                                <div class="voice-option px-4 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer transition-all duration-200" data-voice="fable">Fable</div>
+                                <div class="voice-option px-4 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer transition-all duration-200" data-voice="nova">Nova</div>
+                                <div class="voice-option px-4 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer transition-all duration-200 bg-blue-50 text-blue-900" data-voice="onyx">Onyx</div>
+                                <div class="voice-option px-4 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer transition-all duration-200" data-voice="sage">Sage</div>
+                                <div class="voice-option px-4 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer transition-all duration-200" data-voice="shimmer">Shimmer</div>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="text-sm text-neutral-600 font-medium">Voice for next iteration</span>
+                </div>
+                <div class="flex space-x-3">
+                    <input 
+                        type="text" 
+                        id="instructions-input" 
+                        placeholder="Voice instructions (e.g., 'speak slowly', 'British accent', 'more excited')"
+                        class="flex-1 border border-neutral-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-medium"
+                        onkeypress="if(event.key==='Enter') generateIteration()"
+                    >
+                    <button onclick="generateIteration()" id="generate-btn" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105">
+                        <i class="fas fa-play"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="flex justify-between items-center p-6 border-t border-neutral-200 bg-neutral-50 rounded-b-2xl">
+                <button onclick="deleteAllAudio()" class="px-6 py-3 text-red-600 hover:bg-red-50 rounded-xl font-medium hover:text-red-700 transition-all duration-200">
+                    <i class="fas fa-trash mr-2"></i>Delete All Audio
+                </button>
+                <div class="flex space-x-3">
+                    <button onclick="closeModal()" class="px-6 py-3 border border-neutral-200 rounded-xl text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-all duration-200 font-medium">
+                        Cancel
+                    </button>
+                    <button onclick="applySelected()" id="apply-btn" class="px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105" disabled>
+                        Apply Selected
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let modalData = null;
+let iterations = [];
+let selectedIndex = null;
+
+window.AudioTuningModal = {
+    open: function(data) {
+        modalData = data;
+        iterations = [];
+        selectedIndex = null;
+        
+        document.getElementById('original-text').textContent = data.originalText;
+        // Set default voice for custom dropdown
+        const defaultVoice = localStorage.getItem('preferredVoice') || 'onyx';
+        setSelectedVoice(defaultVoice);
+        document.getElementById('instructions-input').value = '';
+        document.getElementById('iterations-list').innerHTML = '';
+        document.getElementById('audio-tuning-modal').classList.remove('hidden');
+        
+        loadVoiceProfile();
+        loadCurrentAudio();
+        updateApplyButton();
+        setupVoiceProfileListeners();
+        setupCustomDropdown();
+    }
+};
+
+function closeModal() {
+    document.getElementById('audio-tuning-modal').classList.add('hidden');
+    modalData = null;
+    iterations = [];
+    selectedIndex = null;
+}
+
+async function loadCurrentAudio() {
+    try {
+        const response = await fetch(`/project/${modalData.projectId}/verse-audio/${modalData.textId}/${modalData.verseIndex}/check`);
+        const data = await response.json();
+        
+        if (data.exists) {
+            addIteration({
+                audioId: data.audio_id,
+                prompt: 'Current audio',
+                voice: 'current',
+                isCurrent: true
+            });
+            selectIteration(0);
+        }
+    } catch (error) {
+        console.error('Error loading current audio:', error);
+    }
+}
+
+async function generateIteration() {
+    const voice = getSelectedVoice();
+    const instructions = document.getElementById('instructions-input').value.trim();
+    const btn = document.getElementById('generate-btn');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    
+    try {
+        const response = await fetch(`/project/${modalData.projectId}/verse-audio/${modalData.textId}/${modalData.verseIndex}/tts-iterate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: modalData.originalText,
+                voice: voice,
+                instructions: instructions
+            })
+        });
+        
+        const data = await response.json();
+        
+        addIteration({
+            audioId: data.audio_id,
+            prompt: instructions || 'No instructions',
+            voice: voice,
+            isCurrent: false
+        });
+        
+        selectIteration(iterations.length - 1);
+        document.getElementById('instructions-input').value = '';
+        
+    } catch (error) {
+        console.error('Error generating audio:', error);
+        alert('Failed to generate audio');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-play"></i>';
+    }
+}
+
+function addIteration(iteration) {
+    iterations.push(iteration);
+    const index = iterations.length - 1;
+    
+    const div = document.createElement('div');
+    div.className = 'iteration border rounded-lg p-3 cursor-pointer hover:bg-gray-50';
+    div.dataset.index = index;
+    div.onclick = () => selectIteration(index);
+    
+    div.innerHTML = `
+        <div class="flex items-start justify-between mb-2">
+            <div class="flex items-center space-x-2">
+                <div class="w-2 h-2 rounded-full ${iteration.isCurrent ? 'bg-green-500' : 'bg-blue-500'}"></div>
+                <span class="text-sm font-medium">${iteration.isCurrent ? 'Current' : iteration.voice}</span>
+                ${iteration.isCurrent ? '<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Original</span>' : ''}
+            </div>
+            <span class="text-xs text-gray-500">${new Date().toLocaleTimeString()}</span>
+        </div>
+        <div class="text-sm text-gray-700 mb-3">${iteration.prompt}</div>
+        
+        <div class="bg-gray-50 rounded p-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <button onclick="playAudio('${iteration.audioId}', this)" class="w-8 h-8 bg-blue-500 text-white rounded-full hover:bg-blue-600 flex items-center justify-center">
+                        <i class="fas fa-play text-xs"></i>
+                    </button>
+                    <span class="text-xs text-gray-600">${iteration.isCurrent ? 'Current Audio' : iteration.voice}</span>
+                </div>
+                <button onclick="downloadAudio('${iteration.audioId}')" class="text-gray-500 hover:text-green-600">
+                    <i class="fas fa-download"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('iterations-list').appendChild(div);
+}
+
+function selectIteration(index) {
+    selectedIndex = index;
+    
+    document.querySelectorAll('.iteration').forEach((el, i) => {
+        if (i === index) {
+            el.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
+            el.classList.remove('hover:bg-gray-50');
+        } else {
+            el.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50');
+            el.classList.add('hover:bg-gray-50');
+        }
+    });
+    
+    updateApplyButton();
+}
+
+function updateApplyButton() {
+    const btn = document.getElementById('apply-btn');
+    if (selectedIndex !== null && iterations[selectedIndex]) {
+        const iteration = iterations[selectedIndex];
+        btn.disabled = iteration.isCurrent;
+        btn.textContent = iteration.isCurrent ? 'Current Selected' : 'Apply Selected';
+    } else {
+        btn.disabled = true;
+        btn.textContent = 'Select an iteration';
+    }
+}
+
+function playAudio(audioId, button, event) {
+    if (event) event.stopPropagation();
+    
+    const icon = button.querySelector('i');
+    
+    // Check if this button already has audio playing
+    if (button._audio && !button._audio.paused) {
+        // Pause the current audio
+        button._audio.pause();
+        icon.className = 'fas fa-play text-xs';
+        return;
+    }
+    
+    // Stop all other audio and reset their buttons
+    document.querySelectorAll('[onclick*="playAudio"]').forEach(btn => {
+        if (btn !== button && btn._audio) {
+            btn._audio.pause();
+            btn.querySelector('i').className = 'fas fa-play text-xs';
+        }
+    });
+    
+    // Create new audio if doesn't exist
+    if (!button._audio) {
+        button._audio = new Audio(`/project/${modalData.projectId}/verse-audio/${audioId}/download`);
+        
+        button._audio.onended = () => {
+            icon.className = 'fas fa-play text-xs';
+        };
+        
+        button._audio.onerror = () => {
+            icon.className = 'fas fa-play text-xs';
+            alert('Failed to play audio');
+        };
+    }
+    
+    // Play the audio
+    icon.className = 'fas fa-spinner fa-spin text-xs';
+    
+    button._audio.onloadeddata = () => {
+        icon.className = 'fas fa-pause text-xs';
+        button._audio.play();
+    };
+    
+    // If already loaded, play immediately
+    if (button._audio.readyState >= 2) {
+        icon.className = 'fas fa-pause text-xs';
+        button._audio.play();
+    }
+}
+
+function downloadAudio(audioId, event) {
+    if (event) event.stopPropagation();
+    
+    const a = document.createElement('a');
+    a.href = `/project/${modalData.projectId}/verse-audio/${audioId}/download`;
+    a.download = `audio_${audioId}.mp3`;
+    a.click();
+}
+
+async function applySelected() {
+    if (selectedIndex === null || !iterations[selectedIndex]) return;
+    
+    const iteration = iterations[selectedIndex];
+    
+    if (!iteration.isCurrent) {
+        try {
+            const response = await fetch(`/project/${modalData.projectId}/verse-audio/${modalData.textId}/${modalData.verseIndex}/apply`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ audioId: iteration.audioId })
+            });
+            
+            if (response.ok && modalData.onApply) {
+                modalData.onApply(iteration.audioId);
+            }
+        } catch (error) {
+            console.error('Error applying changes:', error);
+            alert('Failed to apply changes');
+            return;
+        }
+    }
+    
+    closeModal();
+}
+
+async function deleteAllAudio() {
+    if (!confirm('Delete all audio for this verse?')) return;
+    
+    try {
+        const response = await fetch(`/project/${modalData.projectId}/verse-audio/${modalData.textId}/${modalData.verseIndex}/check`);
+        const data = await response.json();
+        
+        if (data.exists) {
+            const deleteResponse = await fetch(`/project/${modalData.projectId}/verse-audio/${data.audio_id}`, {
+                method: 'DELETE'
+            });
+            
+            if (deleteResponse.ok && modalData.onApply) {
+                modalData.onApply(null);
+            }
+        }
+    } catch (error) {
+        console.error('Error deleting audio:', error);
+    }
+    
+    closeModal();
+}
+
+async function loadVoiceProfile() {
+    try {
+        const response = await fetch(`/project/${modalData.projectId}/voice-profile`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const profileInput = document.getElementById('voice-profile-input');
+            profileInput.value = data.voice_profile || '';
+            updateProfileCharCounter();
+        }
+    } catch (error) {
+        console.error('Error loading voice profile:', error);
+    }
+}
+
+async function saveVoiceProfile() {
+    const profileInput = document.getElementById('voice-profile-input');
+    const saveBtn = document.getElementById('save-profile-btn');
+    const originalText = saveBtn.textContent;
+    
+    try {
+        saveBtn.textContent = 'Saving...';
+        saveBtn.disabled = true;
+        
+        const response = await fetch(`/project/${modalData.projectId}/voice-profile`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ voice_profile: profileInput.value.trim() })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            saveBtn.textContent = 'Saved!';
+            saveBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            saveBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+            
+            setTimeout(() => {
+                saveBtn.textContent = originalText;
+                saveBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                saveBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                saveBtn.disabled = false;
+            }, 1500);
+        } else {
+            throw new Error(data.error || 'Failed to save voice profile');
+        }
+    } catch (error) {
+        console.error('Error saving voice profile:', error);
+        saveBtn.textContent = 'Error';
+        saveBtn.classList.add('bg-red-600');
+        
+        setTimeout(() => {
+            saveBtn.textContent = originalText;
+            saveBtn.classList.remove('bg-red-600');
+            saveBtn.disabled = false;
+        }, 2000);
+    }
+}
+
+function setupVoiceProfileListeners() {
+    const profileInput = document.getElementById('voice-profile-input');
+    
+    profileInput.addEventListener('input', updateProfileCharCounter);
+    profileInput.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            saveVoiceProfile();
+        }
+    });
+}
+
+function updateProfileCharCounter() {
+    const profileInput = document.getElementById('voice-profile-input');
+    const counter = document.querySelector('.profile-char-counter');
+    const length = profileInput.value.length;
+    
+    counter.textContent = `${length}/500`;
+    
+    if (length > 450) {
+        counter.classList.add('text-red-500');
+        counter.classList.remove('text-blue-500');
+    } else {
+        counter.classList.add('text-blue-500');
+        counter.classList.remove('text-red-500');
+    }
+}
+
+function setupCustomDropdown() {
+    const dropdownBtn = document.getElementById('voice-dropdown-btn');
+    const dropdownMenu = document.getElementById('voice-dropdown-menu');
+    const dropdownChevron = document.getElementById('voice-dropdown-chevron');
+    const voiceOptions = document.querySelectorAll('.voice-option');
+    
+    // Toggle dropdown
+    dropdownBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = !dropdownMenu.classList.contains('hidden');
+        
+        if (isOpen) {
+            dropdownMenu.classList.add('hidden');
+            dropdownChevron.style.transform = 'rotate(0deg)';
+        } else {
+            dropdownMenu.classList.remove('hidden');
+            dropdownChevron.style.transform = 'rotate(180deg)';
+        }
+    });
+    
+    // Handle voice selection
+    voiceOptions.forEach(option => {
+        option.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const voice = option.dataset.voice;
+            setSelectedVoice(voice);
+            
+            // Close dropdown
+            dropdownMenu.classList.add('hidden');
+            dropdownChevron.style.transform = 'rotate(0deg)';
+        });
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!dropdownBtn.contains(e.target) && !dropdownMenu.contains(e.target)) {
+            dropdownMenu.classList.add('hidden');
+            dropdownChevron.style.transform = 'rotate(0deg)';
+        }
+    });
+}
+
+function setSelectedVoice(voice) {
+    const dropdownText = document.getElementById('voice-dropdown-text');
+    const voiceOptions = document.querySelectorAll('.voice-option');
+    
+    // Update display text
+    dropdownText.textContent = voice.charAt(0).toUpperCase() + voice.slice(1);
+    
+    // Update visual selection
+    voiceOptions.forEach(option => {
+        if (option.dataset.voice === voice) {
+            option.classList.add('bg-blue-50', 'text-blue-900');
+        } else {
+            option.classList.remove('bg-blue-50', 'text-blue-900');
+        }
+    });
+    
+    // Store selected voice globally
+    window.selectedVoice = voice;
+}
+
+function getSelectedVoice() {
+    return window.selectedVoice || 'onyx';
+}
+</script>
+{% endmacro %} 

@@ -1,66 +1,25 @@
-// Unified Text Window Class
+// Unified Text Window Class - OPTIMIZED for Performance
 class TextWindow {
     constructor(id, data, type, title, targetLanguage = null) {
         this.id = id;
         this.data = data;
-        this.type = type; // 'primary' or 'reference' 
+        this.type = type;
         this.title = title;
         this.targetLanguage = targetLanguage; 
         this.element = null;
-        this.colorTheme = this.getStoredColorTheme();
+        this.audioManager = new AudioManager(id);
         
-        console.log('TextWindow created:', {
-            id: this.id,
-            type: this.type,
-            title: this.title,
-            targetLanguage: this.targetLanguage
-        });
-    }
-    
-    getStoredColorTheme() {
-        const storageKey = `text_window_color_${this.id}`;
-        return localStorage.getItem(storageKey) || 'theme-default';
-    }
-    
-    setColorTheme(theme) {
-        this.colorTheme = theme;
-        const storageKey = `text_window_color_${this.id}`;
-        localStorage.setItem(storageKey, theme);
-        this.updateElementTheme();
-    }
-    
-    updateElementTheme() {
-        if (!this.element) return;
+        // PERFORMANCE: Simple rendering - no virtual scrolling
         
-        const themeClasses = this.getThemeClasses();
-        const headerThemeClasses = this.getHeaderThemeClasses();
-        
-        this.element.className = `flex flex-col border rounded-sm overflow-hidden bg-white min-h-15 flex-1 transition-all duration-200 ${themeClasses}`;
-        
-        const header = this.element.querySelector('[data-window-header]');
-        if (header) {
-            header.className = `px-4 py-3 text-sm font-bold border-b flex items-center justify-between flex-shrink-0 uppercase tracking-wider cursor-grab active:cursor-grabbing ${headerThemeClasses}`;
-        }
-        
-        const colorOptions = this.element.querySelectorAll('[data-theme-option]');
-        colorOptions.forEach(option => {
-            const themeClass = option.getAttribute('data-theme-option');
-            const isSelected = themeClass === this.colorTheme;
-            
-            if (isSelected) {
-                option.classList.add('border-gray-800', 'border-2');
-                option.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-white text-xs font-bold drop-shadow">✓</div>';
-            } else {
-                option.classList.remove('border-gray-800', 'border-2');
-                option.innerHTML = '';
-            }
-        });
+        // PERFORMANCE: Lazy loading flags
+        this.dragListenersSetup = false;
     }
     
     render(container) {
         const textWindow = document.createElement('div');
-        textWindow.className = `flex flex-col border border-gray-800 rounded-sm overflow-hidden bg-white min-h-15 flex-1 transition-all duration-200 ${this.getThemeClasses()}`;
+        textWindow.className = `flex flex-col border border-neutral-200 rounded-xl overflow-hidden bg-white min-h-15 flex-1 shadow-sm`;
         textWindow.dataset.textId = this.id;
+        textWindow.dataset.windowId = this.id;
         
         textWindow.appendChild(this.createHeader());
         textWindow.appendChild(this.createContent());
@@ -68,49 +27,30 @@ class TextWindow {
         container.appendChild(textWindow);
         this.element = textWindow;
         
+        this.addWindowDropListeners(textWindow);
+        PurposeManager.setupPurposeListeners(textWindow);
+        
         return textWindow;
     }
     
-    getThemeClasses() {
-        const themeMap = {
-            'theme-default': 'border-gray-800',
-            'theme-blue': 'border-blue-600',
-            'theme-green': 'border-green-600',
-            'theme-purple': 'border-purple-600',
-            'theme-orange': 'border-orange-600',
-            'theme-pink': 'border-pink-600',
-            'theme-teal': 'border-teal-600'
-        };
-        return themeMap[this.colorTheme] || 'border-gray-800';
-    }
+
     
-    getHeaderThemeClasses() {
-        const headerThemeMap = {
-            'theme-default': 'bg-stone-100 text-gray-800 border-b-gray-800',
-            'theme-blue': 'bg-blue-50 text-blue-600 border-b-blue-600',
-            'theme-green': 'bg-green-50 text-green-600 border-b-green-600',
-            'theme-purple': 'bg-purple-50 text-purple-600 border-b-purple-600',
-            'theme-orange': 'bg-orange-50 text-orange-600 border-b-orange-600',
-            'theme-pink': 'bg-pink-50 text-pink-600 border-b-pink-600',
-            'theme-teal': 'bg-teal-50 text-teal-600 border-b-teal-600'
-        };
-        return headerThemeMap[this.colorTheme] || 'bg-stone-100 text-gray-800 border-b-gray-800';
-    }
+
     
     createHeader() {
         const header = document.createElement('div');
-        header.className = `px-4 py-3 text-sm font-bold border-b border-gray-800 flex items-center justify-between flex-shrink-0 bg-stone-100 uppercase tracking-wider cursor-grab active:cursor-grabbing ${this.getHeaderThemeClasses()}`;
+        header.className = `px-4 py-3 text-sm font-bold border-b border-neutral-200 flex items-center justify-between flex-shrink-0 tracking-wide cursor-grab active:cursor-grabbing bg-neutral-50 text-neutral-800`;
         header.draggable = true;
         header.setAttribute('data-window-header', 'true');
         
         const downloadButton = this.createDownloadButton();
-        const closeButton = `<button class="text-red-600 hover:text-red-800 hover:bg-red-100 rounded p-1 transition-colors close-text-btn" 
+        const plusButton = this.createPlusButton();
+        const playAllButton = this.createPlayAllButton();
+        const closeButton = `<button class="text-red-600 rounded p-1 close-text-btn" 
                        data-text-id="${this.id}" 
                        title="Remove this text">
                    <i class="fas fa-times text-xs"></i>
                </button>`;
-        
-        const colorPicker = this.createColorPicker();
         
         header.innerHTML = `
             <div class="flex items-center">
@@ -124,7 +64,12 @@ class TextWindow {
         
         const rightContainer = header.querySelector('div:last-child');
         rightContainer.insertBefore(downloadButton, rightContainer.firstChild);
-        rightContainer.insertBefore(colorPicker, rightContainer.firstChild);
+        rightContainer.insertBefore(plusButton, rightContainer.firstChild);
+        
+        // Only add play all button for primary windows with audio capability
+        if (this.type === 'primary' && window.translationEditor?.canEdit) {
+            rightContainer.insertBefore(playAllButton, rightContainer.firstChild);
+        }
         
         header.addEventListener('dragstart', (e) => {
             const windowData = {
@@ -144,94 +89,22 @@ class TextWindow {
         return header;
     }
     
-    createColorPicker() {
-        const colorPicker = document.createElement('div');
-        colorPicker.className = 'relative inline-block';
-        
-        const toggle = document.createElement('div');
-        toggle.className = 'w-5 h-5 border border-current rounded cursor-pointer transition-all duration-200 flex items-center justify-center hover:scale-110 hover:shadow-sm';
-        toggle.title = 'Change window color';
-        toggle.innerHTML = '<i class="fas fa-palette text-xs opacity-70"></i>';
-        
-        const dropdown = document.createElement('div');
-        dropdown.className = 'absolute top-full right-0 bg-white border border-gray-800 rounded-md p-3 hidden z-50 shadow-xl';
-        
-        const colorOptions = document.createElement('div');
-        colorOptions.className = 'grid grid-cols-3 gap-2 w-24';
-        
-        const themes = [
-            { class: 'theme-default', name: 'Default', gradient: 'from-gray-800 to-gray-600' },
-            { class: 'theme-blue', name: 'Blue', gradient: 'from-blue-600 to-blue-500' },
-            { class: 'theme-green', name: 'Green', gradient: 'from-green-600 to-green-500' },
-            { class: 'theme-purple', name: 'Purple', gradient: 'from-purple-600 to-purple-500' },
-            { class: 'theme-orange', name: 'Orange', gradient: 'from-orange-600 to-orange-500' },
-            { class: 'theme-pink', name: 'Pink', gradient: 'from-pink-600 to-pink-500' },
-            { class: 'theme-teal', name: 'Teal', gradient: 'from-teal-600 to-teal-500' }
-        ];
-        
-        themes.forEach(theme => {
-            const option = document.createElement('div');
-            option.className = `w-6 h-6 border border-transparent rounded cursor-pointer transition-all duration-200 relative bg-gradient-to-br ${theme.gradient} hover:scale-110 hover:border-gray-400`;
-            option.title = theme.name;
-            option.setAttribute('data-theme-option', theme.class);
-            
-            if (theme.class === this.colorTheme) {
-                option.classList.add('border-gray-800', 'border-2');
-                option.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-white text-xs font-bold">✓</div>';
-            }
-            
-            option.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.setColorTheme(theme.class);
-                dropdown.classList.add('hidden');
-                dropdown.classList.remove('block');
-            });
-            
-            colorOptions.appendChild(option);
-        });
-        
-        dropdown.appendChild(colorOptions);
-        
-        toggle.addEventListener('click', (e) => {
-            e.stopPropagation();
-            dropdown.classList.toggle('hidden');
-            dropdown.classList.toggle('block');
-            
-            document.querySelectorAll('.color-picker-dropdown:not(.hidden)').forEach(other => {
-                if (other !== dropdown) {
-                    other.classList.add('hidden');
-                    other.classList.remove('block');
-                }
-            });
-        });
-        
-        document.addEventListener('click', (e) => {
-            if (!colorPicker.contains(e.target)) {
-                dropdown.classList.add('hidden');
-                dropdown.classList.remove('block');
-            }
-        });
-        
-        colorPicker.appendChild(toggle);
-        colorPicker.appendChild(dropdown);
-        
-        return colorPicker;
-    }
+
 
     createDownloadButton() {
         const downloadContainer = document.createElement('div');
         downloadContainer.className = 'relative inline-block';
         
         const downloadToggle = document.createElement('button');
-        downloadToggle.className = 'text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded p-1 transition-colors';
+        downloadToggle.className = 'text-gray-600 rounded p-1';
         downloadToggle.title = 'Download chapter';
         downloadToggle.innerHTML = '<i class="fas fa-download text-xs"></i>';
         
         const downloadDropdown = document.createElement('div');
-        downloadDropdown.className = 'absolute top-full right-0 bg-white border-2 border-gray-800 rounded-md py-2 hidden z-50 shadow-xl min-w-36';
+        downloadDropdown.className = 'absolute top-full right-0 bg-white border border-neutral-200 rounded-xl py-2 hidden z-50 shadow-xl min-w-36';
         
         const txtButton = document.createElement('button');
-        txtButton.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center';
+        txtButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center';
         txtButton.innerHTML = '<i class="fas fa-file-alt mr-2 text-gray-500"></i>Download as TXT';
         txtButton.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -240,7 +113,7 @@ class TextWindow {
         });
         
         const usfmButton = document.createElement('button');
-        usfmButton.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center';
+        usfmButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center';
         usfmButton.innerHTML = '<i class="fas fa-code mr-2 text-gray-500"></i>Download as USFM';
         usfmButton.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -250,6 +123,37 @@ class TextWindow {
         
         downloadDropdown.appendChild(txtButton);
         downloadDropdown.appendChild(usfmButton);
+        
+        // Add audio download options for primary windows
+        if (this.type === 'primary' && window.translationEditor?.canEdit) {
+            // Separator
+            const separator = document.createElement('hr');
+            separator.className = 'my-2 border-gray-200';
+            downloadDropdown.appendChild(separator);
+            
+            // Individual audio files button
+            const audioIndividualButton = document.createElement('button');
+            audioIndividualButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center';
+            audioIndividualButton.innerHTML = '<i class="fas fa-volume-up mr-2 text-gray-500"></i>Download Audio Files';
+            audioIndividualButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.downloadAudioFiles('individual');
+                downloadDropdown.classList.add('hidden');
+            });
+            
+            // Spliced audio button
+            const audioSplicedButton = document.createElement('button');
+            audioSplicedButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center';
+            audioSplicedButton.innerHTML = '<i class="fas fa-music mr-2 text-gray-500"></i>Download Spliced Audio';
+            audioSplicedButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.downloadAudioFiles('spliced');
+                downloadDropdown.classList.add('hidden');
+            });
+            
+            downloadDropdown.appendChild(audioIndividualButton);
+            downloadDropdown.appendChild(audioSplicedButton);
+        }
         
         downloadToggle.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -275,6 +179,174 @@ class TextWindow {
         downloadDropdown.classList.add('download-dropdown');
         
         return downloadContainer;
+    }
+
+    createPlusButton() {
+        const plusButton = document.createElement('button');
+        plusButton.className = 'text-gray-600 rounded p-1';
+        plusButton.title = 'Load additional text';
+        plusButton.innerHTML = '<i class="fas fa-plus text-xs"></i>';
+
+        plusButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.openTextSelectionModal();
+        });
+
+        return plusButton;
+    }
+
+    openTextSelectionModal() {
+        const isPrimary = this.type === 'primary';
+        window.translationEditor.ui.showTextSelectionModal(isPrimary);
+    }
+
+    createPlayAllButton() {
+        const playAllButton = document.createElement('button');
+        playAllButton.className = 'text-gray-600 rounded p-1 play-all-btn';
+        playAllButton.title = 'Play all audio in sequence';
+        playAllButton.innerHTML = '<i class="fas fa-play-circle text-xs"></i>';
+        
+        // State management
+        playAllButton._isPlaying = false;
+        playAllButton._currentIndex = 0;
+        playAllButton._audioQueue = [];
+
+        playAllButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.togglePlayAll(playAllButton);
+        });
+
+        return playAllButton;
+    }
+
+    async togglePlayAll(button) {
+        if (button._isPlaying) {
+            this.stopPlayAll(button);
+        } else {
+            await this.startPlayAll(button);
+        }
+    }
+
+    async startPlayAll(button) {
+        // Find all verses with audio
+        const audioQueue = [];
+        const verseElements = this.element.querySelectorAll('[data-verse-cell]');
+        
+        for (const verseElement of verseElements) {
+            const verseIndex = verseElement.dataset.verse;
+            // Find the audio controls container created by AudioManager
+            // Search for any element with _audioId property within this verse
+            let audioControls = null;
+            const allElements = verseElement.querySelectorAll('*');
+            for (const el of allElements) {
+                if (el._audioId) {
+                    audioControls = el;
+                    break;
+                }
+            }
+            
+            if (audioControls && audioControls._audioId) {
+                audioQueue.push({
+                    verseIndex: parseInt(verseIndex),
+                    verseElement: verseElement,
+                    audioControls: audioControls
+                });
+            }
+        }
+
+        if (audioQueue.length === 0) {
+            alert('No audio files found. Generate audio for some verses first.');
+            return;
+        }
+
+        button._isPlaying = true;
+        button._currentIndex = 0;
+        button._audioQueue = audioQueue;
+        
+        // Update button appearance
+        button.innerHTML = '<i class="fas fa-stop text-xs"></i>';
+        button.title = 'Stop playing all audio';
+        button.classList.add('text-blue-600');
+
+        await this.playNextInQueue(button);
+    }
+
+    async playNextInQueue(button) {
+        if (!button._isPlaying || button._currentIndex >= button._audioQueue.length) {
+            this.stopPlayAll(button);
+            return;
+        }
+
+        const currentItem = button._audioQueue[button._currentIndex];
+        const audioControls = currentItem.audioControls;
+
+        // Highlight current verse
+        this.highlightCurrentVerse(currentItem.verseElement, true);
+
+        try {
+            // Create audio element
+            const projectId = window.location.pathname.split('/')[2];
+            const audioUrl = `/project/${projectId}/verse-audio/${audioControls._audioId}/download`;
+            const audio = new Audio(audioUrl);
+
+            // Play the audio
+            await new Promise((resolve, reject) => {
+                audio.onended = () => {
+                    this.highlightCurrentVerse(currentItem.verseElement, false);
+                    button._currentIndex++;
+                    resolve();
+                };
+
+                audio.onerror = () => {
+                    this.highlightCurrentVerse(currentItem.verseElement, false);
+                    console.error('Failed to play audio for verse', currentItem.verseIndex);
+                    button._currentIndex++;
+                    resolve(); // Continue to next even on error
+                };
+
+                audio.play().catch(reject);
+            });
+
+            // Play next immediately without delay
+            await this.playNextInQueue(button);
+
+        } catch (error) {
+            console.error('Error playing audio:', error);
+            this.highlightCurrentVerse(currentItem.verseElement, false);
+            button._currentIndex++;
+            await this.playNextInQueue(button);
+        }
+    }
+
+    stopPlayAll(button) {
+        button._isPlaying = false;
+        button._currentIndex = 0;
+        
+        // Clear highlighting
+        if (button._audioQueue) {
+            button._audioQueue.forEach(item => {
+                this.highlightCurrentVerse(item.verseElement, false);
+            });
+        }
+        
+        button._audioQueue = [];
+        
+        // Reset button appearance
+        button.innerHTML = '<i class="fas fa-play-circle text-xs"></i>';
+        button.title = 'Play all audio in sequence';
+        button.classList.remove('text-blue-600');
+    }
+
+    highlightCurrentVerse(verseElement, highlight) {
+        if (highlight) {
+            verseElement.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
+            verseElement.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+            });
+        } else {
+            verseElement.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50');
+        }
     }
 
     downloadChapter(format) {
@@ -406,9 +478,87 @@ class TextWindow {
         return bookCodes[bookName] || bookName.substring(0, 3).toUpperCase();
     }
     
+    async downloadAudioFiles(type) {
+        const projectId = window.location.pathname.split('/')[2];
+        const editor = window.translationEditor;
+        const book = editor?.currentBook || 'Unknown';
+        const chapter = editor?.currentChapter || '1';
+        
+        // Collect all verses with audio
+        const audioVerses = [];
+        const verseElements = this.element.querySelectorAll('[data-verse-cell]');
+        
+        for (const verseElement of verseElements) {
+            let audioControls = null;
+            const allElements = verseElement.querySelectorAll('*');
+            for (const el of allElements) {
+                if (el._audioId) {
+                    audioControls = el;
+                    break;
+                }
+            }
+            
+            if (audioControls && audioControls._audioId) {
+                audioVerses.push({
+                    verse: verseElement.dataset.verse,
+                    audioId: audioControls._audioId
+                });
+            }
+        }
+        
+        if (audioVerses.length === 0) {
+            alert('No audio files found to download.');
+            return;
+        }
+        
+        if (type === 'individual') {
+            // Download each audio file individually
+            for (const verseAudio of audioVerses) {
+                const link = document.createElement('a');
+                link.href = `/project/${projectId}/verse-audio/${verseAudio.audioId}/download`;
+                link.download = `${book}_${chapter}_verse_${verseAudio.verse}.mp3`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Small delay between downloads to avoid overwhelming the browser
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        } else if (type === 'spliced') {
+            // Request spliced audio from backend
+            try {
+                const response = await fetch(`/project/${projectId}/audio/splice`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        audio_ids: audioVerses.map(v => v.audioId),
+                        filename: `${book}_${chapter}_complete.mp3`
+                    })
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${book}_${chapter}_complete.mp3`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                } else {
+                    alert('Failed to create spliced audio file.');
+                }
+            } catch (error) {
+                console.error('Error downloading spliced audio:', error);
+                alert('Failed to download spliced audio.');
+            }
+        }
+    }
+    
     createContent() {
         const content = document.createElement('div');
-        content.className = 'flex-1 overflow-y-auto overflow-x-hidden p-4 leading-tight text-sm bg-white scroll-smooth';
+        content.className = 'flex-1 overflow-y-auto overflow-x-hidden p-4 leading-tight text-sm bg-white';
         content.setAttribute('data-window-content', 'true');
         
         if (!this.data?.verses) {
@@ -416,88 +566,392 @@ class TextWindow {
             return content;
         }
         
-        // Add window-level drop listeners for easier dropping
-        this.addWindowDropListeners(content);
+        // Add purpose section
+        const purposeSection = this.createPurposeSection();
+        content.appendChild(purposeSection);
         
-        this.data.verses.forEach(verseData => {
-            const verseWrapper = this.createVerseElement(verseData);
-            content.appendChild(verseWrapper);
-        });
+        // PERFORMANCE: Simple rendering - no virtual scrolling
+        this.renderAllVerses(content);
         
         return content;
     }
     
-    createVerseElement(verseData) {
+    setupProgressiveLoading(container) {
+        // PERFORMANCE: Simple rendering - no progressive loading
+        const fragment = document.createDocumentFragment();
+        
+        this.data.verses.forEach(verseData => {
+            const verseWrapper = this.createVerseElement(verseData, false);
+            fragment.appendChild(verseWrapper);
+        });
+        
+        container.appendChild(fragment);
+        
+        // PERFORMANCE: Simple scroll sync between windows
+        this.setupScrollSync(container);
+    }
+    
+    setupScrollSync(container) {
+        // PERFORMANCE: Simple scroll sync without expensive calculations
+        let syncTimeout;
+        
+        container.addEventListener('scroll', () => {
+            // PERFORMANCE: Debounce scroll sync to avoid excessive calculations
+            if (syncTimeout) clearTimeout(syncTimeout);
+            syncTimeout = setTimeout(() => {
+                // PERFORMANCE: Use simple percentage-based sync
+                const scrollPercent = container.scrollTop / Math.max(1, container.scrollHeight - container.clientHeight);
+                
+                // PERFORMANCE: Cache container query and sync only visible containers
+                const otherContainers = document.querySelectorAll('[data-window-content]');
+                otherContainers.forEach(otherContainer => {
+                    if (otherContainer !== container && otherContainer.offsetParent) {
+                        const maxScroll = otherContainer.scrollHeight - otherContainer.clientHeight;
+                        if (maxScroll > 0) {
+                            const targetScroll = scrollPercent * maxScroll;
+                            // PERFORMANCE: Use smooth scrolling for better UX
+                            otherContainer.scrollTo({
+                                top: targetScroll,
+                                behavior: 'smooth'
+                            });
+                        }
+                    }
+                });
+            }, 100); // Increased debounce delay for better performance
+        }, { passive: true });
+    }
+    
+    createPurposeSection() {
+        const purposeSection = document.createElement('div');
+        purposeSection.className = 'mb-4 p-3 bg-gray-50 border border-gray-200 rounded-sm';
+        
+        const currentPurpose = this.data?.purpose_description || this.data?.description || '';
+        const isTranslation = this.id.includes('translation_');
+        
+        // Fix the ID extraction logic to handle different prefixes correctly
+        let extractedId = this.id;
+        if (isTranslation) {
+            extractedId = this.id.replace('translation_', '');
+        } else if (this.id.startsWith('text_')) {
+            extractedId = this.id.replace('text_', '');
+        } else if (this.id.startsWith('file_')) {
+            extractedId = this.id.replace('file_', '');
+        }
+        
+        purposeSection.innerHTML = `
+            <label class="block text-xs font-semibold text-gray-700 mb-1">${isTranslation ? 'Translation Purpose' : 'File Purpose'}</label>
+            <textarea class="w-full px-2 py-1 border border-gray-300 bg-white text-xs resize-none ${isTranslation ? 'translation-purpose-input' : 'purpose-input'}" 
+                      rows="2" 
+                      placeholder="e.g., This is a back translation, This is a translation into Spanish..."
+                      data-${isTranslation ? 'translation-id' : 'file-id'}="${extractedId}"
+                      maxlength="1000">${currentPurpose}</textarea>
+            <div class="flex justify-between items-center mt-1">
+                <span class="text-xs text-gray-500 char-counter">${currentPurpose.length}/1,000</span>
+                <button class="${isTranslation ? 'save-translation-purpose-btn' : 'save-purpose-btn'} inline-flex items-center px-2 py-1 text-xs font-semibold bg-blue-600 text-white rounded-sm"
+                        data-${isTranslation ? 'translation-id' : 'file-id'}="${extractedId}">
+                    <i class="fas fa-save mr-1"></i>Save
+                </button>
+            </div>
+        `;
+        
+        return purposeSection;
+    }
+    
+    renderAllVerses(container) {
+        // PERFORMANCE: Use DocumentFragment for batch DOM updates
+        const fragment = document.createDocumentFragment();
+        
+        this.data.verses.forEach(verseData => {
+            const verseWrapper = this.createVerseElement(verseData, false); // false = not virtualized
+            fragment.appendChild(verseWrapper);
+        });
+        
+        container.appendChild(fragment);
+    }
+    
+
+
+    
+    createVerseElement(verseData, isVirtualized = false) {
+        // PERFORMANCE: Use pooled elements
         const verseWrapper = document.createElement('div');
-        verseWrapper.className = 'relative mb-4 transition-all duration-200 group';
+        verseWrapper.className = 'verse-cell relative mb-4 border border-stone-300 rounded-sm overflow-hidden bg-white';
         verseWrapper.dataset.verse = verseData.verse;
+        verseWrapper.dataset.verseCell = 'true';
         
+        // PERFORMANCE: Create navigation bar with pooled elements
+        const navBar = document.createElement('div');
+        navBar.className = 'flex items-center justify-between px-3 py-0.5 bg-gray-50 border-b border-gray-200 min-h-[22px]';
+        
+        // Left side: Audio controls container
+        const leftControlsContainer = document.createElement('div');
+        leftControlsContainer.className = 'flex items-center gap-1';
+        
+        // Center: Verse label
+        const verseLabel = document.createElement('div');
+        const labelClasses = this.type === 'primary' ? 
+            'text-red-600 bg-red-50' : 
+            'text-blue-600 bg-blue-50';
+        verseLabel.className = `text-xs font-semibold px-2 py-1 rounded-sm ${labelClasses} absolute left-1/2 transform -translate-x-1/2`;
+        verseLabel.textContent = verseData.reference;
+        
+        // Right side: Other controls container
+        const controlsContainer = document.createElement('div');
+        controlsContainer.className = 'flex items-center gap-1';
+        
+        navBar.appendChild(leftControlsContainer);
+        navBar.appendChild(verseLabel);
+        navBar.appendChild(controlsContainer);
+        verseWrapper.appendChild(navBar);
+        
+        const textarea = this.createOptimizedTextarea(verseData);
+        verseWrapper.appendChild(textarea);
+        
+        // PERFORMANCE: Batch control setup to reduce DOM queries
+        this.setupVerseControlsBatched(controlsContainer, leftControlsContainer, verseData, textarea, verseWrapper);
+        
+        return verseWrapper;
+    }
+    
+    createOptimizedTextarea(verseData) {
         const textarea = document.createElement('textarea');
-        
-        textarea.className = `w-full min-h-25 p-5 pt-8 pr-12 border border-stone-300 rounded-sm text-base leading-7 resize-none focus:ring-0 focus:border-gray-800 focus:bg-white bg-white font-['Inter'] transition-all duration-200 overflow-hidden hover:border-stone-400`;
+        textarea.className = `w-full p-4 border-0 text-base leading-7 resize-none focus:ring-0 focus:outline-none bg-white font-['Inter'] overflow-hidden`;
         textarea.placeholder = `Edit verse ${verseData.verse} or drop text here...`;
         textarea.dataset.verse = verseData.verse;
         textarea.dataset.verseIndex = verseData.index;
         textarea.value = verseData.target_text || verseData.source_text || '';
         textarea.draggable = false;
         
-        const labelClasses = this.type === 'primary' ? 
-            'text-red-600 bg-red-50' : 
-            'text-blue-600 bg-blue-50';
+        // PERFORMANCE: Set proper height immediately based on content
+        const lines = (textarea.value || '').split('\n').length;
+        const minHeight = Math.max(80, lines * 24 + 32); // 24px per line + padding
+        textarea.style.height = minHeight + 'px';
         
-        verseWrapper.innerHTML = `
-            <div class="absolute top-2.5 left-3 text-xs font-semibold px-1.5 py-0.5 z-10 rounded-sm ${labelClasses}">
-                ${verseData.reference}
-            </div>
-        `;
+        // Disable editing for viewers
+        if (window.translationEditor && !window.translationEditor.canEdit) {
+            textarea.disabled = true;
+            textarea.style.backgroundColor = '#f9fafb';
+            textarea.style.cursor = 'not-allowed';
+            textarea.placeholder = 'Read-only mode - Editor access required to edit';
+            textarea.title = 'Editor access required to edit translations';
+        }
         
-        verseWrapper.appendChild(textarea);
+        // PERFORMANCE: Use optimized event handlers
+        this.attachOptimizedTextareaListeners(textarea);
         
-        const dragHandle = document.createElement('div');
-        dragHandle.className = 'absolute top-2.5 right-2.5 w-5 h-5 bg-transparent border-0 cursor-grab flex items-center justify-center z-10 transition-all duration-200 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-500 hover:scale-125 hover:drop-shadow-lg active:cursor-grabbing active:scale-90 sparkle-drag-handle';
-        dragHandle.draggable = true;
-        dragHandle.innerHTML = '<i class="fas fa-grip-vertical"></i>';
-        
-        verseWrapper.appendChild(dragHandle);
-        
-        this.addDragListeners(dragHandle, verseData);
-        
-        return verseWrapper;
+        return textarea;
     }
     
-    addDragListeners(dragHandle, verseData) {
-        dragHandle.addEventListener('dragstart', (e) => {
-            const container = dragHandle.closest('[data-verse]');
-            const textarea = container.querySelector('textarea');
+    attachOptimizedTextareaListeners(textarea) {
+        // PERFORMANCE: SIMPLEST POSSIBLE - just store the value
+        let currentValue = textarea.value || '';
+        let resizeTimeout;
+        let hasChanges = false;
+        
+        textarea.addEventListener('input', (e) => {
+            const newValue = e.target.value;
+            hasChanges = (newValue !== currentValue);
+            currentValue = newValue;
             
-            const dragData = {
-                sourceText: textarea.value || '',
-                sourceId: this.id,
-                verse: verseData.verse,
-                reference: verseData.reference,
-                sourceType: this.type,
-                sourceTitle: this.title
-            };
-            
-            // Start collection system - hover over verses to add them
-            if (window.translationEditor?.dragDrop) {
-                window.translationEditor.dragDrop.startCollection(dragData);
+            // PERFORMANCE: Debounce height adjustment to prevent scroll jank
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                const lines = currentValue.split('\n').length;
+                const newHeight = Math.max(80, lines * 24 + 32);
+                if (Math.abs(textarea.offsetHeight - newHeight) > 20) { // Increased threshold
+                    textarea.style.height = newHeight + 'px';
+                }
+            }, 150); // Debounce for 150ms
+        }, { passive: true });
+        
+        // AUTO-SAVE: Save when user moves to different cell or leaves the textarea
+        textarea.addEventListener('blur', () => {
+            if (hasChanges && window.translationEditor?.saveSystem) {
+                const verseIndex = parseInt(textarea.dataset.verseIndex);
+                if (!isNaN(verseIndex)) {
+                    window.translationEditor.saveSystem.bufferVerseChange(verseIndex, currentValue);
+                    hasChanges = false; // Reset change tracking
+                }
+            }
+        }, { passive: true });
+        
+        // Track when user focuses on this textarea 
+        textarea.addEventListener('focus', () => {
+            // Auto-save any previously focused textarea
+            if (window.translationEditor?.saveSystem?.currentFocusedTextarea && 
+                window.translationEditor.saveSystem.currentFocusedTextarea !== textarea) {
+                const prevTextarea = window.translationEditor.saveSystem.currentFocusedTextarea;
+                const prevVerseIndex = parseInt(prevTextarea.dataset.verseIndex);
+                const prevValue = prevTextarea.value || '';
+                
+                if (!isNaN(prevVerseIndex)) {
+                    window.translationEditor.saveSystem.bufferVerseChange(prevVerseIndex, prevValue);
+                }
             }
             
-            e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
-            e.dataTransfer.effectAllowed = 'copy';
+            // Update focus tracking
+            if (window.translationEditor?.saveSystem) {
+                window.translationEditor.saveSystem.currentFocusedTextarea = textarea;
+            }
             
-            container.classList.add('opacity-70', 'bg-blue-100', 'border', 'border-blue-500', 'rounded');
-        });
-        
-        dragHandle.addEventListener('dragend', () => {
-            const container = dragHandle.closest('[data-verse]');
-            container.classList.remove('opacity-70', 'bg-blue-100', 'border', 'border-blue-500', 'rounded');
-        });
+            // Update current value for this textarea
+            currentValue = textarea.value || '';
+            hasChanges = false;
+        }, { passive: true });
     }
     
-    addWindowDropListeners(content) {
-        content.addEventListener('dragover', (e) => {
+    // PERFORMANCE: Resize functions removed - textareas are proper size from start
+    
+    setupVerseControlsBatched(rightControlsContainer, leftControlsContainer, verseData, textarea, verseWrapper) {
+        // PERFORMANCE: Batch all control creation to reduce DOM operations
+        const rightFragment = document.createDocumentFragment();
+        
+        // History button for all users (viewers can see history)
+        if (window.translationEditor) {
+            const historyButton = document.createElement('button');
+            historyButton.className = 'w-6 h-6 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm hover:text-gray-600 history-btn';
+            historyButton.innerHTML = '<i class="fas fa-history text-xs"></i>';
+            historyButton.title = 'View edit history';
+            historyButton.setAttribute('data-verse-index', verseData.index);
+            
+            historyButton.onclick = () => this.showVerseHistory(verseData, textarea);
+            rightFragment.appendChild(historyButton);
+            
+            // Audio download button for primary windows
+            if (this.type === 'primary') {
+                const audioDownloadButton = document.createElement('button');
+                audioDownloadButton.className = 'w-6 h-6 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm hover:text-gray-600 audio-download-btn';
+                audioDownloadButton.innerHTML = '<i class="fas fa-download text-xs"></i>';
+                audioDownloadButton.title = 'Download verse audio';
+                audioDownloadButton.style.display = 'none'; // Hidden by default, shown when audio exists
+                
+                audioDownloadButton.onclick = (e) => {
+                    e.stopPropagation();
+                    this.downloadVerseAudio(verseData, verseWrapper);
+                };
+                
+                rightFragment.appendChild(audioDownloadButton);
+                
+                // Store reference for later visibility control
+                verseWrapper._audioDownloadButton = audioDownloadButton;
+            }
+        }
+        
+        // Only add editing controls for editors
+        if (window.translationEditor?.canEdit) {
+            // Primary window gets audio controls on the left and sparkle button on the right
+            if (this.type === 'primary') {
+                // PERFORMANCE: Always create audio controls on the left side
+                this.audioManager.createAudioControls(leftControlsContainer, verseData, textarea);
+                
+                // PERFORMANCE: Create sparkle button on the right side
+                const sparkleButton = document.createElement('button');
+                sparkleButton.className = 'w-7 h-7 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm sparkle-translate-btn';
+                sparkleButton.innerHTML = '<i class="fas fa-magic text-sm"></i>';
+                sparkleButton.title = 'Translate this verse with AI';
+                sparkleButton.setAttribute('data-verse', verseData.verse);
+                sparkleButton.setAttribute('data-verse-index', verseData.index);
+                
+                // PERFORMANCE: Store handler reference for efficient cleanup
+                sparkleButton._clickHandler = (e) => this.handleSparkleClick(e, verseData, textarea, sparkleButton);
+                sparkleButton.onclick = sparkleButton._clickHandler;
+                
+                rightFragment.appendChild(sparkleButton);
+            }
+            
+            // PERFORMANCE: Create drag handle on the right side
+            const dragHandle = document.createElement('div');
+            dragHandle.className = 'w-7 h-7 bg-gray-100 border border-gray-300 rounded-sm cursor-move flex items-center justify-center sparkle-drag-handle';
+            dragHandle.innerHTML = '<i class="fas fa-arrows-alt text-sm text-gray-500"></i>';
+            dragHandle.title = 'Drag to translate';
+            dragHandle.draggable = true;
+            
+            // PERFORMANCE: Store handler references for efficient cleanup
+            dragHandle._dragStartHandler = (e) => this.handleDragStart(e, verseData, textarea, dragHandle);
+            dragHandle._dragEndHandler = (e) => this.handleDragEnd(e, verseData, textarea, dragHandle);
+            dragHandle.ondragstart = dragHandle._dragStartHandler;
+            dragHandle.ondragend = dragHandle._dragEndHandler;
+            
+            rightFragment.appendChild(dragHandle);
+        }
+        
+        // PERFORMANCE: Single DOM append instead of multiple
+        rightControlsContainer.appendChild(rightFragment);
+    }
+    
+    showVerseHistory(verseData, textarea) {
+        // Get text ID from window ID (strip text_ prefix if present)
+        const textId = this.id.startsWith('text_') ? 
+            parseInt(this.id.replace('text_', '')) : 
+            parseInt(this.id);
+        
+        // Initialize history modal if not already done
+        if (!window.translationEditor.verseHistory) {
+            window.translationEditor.verseHistory = new VerseHistory(window.translationEditor);
+        }
+        
+        // Show history for this verse
+        window.translationEditor.verseHistory.showHistory(textId, verseData.index);
+    }
+    
+    downloadVerseAudio(verseData, verseWrapper) {
+        // Find audio controls for this verse
+        let audioControls = null;
+        const allElements = verseWrapper.querySelectorAll('*');
+        for (const el of allElements) {
+            if (el._audioId) {
+                audioControls = el;
+                break;
+            }
+        }
+        
+        if (!audioControls || !audioControls._audioId) {
+            alert('No audio file available for this verse.');
+            return;
+        }
+        
+        const projectId = window.location.pathname.split('/')[2];
+        const editor = window.translationEditor;
+        const book = editor?.currentBook || 'Unknown';
+        const chapter = editor?.currentChapter || '1';
+        
+        // Create download link
+        const link = document.createElement('a');
+        link.href = `/project/${projectId}/verse-audio/${audioControls._audioId}/download`;
+        link.download = `${book}_${chapter}_verse_${verseData.verse}.mp3`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+    
+    // Removed - using batched controls now
+    
+    // Removed - using optimized audio loading now
+    
+    // Removed - using pooled elements now
+    
+    // Removed - using pooled elements now
+    
+    // Removed - using optimized drag handlers now
+    
+    // Removed - using optimized sparkle handler now
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    addWindowDropListeners(windowElement) {
+        windowElement.addEventListener('dragover', (e) => {
             e.preventDefault();
             
             // Check if this is a valid drop target
@@ -505,50 +959,51 @@ class TextWindow {
             if (dragDrop && dragDrop.isDragging) {
                 if (dragDrop.isValidDropTarget(this)) {
                     e.dataTransfer.dropEffect = 'copy';
-                    content.style.backgroundColor = '#f0fdf4';
-                    content.style.boxShadow = 'inset 0 0 0 3px rgba(16, 185, 129, 0.3)';
+                    windowElement.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.5)';
+                    windowElement.style.backgroundColor = 'rgba(16, 185, 129, 0.05)';
                 } else {
                     e.dataTransfer.dropEffect = 'none';
-                    content.style.backgroundColor = '#fef2f2';
-                    content.style.boxShadow = 'inset 0 0 0 3px rgba(239, 68, 68, 0.3)';
+                    windowElement.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.5)';
+                    windowElement.style.backgroundColor = 'rgba(239, 68, 68, 0.05)';
                 }
             } else {
                 e.dataTransfer.dropEffect = 'copy';
-                content.style.backgroundColor = '#f0fdf4';
-                content.style.boxShadow = 'inset 0 0 0 3px rgba(16, 185, 129, 0.3)';
+                windowElement.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.5)';
+                windowElement.style.backgroundColor = 'rgba(16, 185, 129, 0.05)';
             }
         });
         
-        content.addEventListener('dragleave', (e) => {
-            if (!content.contains(e.relatedTarget)) {
-                content.style.backgroundColor = '';
-                content.style.boxShadow = '';
+        windowElement.addEventListener('dragleave', (e) => {
+            if (!windowElement.contains(e.relatedTarget)) {
+                windowElement.style.boxShadow = '';
+                windowElement.style.backgroundColor = '';
             }
         });
         
-        content.addEventListener('drop', async (e) => {
+        windowElement.addEventListener('drop', async (e) => {
             e.preventDefault();
-            content.style.backgroundColor = '';
-            content.style.boxShadow = '';
+            windowElement.style.boxShadow = '';
+            windowElement.style.backgroundColor = '';
             
             try {
                 let dragData;
                 
                 // Get collected verses if collection system is active
                 if (window.translationEditor?.dragDrop?.isDragging) {
-                    // Check if this is a valid drop target
-                    if (!window.translationEditor.dragDrop.isValidDropTarget(this)) {
-                        console.log('Invalid drop target - same as source window');
-                        window.translationEditor.dragDrop.endCollection();
+                    // Always end collection, but use the last hovered window (which should be this one)
+                    dragData = window.translationEditor.dragDrop.endCollection();
+                    
+                    // Use the translation drag drop system with last hovered window
+                    if (dragData && dragData.length > 0) {
+                        console.log('Processing drag with last hovered window:', this.title);
+                        await window.translationEditor.dragDrop.translateFromDrag(dragData, null, this);
                         return;
                     }
-                    dragData = window.translationEditor.dragDrop.endCollection();
                 } else {
                     // Fallback to single verse
                     dragData = [JSON.parse(e.dataTransfer.getData('text/plain'))];
+                    await this.processWindowDrop(dragData);
                 }
-                
-                await this.processWindowDrop(dragData);
                 
             } catch (error) {
                 console.error('Error processing window drop:', error);
@@ -600,9 +1055,116 @@ class TextWindow {
                 }
                 
                 // Small delay between translations to avoid overwhelming the server
-                await new Promise(resolve => setTimeout(resolve, 200));
+                await new Promise(resolve => setTimeout(resolve, 50));
             }
         }
+    }
+
+    // Audio controls are now always created immediately - no lazy loading needed
+    
+    // PERFORMANCE: Optimized sparkle click handler
+    async handleSparkleClick(e, verseData, textarea, sparkleButton) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Find source text from other windows
+        let sourceText = '';
+        let sourceWindow = null;
+        
+        // PERFORMANCE: Cache textWindows to avoid repeated access
+        const textWindows = window.translationEditor.textWindows;
+        
+        for (const [id, textWindow] of textWindows) {
+            if (textWindow.id !== this.id) {
+                const sourceTextarea = textWindow.element?.querySelector(`textarea[data-verse="${verseData.verse}"]`);
+                if (sourceTextarea && sourceTextarea.value?.trim()) {
+                    sourceText = sourceTextarea.value.trim();
+                    sourceWindow = textWindow;
+                    break;
+                }
+            }
+        }
+        
+        if (!sourceText) {
+            // PERFORMANCE: Simple error indication
+            sparkleButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+            sparkleButton.style.color = '#dc2626';
+            setTimeout(() => {
+                sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+                sparkleButton.style.color = '';
+            }, 1000);
+            return;
+        }
+        
+        // Create drag data and use existing translation system
+        const dragData = {
+            sourceText: sourceText,
+            sourceId: sourceWindow.id,
+            verse: verseData.verse,
+            reference: verseData.reference,
+            sourceType: sourceWindow.type,
+            sourceTitle: sourceWindow.title
+        };
+        
+        // Show loading
+        sparkleButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        sparkleButton.style.color = '#3b82f6';
+        
+        try {
+            await window.translationEditor.translateFromDrag(dragData, textarea, this);
+            
+            // Success
+            sparkleButton.innerHTML = '<i class="fas fa-check"></i>';
+            sparkleButton.style.color = '#10b981';
+            setTimeout(() => {
+                sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+                sparkleButton.style.color = '';
+            }, 1000);
+            
+        } catch (error) {
+            // Error
+            sparkleButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+            sparkleButton.style.color = '#dc2626';
+            setTimeout(() => {
+                sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+                sparkleButton.style.color = '';
+            }, 1000);
+        }
+    }
+    
+    // PERFORMANCE: Optimized drag handlers
+    handleDragStart(e, verseData, textarea, dragHandle) {
+        const container = dragHandle.closest('[data-verse]');
+        
+        const dragData = {
+            sourceText: textarea.value || '',
+            sourceId: this.id,
+            verse: verseData.verse,
+            reference: verseData.reference,
+            sourceType: this.type,
+            sourceTitle: this.title
+        };
+        
+        if (window.translationEditor?.dragDrop) {
+            window.translationEditor.dragDrop.startCollection(dragData);
+            
+            // PERFORMANCE: Direct style assignment
+            textarea.style.cssText = 'background-color: #dbeafe; border-color: #3b82f6; border-width: 2px;';
+        }
+        
+        e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+        e.dataTransfer.effectAllowed = 'copy';
+        
+        container.className += ' opacity-70 bg-blue-100 border border-blue-500 rounded';
+    }
+    
+    handleDragEnd(e, verseData, textarea, dragHandle) {
+        const container = dragHandle.closest('[data-verse]');
+        
+        container.className = container.className.replace(' opacity-70 bg-blue-100 border border-blue-500 rounded', '');
+        
+        // PERFORMANCE: Clear styles directly
+        textarea.style.cssText = '';
     }
 }
 

@@ -1,151 +1,244 @@
 {% macro translation_sidebar(project) %}
-<!-- Translation Editor Sidebar -->
-<div id="translation-sidebar" class="w-80 bg-white border-r border-black border-r-[0.5px] flex flex-col transition-all duration-300 h-full overflow-hidden rounded-tl-sm">
-    <!-- Collapse Button -->
-    <button id="sidebar-toggle" class="absolute top-4 -right-4 z-10 w-8 h-8 bg-white border border-black border-[0.5px] rounded-full flex items-center justify-center hover:bg-gray-50 transition-colors" title="Toggle sidebar">
-        <i class="fas fa-chevron-left text-sm"></i>
-    </button>
+<!-- Translation Sidebar -->
+<div class="h-full flex flex-col bg-white/95 backdrop-blur-sm border-r border-neutral-200 shadow-lg">
     
-    <!-- Scrollable Content -->
-    <div class="flex-1 overflow-y-auto">
-        <!-- Translation Model Selection -->
-    <div class="border-b-2 border-black p-6" style="border-bottom: 2px solid #2d2d2d;">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold text-lg tracking-wide" style="color: #2d2d2d;">TRANSLATION MODEL</h3>
-            <button id="refresh-models-btn" class="px-2 py-1 text-xs font-bold transition-colors" style="background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 3px;" title="Refresh models">
-                <i class="fas fa-sync-alt"></i>
-            </button>
-        </div>
-        <p class="text-xs font-medium mb-4" style="color: #6b7280;">Choose base models or your custom fine-tuned models</p>
-        
-        <!-- Model Selection -->
-        <select id="translation-model-select" class="w-full p-3 mb-3 font-medium marker-border-thin" style="background: #fefdf8; color: #2d2d2d; border: 1px solid #2d2d2d; border-radius: 2px;">
-            <option value="">Loading models...</option>
-        </select>
-        
-        <!-- Model Info -->
-        <div id="model-info" class="hidden p-3 text-xs font-medium" style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 3px;">
-            <div id="model-description" style="color: #374151;"></div>
-            <div id="model-type" class="mt-1" style="color: #6b7280;"></div>
-        </div>
-    </div>
-    
-    <!-- Translation Settings -->
-    <div class="border-b-2 border-black p-6" style="border-bottom: 2px solid #2d2d2d;">
-        <h3 class="font-bold text-lg tracking-wide mb-4" style="color: #2d2d2d;">TRANSLATION SETTINGS</h3>
-        <p class="text-xs font-medium mb-4" style="color: #6b7280;">Configure AI translation behavior</p>
-        
-        <!-- Temperature Control -->
-        <div class="mb-4">
-            <div class="flex items-center justify-between mb-2">
-                <label class="text-sm font-bold" style="color: #374151;">Creativity</label>
-                <span id="temperature-value" class="text-xs font-bold px-2 py-1" style="background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 3px;">0.7</span>
-            </div>
-            <div class="relative">
-                <input type="range" id="temperature-slider" min="0" max="2" step="0.1" value="0.7" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <div class="flex justify-between text-xs font-medium mt-1" style="color: #6b7280;">
-                    <span>Conservative</span>
-                    <span>Balanced</span>
-                    <span>Creative</span>
-                </div>
-            </div>
-            <p class="text-xs mt-2" style="color: #6b7280;">Lower values produce more consistent translations; higher values are more creative</p>
-        </div>
-        
-        <!-- Use Examples Toggle -->
-        <div class="mb-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <label class="text-sm font-bold" style="color: #374151;">In-Context Learning</label>
-                    <p class="text-xs mt-1" style="color: #6b7280;">Use translation examples for consistency</p>
-                </div>
-                <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" id="use-examples-toggle" class="sr-only peer" checked>
-                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
-            </div>
-        </div>
-        
-        <!-- Settings Status -->
-        <div id="settings-status" class="hidden p-2 text-xs font-medium" style="background: #dcfce7; color: #166534; border: 1px solid #166534; border-radius: 3px;">
-            <i class="fas fa-check-circle mr-1"></i>
-            <span id="settings-message">Settings updated</span>
-        </div>
-    </div>
-    
-    <!-- Load Texts -->
-    <div class="border-b-2 border-black p-6" style="border-bottom: 2px solid #2d2d2d;">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold text-lg tracking-wide" style="color: #2d2d2d;">LOAD TEXTS</h3>
-            <button id="new-translation-btn" class="px-3 py-1 text-sm font-bold transition-colors marker-border-green" style="background: #dcfce7; color: #166534; border: 1px solid #166534; border-radius: 3px;">
-                <i class="fas fa-plus mr-1"></i>
-                NEW
-            </button>
-        </div>
-        <p class="text-xs font-medium mb-4" style="color: #6b7280;">Load any text - drag to primary slot or use as reference</p>
-        
-        <!-- Unified Text Selection -->
-        <select id="text-select" class="w-full p-3 mb-3 font-medium marker-border-thin" style="background: #fefdf8; color: #2d2d2d; border: 1px solid #2d2d2d; border-radius: 2px;">
-            <option value="">Select any text to load...</option>
-            <!-- Options will be populated -->
-        </select>
-        
-        <button id="add-text-btn" class="w-full px-3 py-2 text-sm font-bold transition-colors marker-border-blue" style="background: #dbeafe; color: #1e40af; border: 1px solid #1e40af; border-radius: 3px;">
-            <i class="fas fa-plus mr-1"></i>
-            LOAD SELECTED TEXT
+    <!-- Save Button -->
+    <div class="border-b border-neutral-200 p-6 flex-shrink-0">
+        <button id="save-changes-btn" class="w-full py-3 px-4 text-sm font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-700 hover:text-neutral-900 rounded-lg transition-all duration-200 border border-neutral-200 hover:border-neutral-300 shadow-sm">
+            NO CHANGES TO SAVE
         </button>
+    </div>
+    
+    <!-- Model Selection -->
+    <div class="border-b border-neutral-200 p-6 flex-shrink-0">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-neutral-900 tracking-tight">Translation Model</h3>
+            <button id="refresh-models-btn" class="p-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-all duration-200" title="Refresh models">
+                <i class="fas fa-sync-alt text-sm"></i>
+            </button>
+        </div>
+        <p class="text-sm text-neutral-600 mb-4 leading-relaxed">Choose base models or your custom fine-tuned models</p>
         
-        <!-- Text Loading Feedback -->
-        <div id="text-info" class="hidden mt-3 p-2 text-xs font-medium" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #3b82f6; border-radius: 3px;">
-            <div id="text-details">Loading...</div>
+        <!-- Custom Model Dropdown -->
+        <div class="relative mb-3">
+            <button id="translation-model-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50" type="button">
+                <span id="translation-model-text">Loading models...</span>
+                <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200" id="translation-model-chevron"></i>
+            </button>
+            <div id="translation-model-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
+                <div class="p-2 text-sm text-neutral-500 text-center">Loading models...</div>
+            </div>
         </div>
+        
     </div>
     
-        <!-- Navigation -->
-        <div class="border-b-2 border-black p-6" style="border-bottom: 2px solid #2d2d2d;">
-            <h3 class="font-bold text-lg tracking-wide mb-4" style="color: #2d2d2d;">NAVIGATION</h3>
-            
-            <!-- Current Chapter Info -->
-            <div id="current-chapter-info" class="mb-4 p-3 text-xs font-medium" style="background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 3px;">
-                <div class="text-center" style="color: #374151;">
-                    <div id="current-chapter-title" class="font-bold">Select a chapter</div>
-                    <div id="current-chapter-progress" class="text-xs mt-1" style="color: #6b7280;"></div>
-                </div>
-            </div>
-            
-            <!-- Book Selection -->
-            <div class="space-y-3 mt-4">
-                <!-- Old Testament -->
-                <div>
-                    <button id="ot-toggle" class="w-full flex items-center justify-between p-3 text-sm font-bold transition-colors marker-border-thin" style="background: #fefdf8; color: #2d2d2d; border: 1px solid #2d2d2d; border-radius: 3px;">
-                        <span>OLD TESTAMENT</span>
-                        <i id="ot-chevron" class="fas fa-chevron-down text-xs transition-transform"></i>
-                    </button>
-                    <div id="ot-books" class="hidden mt-2 space-y-1 max-h-48 overflow-y-auto">
-                        <!-- Will be populated by JavaScript -->
-                    </div>
-                </div>
-                
-                <!-- New Testament -->
-                <div>
-                    <button id="nt-toggle" class="w-full flex items-center justify-between p-3 text-sm font-bold transition-colors marker-border-thin" style="background: #fefdf8; color: #2d2d2d; border: 1px solid #2d2d2d; border-radius: 3px;">
-                        <span>NEW TESTAMENT</span>
-                        <i id="nt-chevron" class="fas fa-chevron-down text-xs transition-transform"></i>
-                    </button>
-                    <div id="nt-books" class="hidden mt-2 space-y-1 max-h-48 overflow-y-auto">
-                        <!-- Will be populated by JavaScript -->
-                    </div>
+    <!-- Navigation Section -->
+    <div class="p-6 flex-1 overflow-y-auto">
+        <h3 class="text-lg font-bold text-neutral-900 tracking-tight mb-4">Navigation</h3>
+        
+        <!-- Book Selection -->
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-neutral-600 mb-2">Book</label>
+            <div class="relative">
+                <button id="goto-book-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50" type="button">
+                    <span id="goto-book-text">Select Book...</span>
+                    <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200" id="goto-book-chevron"></i>
+                </button>
+                <div id="goto-book-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
+                    <div class="p-2 text-sm text-neutral-500 text-center">Select a book...</div>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <!-- Footer -->
-    <div class="mt-auto p-4 border-t border-neutral-200">
-        <div class="text-xs text-neutral-600 font-medium text-center">
-            <div class="mb-1">Translation Editor</div>
-            <div>{{ project.target_language }}</div>
+        
+        <!-- Chapter Selection -->
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-neutral-600 mb-2">Chapter</label>
+            <div class="relative">
+                <button id="goto-chapter-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50" type="button">
+                    <span id="goto-chapter-text">Select Chapter...</span>
+                    <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200" id="goto-chapter-chevron"></i>
+                </button>
+                <div id="goto-chapter-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
+                    <div class="p-2 text-sm text-neutral-500 text-center">Select a chapter...</div>
+                </div>
+            </div>
         </div>
+        
+
     </div>
 </div>
+
+<script>
+// Custom dropdown functionality
+function initializeCustomDropdowns() {
+    // Model dropdown
+    const modelButton = document.getElementById('translation-model-button');
+    const modelDropdown = document.getElementById('translation-model-dropdown');
+    const modelChevron = document.getElementById('translation-model-chevron');
+    
+    // Book dropdown
+    const bookButton = document.getElementById('goto-book-button');
+    const bookDropdown = document.getElementById('goto-book-dropdown');
+    const bookChevron = document.getElementById('goto-book-chevron');
+    
+    // Chapter dropdown
+    const chapterButton = document.getElementById('goto-chapter-button');
+    const chapterDropdown = document.getElementById('goto-chapter-dropdown');
+    const chapterChevron = document.getElementById('goto-chapter-chevron');
+    
+    // Generic dropdown toggle function
+    function toggleDropdown(button, dropdown, chevron) {
+        const isOpen = !dropdown.classList.contains('hidden');
+        
+        // Close all dropdowns first
+        document.querySelectorAll('[id$="-dropdown"]').forEach(dd => {
+            dd.classList.add('hidden');
+        });
+        document.querySelectorAll('[id$="-chevron"]').forEach(ch => {
+            ch.style.transform = 'rotate(0deg)';
+        });
+        
+        // Open this dropdown if it was closed
+        if (!isOpen) {
+            dropdown.classList.remove('hidden');
+            chevron.style.transform = 'rotate(180deg)';
+        }
+    }
+    
+    // Event listeners
+    modelButton?.addEventListener('click', () => toggleDropdown(modelButton, modelDropdown, modelChevron));
+    bookButton?.addEventListener('click', () => toggleDropdown(bookButton, bookDropdown, bookChevron));
+    chapterButton?.addEventListener('click', () => toggleDropdown(chapterButton, chapterDropdown, chapterChevron));
+    
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('[id$="-button"]') && !e.target.closest('[id$="-dropdown"]')) {
+            document.querySelectorAll('[id$="-dropdown"]').forEach(dd => {
+                dd.classList.add('hidden');
+            });
+            document.querySelectorAll('[id$="-chevron"]').forEach(ch => {
+                ch.style.transform = 'rotate(0deg)';
+            });
+        }
+    });
+}
+
+// Initialize on DOM load
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize custom dropdowns
+    initializeCustomDropdowns();
+});
+
+// Helper functions for dropdown management
+window.setModelDropdownOption = function(value, text, description = '', type = '') {
+    const button = document.getElementById('translation-model-button');
+    const textElement = document.getElementById('translation-model-text');
+    const dropdown = document.getElementById('translation-model-dropdown');
+    
+    if (textElement) {
+        textElement.textContent = text;
+    }
+    
+    // Store the value on the button for retrieval
+    button.dataset.value = value;
+    
+    // Remove model info update (description/type)
+    const modelInfo = document.getElementById('model-info');
+    if (modelInfo) modelInfo.classList.add('hidden');
+    
+    // Close dropdown
+    dropdown.classList.add('hidden');
+    document.getElementById('translation-model-chevron').style.transform = 'rotate(0deg)';
+};
+
+window.setBookDropdownOption = function(value, text) {
+    const textElement = document.getElementById('goto-book-text');
+    const button = document.getElementById('goto-book-button');
+    const dropdown = document.getElementById('goto-book-dropdown');
+    
+    if (textElement) {
+        textElement.textContent = text;
+    }
+    
+    button.dataset.value = value;
+    dropdown.classList.add('hidden');
+    document.getElementById('goto-book-chevron').style.transform = 'rotate(0deg)';
+};
+
+window.setChapterDropdownOption = function(value, text) {
+    const textElement = document.getElementById('goto-chapter-text');
+    const button = document.getElementById('goto-chapter-button');
+    const dropdown = document.getElementById('goto-chapter-dropdown');
+    
+    if (textElement) {
+        textElement.textContent = text;
+    }
+    
+    button.dataset.value = value;
+    dropdown.classList.add('hidden');
+    document.getElementById('goto-chapter-chevron').style.transform = 'rotate(0deg)';
+};
+
+window.populateModelDropdown = function(models) {
+    const dropdown = document.getElementById('translation-model-dropdown');
+    if (!dropdown) return;
+    
+    dropdown.innerHTML = '';
+    
+    models.forEach(model => {
+        const option = document.createElement('div');
+        option.className = 'dropdown-option px-3 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer border-b border-neutral-100 last:border-b-0';
+        option.innerHTML = `
+            <div class="font-medium">${model.name}</div>
+        `;
+        option.addEventListener('click', () => {
+            setModelDropdownOption(model.value, model.name, model.description, model.type);
+            // Trigger change event for compatibility
+            const event = new CustomEvent('change', { detail: { value: model.value } });
+            document.getElementById('translation-model-button').dispatchEvent(event);
+        });
+        dropdown.appendChild(option);
+    });
+};
+
+window.populateBookDropdown = function(books) {
+    const dropdown = document.getElementById('goto-book-dropdown');
+    if (!dropdown) return;
+    
+    dropdown.innerHTML = '';
+    
+    books.forEach(book => {
+        const option = document.createElement('div');
+        option.className = 'dropdown-option px-3 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer border-b border-neutral-100 last:border-b-0';
+        option.textContent = book.name;
+        option.addEventListener('click', () => {
+            setBookDropdownOption(book.value, book.name);
+            // Trigger change event for compatibility
+            const event = new CustomEvent('change', { detail: { value: book.value } });
+            document.getElementById('goto-book-button').dispatchEvent(event);
+        });
+        dropdown.appendChild(option);
+    });
+};
+
+window.populateChapterDropdown = function(chapters) {
+    const dropdown = document.getElementById('goto-chapter-dropdown');
+    if (!dropdown) return;
+    
+    dropdown.innerHTML = '';
+    
+    chapters.forEach(chapter => {
+        const option = document.createElement('div');
+        option.className = 'dropdown-option px-3 py-2 text-sm text-neutral-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer border-b border-neutral-100 last:border-b-0';
+        option.textContent = chapter.name;
+        option.addEventListener('click', () => {
+            setChapterDropdownOption(chapter.value, chapter.name);
+            // Trigger change event for compatibility
+            const event = new CustomEvent('change', { detail: { value: chapter.value } });
+            document.getElementById('goto-chapter-button').dispatchEvent(event);
+        });
+        dropdown.appendChild(option);
+    });
+};
+</script>
 {% endmacro %} 

@@ -1,67 +1,203 @@
 {% extends "base.html" %}
 
 {% block content %}
+<!-- Animated Gradient Background -->
+<div id="gradient-bg" class="fixed inset-0 -z-10 transition-all duration-1000 ease-out"></div>
+
 <section class="py-24 px-6 relative min-h-screen flex items-center">
     <div class="max-w-4xl mx-auto text-center w-full">
-        <div class="scattered-title mb-6 relative h-32" id="scatteredTitle">
+        <div class="scattered-title mb-8 relative h-48 flex items-center justify-center" id="scatteredTitle">
             <!-- Letters will be dynamically inserted here -->
         </div>
         <p class="text-2xl text-neutral-600 mb-12 max-w-3xl mx-auto leading-relaxed font-medium opacity-0 transition-opacity duration-1000 delay-1000" id="subtitle">
-            Draft the Bible into any language in less than a Day.
+            Efficiently draft the Bible into any language.
         </p>
         
         <div class="opacity-0 transition-opacity duration-1000 delay-1500" id="ctaButton">
             {% if current_user.is_authenticated %}
-                <a href="{{ url_for('dashboard') }}" class="btn-marker text-lg inline-block">
-                    <i class="fas fa-folder mr-2"></i>
+                <a href="{{ url_for('projects.dashboard') }}" class="inline-flex items-center px-12 py-4 bg-gradient-to-r from-neutral-900 to-neutral-800 text-white text-lg font-semibold rounded-xl hover:from-neutral-800 hover:to-neutral-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl">
+                    <i class="fas fa-folder mr-3"></i>
                     Go to Projects
                 </a>
             {% else %}
-                <a href="{{ url_for('auth.login') }}" class="btn-marker text-lg inline-block">
-                    <i class="fab fa-google mr-2"></i>
-                    Get Started
+                <a href="{{ url_for('auth.login') }}" class="inline-flex items-center px-12 py-4 bg-gradient-to-r from-neutral-900 to-neutral-800 text-white text-lg font-semibold rounded-xl hover:from-neutral-800 hover:to-neutral-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl">
+                    <i class="fab fa-google mr-3"></i>
+                    Start Translating
                 </a>
             {% endif %}
         </div>
     </div>
 </section>
 
-<section class="py-24 px-6 paper-cream">
-    <div class="max-w-6xl mx-auto">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
-            <div class="text-center">
-                <div class="w-16 h-16 paper-light marker-border rounded-lg mb-6 flex items-center justify-center mx-auto">
-                    <i class="fas fa-chart-line text-2xl" style="color: #2d2d2d;"></i>
+
+<!-- Feature Slides Section -->
+<section class="feature-slides relative">
+    <!-- Slide 1: Minutes to Get Started -->
+    <div class="feature-slide">
+        <div class="max-w-8xl mx-auto px-12 py-32">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+                <div class="text-left lg:pr-16">
+                    <div class="w-24 h-24 bg-white border border-neutral-200 rounded-2xl mb-10 flex items-center justify-center shadow-lg">
+                        <i class="fab fa-google text-4xl text-neutral-900"></i>
+                    </div>
+                    <h3 class="text-5xl lg:text-6xl font-bold mb-8 text-neutral-900">
+                        Two click sign up.
+                    </h3>
+                    <p class="text-2xl text-neutral-700 leading-relaxed mb-8">Sign in with your Google and start translating in seconds.</p>
                 </div>
-                <h3 class="text-xl font-bold mb-4" style="color: #2d2d2d;">Superior First Drafts</h3>
-                <p class="text-neutral-700 font-medium leading-relaxed">While zero drafts require extensive human refinement and post-editing, they often outperform human first drafts significantly</p>
+                <div class="text-center">
+                    <img src="{{ url_for('static', filename='desktoplayout.png') }}" alt="CodexZero Desktop Interface" class="mx-auto rounded-2xl shadow-2xl w-full max-w-3xl transition-transform duration-500 hover:scale-105">
+                </div>
             </div>
-                          <div class="text-center">
-                <div class="w-16 h-16 paper-light marker-border rounded-lg mb-6 flex items-center justify-center mx-auto">
-                    <i class="fas fa-comments text-2xl" style="color: #2d2d2d;"></i>
+        </div>
+    </div>
+
+    <!-- Slide 2: Audio Features -->
+    <div class="feature-slide">
+        <div class="max-w-8xl mx-auto px-12 py-32">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+                <div class="text-left lg:pr-16">
+                    <div class="w-24 h-24 bg-white border border-neutral-200 rounded-2xl mb-10 flex items-center justify-center shadow-lg">
+                        <i class="fas fa-volume-up text-4xl text-neutral-900"></i>
+                    </div>
+                    <h3 class="text-5xl lg:text-6xl font-bold mb-8 text-neutral-900">
+                        Speak less, say more.
+                    </h3>
+                    <p class="text-2xl text-neutral-700 leading-relaxed mb-8">Generate natural speech in many languages with precise control. Give simple instructions to adjust pronunciation, pace, and tone for exactly the sound you need.</p>
                 </div>
-                <h3 class="text-xl font-bold mb-4" style="color: #2d2d2d;">Freedom to Critique</h3>
-                <p class="text-neutral-700 font-medium leading-relaxed">Even when draft quality is low, zero drafts give your translation team something they can freely criticize and improve upon</p>
+                <div class="text-center">
+                    <img src="{{ url_for('static', filename='audio.png') }}" alt="Audio Generation Features" class="mx-auto rounded-2xl shadow-2xl w-full max-w-3xl transition-transform duration-500 hover:scale-105">
+                </div>
             </div>
-            <div class="text-center">
-                <div class="w-16 h-16 paper-light marker-border rounded-lg mb-6 flex items-center justify-center mx-auto">
-                    <i class="fas fa-rocket text-2xl" style="color: #2d2d2d;"></i>
+        </div>
+    </div>
+
+    <!-- Slide 3: Mobile Compatibility -->
+    <div class="feature-slide">
+        <div class="max-w-8xl mx-auto px-12 py-32">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+                <div class="text-center lg:order-first">
+                    <img src="{{ url_for('static', filename='mobile.png') }}" alt="CodexZero Mobile Interface" class="mx-auto rounded-2xl shadow-2xl h-[500px] lg:h-[700px] w-auto transition-transform duration-500 hover:scale-105">
                 </div>
-                <h3 class="text-xl font-bold mb-4" style="color: #2d2d2d;">Reignite Stagnated Projects</h3>
-                <p class="text-neutral-700 font-medium leading-relaxed">CodexZero can leverage your past work to fill in the blanks and breathe new life into stalled translation projects</p>
+                <div class="text-left lg:pl-16">
+                    <div class="w-24 h-24 bg-white border border-neutral-200 rounded-2xl mb-10 flex items-center justify-center shadow-lg">
+                        <i class="fas fa-mobile-alt text-4xl text-neutral-900"></i>
+                    </div>
+                    <h3 class="text-5xl lg:text-6xl font-bold mb-8 text-neutral-900">
+                        Pick up the phone.
+                    </h3>
+                    <p class="text-2xl text-neutral-700 leading-relaxed mb-8">Translate anywhere with full mobile compatibility. All features work seamlessly on your phone or tablet, so you can review and edit drafts on the go.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 4: Grows with Your Project -->
+    <div class="feature-slide">
+        <div class="max-w-8xl mx-auto px-12 py-32">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+                <div class="text-left lg:pr-16">
+                    <div class="w-24 h-24 bg-white border border-neutral-200 rounded-2xl mb-10 flex items-center justify-center shadow-lg">
+                        <i class="fas fa-brain text-4xl text-neutral-900"></i>
+                    </div>
+                    <h3 class="text-5xl lg:text-6xl font-bold mb-8 text-neutral-900">
+                        Train Your Model
+                    </h3>
+                    <p class="text-2xl text-neutral-700 leading-relaxed mb-8">Start with existing examples from your project to guide translations. As you work and provide feedback, you can create a specialized model trained specifically for your language and style.</p>
+                </div>
+                <div class="text-center">
+                    <img src="{{ url_for('static', filename='finetune.png') }}" alt="Fine-tuning Process Visualization" class="mx-auto rounded-2xl shadow-2xl w-full max-w-3xl transition-transform duration-500 hover:scale-105">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 5: Import or Start Fresh -->
+    <div class="feature-slide">
+        <div class="max-w-8xl mx-auto px-12 py-32">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+                <div class="text-center lg:order-first">
+                    <img src="{{ url_for('static', filename='usfm.png') }}" alt="USFM Import Process" class="mx-auto rounded-2xl shadow-2xl w-full max-w-3xl transition-transform duration-500 hover:scale-105">
+                </div>
+                <div class="text-left lg:pl-16">
+                    <div class="w-24 h-24 bg-white border border-neutral-200 rounded-2xl mb-10 flex items-center justify-center shadow-lg">
+                        <i class="fas fa-file-import text-4xl text-neutral-900"></i>
+                    </div>
+                    <h3 class="text-5xl lg:text-6xl font-bold mb-8 text-neutral-900">
+                        In with the new.
+                    </h3>
+                    <p class="text-2xl text-neutral-700 leading-relaxed mb-8">Import existing work from Paratext or other sources to build on what you've already done. Not ready to completely switch? Export seamlessly back to your main app for editing.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 6: Team Collaboration -->
+    <div class="feature-slide">
+        <div class="max-w-8xl mx-auto px-12 py-32">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+                <div class="text-left lg:pr-16">
+                    <div class="w-24 h-24 bg-white border border-neutral-200 rounded-2xl mb-10 flex items-center justify-center shadow-lg">
+                        <i class="fas fa-users text-4xl text-neutral-900"></i>
+                    </div>
+                    <h3 class="text-5xl lg:text-6xl font-bold mb-8 text-neutral-900">
+                        Feeling Alone?
+                    </h3>
+                    <p class="text-2xl text-neutral-700 leading-relaxed mb-8">You shouldn't. Work with your team seamlessly. Invite collaborators, assign roles, and track progress together. Translation is better with friends!</p>
+                </div>
+                <div class="text-center">
+                    <img src="{{ url_for('static', filename='members.png') }}" alt="Team Collaboration Features" class="mx-auto rounded-2xl shadow-2xl w-full max-w-3xl transition-transform duration-500 hover:scale-105">
+                </div>
             </div>
         </div>
     </div>
 </section>
 
+<!-- Final CTA Section -->
+<section class="py-24 px-6 relative bg-gradient-to-br from-neutral-50 to-neutral-100">
+    <div class="max-w-4xl mx-auto text-center">
+        <h2 class="text-4xl lg:text-5xl font-bold mb-6 text-neutral-900">Not convinced?</h2>
+        <p class="text-xl text-neutral-600 mb-12 max-w-2xl mx-auto leading-relaxed">
+            This entire platform is not only free, but also open source.
+        </p>
+        
+        {% if current_user.is_authenticated %}
+            <a href="{{ url_for('projects.dashboard') }}" class="inline-flex items-center px-12 py-4 bg-gradient-to-r from-neutral-900 to-neutral-800 text-white text-lg font-semibold rounded-xl hover:from-neutral-800 hover:to-neutral-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl">
+                <i class="fas fa-folder mr-3"></i>
+                Go to Projects
+            </a>
+        {% else %}
+            <a href="{{ url_for('auth.login') }}" class="inline-flex items-center px-12 py-4 bg-gradient-to-r from-neutral-900 to-neutral-800 text-white text-lg font-semibold rounded-xl hover:from-neutral-800 hover:to-neutral-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl">
+                <i class="fab fa-google mr-3"></i>
+                Start Translating
+            </a>
+        {% endif %}
+    </div>
+</section>
+<section class="py-16 px-6 relative">
+    <div class="max-w-6xl mx-auto text-center">
+        <h2 class="text-2xl font-bold mb-4 text-neutral-900">Need a fully featured local app?</h2>
+        <p class="text-lg text-neutral-600 mb-2">Start with Codex Zero, graduate to Codex</p>
+        <p class="text-neutral-500 mb-8">Free, open source, and cross-platform</p>
+        
+        <a href="https://codexeditor.app" target="_blank" class="inline-flex items-center px-12 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-lg font-semibold rounded-xl hover:from-blue-700 hover:to-blue-800 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl">
+            <i class="fas fa-external-link-alt mr-3"></i>
+            Explore Codex Editor
+        </a>
+    </div>
+</section>
+
+
 <style>
 .scattered-letter {
     display: inline-block;
-    font-size: 7rem;
-    font-weight: bold;
+    font-size: 8.5rem;
+    font-weight: 900;
     color: #2d2d2d;
     opacity: 0;
     transition: transform 1.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 1.2s;
+    text-shadow: 0 4px 8px rgba(45, 45, 45, 0.1);
+    letter-spacing: -0.02em;
 }
 
 .scattered-letter.animate {
@@ -72,9 +208,192 @@
     transform: translate(0, 0) !important;
 }
 
+.feature-slides {
+    overflow-x: hidden;
+    position: relative;
+}
+
+.feature-slide {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+/* Scrolling gradient background */
+#gradient-bg {
+    background: linear-gradient(135deg, 
+        #fafafa 0%,           /* Very light gray */
+        #f5f5f5 20%,          /* Light gray */
+        #e8f4f8 35%,          /* Very light blue */
+        #f0f9ff 50%,          /* Light sky blue */
+        #fdf4ff 65%,          /* Light purple */
+        #f9fafb 80%,          /* Light neutral */
+        #fafafa 100%          /* Back to light gray */
+    );
+    background-size: 100% 800vh; /* Make gradient much longer than viewport */
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+}
+
+@media (max-width: 1024px) {
+    .scattered-letter {
+        font-size: 6.5rem;
+    }
+    
+    .feature-slide {
+        min-height: auto;
+        padding: 3rem 0;
+    }
+    
+    .feature-slide .max-w-8xl {
+        padding-left: 3rem;
+        padding-right: 3rem;
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    
+    .feature-slide .gap-20 {
+        gap: 2.5rem;
+    }
+}
+
 @media (max-width: 768px) {
     .scattered-letter {
-        font-size: 4rem;
+        font-size: 4.5rem;
+    }
+    
+    .feature-slide {
+        padding: 2rem 0;
+    }
+    
+    .feature-slide h3 {
+        font-size: 2.5rem !important;
+        line-height: 1.1 !important;
+        margin-bottom: 1.5rem !important;
+    }
+    
+    .feature-slide p {
+        font-size: 1.125rem !important;
+        line-height: 1.6 !important;
+        margin-bottom: 2rem !important;
+    }
+    
+    .feature-slide .max-w-8xl {
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+        padding-top: 1.5rem;
+        padding-bottom: 1.5rem;
+    }
+    
+    .feature-slide .gap-20 {
+        gap: 2rem;
+    }
+    
+    .feature-slide .grid {
+        text-align: center;
+    }
+    
+    .feature-slide .text-left {
+        text-align: center !important;
+    }
+    
+    .feature-slide .lg\\:pr-16,
+    .feature-slide .lg\\:pl-16 {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+    
+    .feature-slide img {
+        max-width: 90% !important;
+        height: auto !important;
+        margin: 0 auto 1rem auto !important;
+    }
+    
+    /* Consistent mobile order - image first, then text for ALL slides */
+    .feature-slide .grid {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .feature-slide .text-center {
+        order: 1;
+        margin-bottom: 1.5rem;
+    }
+    
+    .feature-slide .text-left {
+        order: 2;
+    }
+    
+    /* Override any desktop ordering on mobile */
+    .feature-slide .lg\\:order-first {
+        order: 1 !important;
+    }
+    
+    /* Special handling for mobile image in slide 3 */
+    .feature-slide img[alt="CodexZero Mobile Interface"] {
+        max-height: 400px !important;
+        width: auto !important;
+        max-width: 250px !important;
+    }
+    
+    /* Icon container adjustments */
+    .feature-slide .w-24.h-24 {
+        width: 4rem !important;
+        height: 4rem !important;
+        margin-bottom: 1.5rem !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+    
+    .feature-slide .w-24.h-24 i {
+        font-size: 2rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .scattered-letter {
+        font-size: 3.5rem;
+    }
+    
+    .feature-slide h3 {
+        font-size: 2rem !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    .feature-slide p {
+        font-size: 1rem !important;
+        margin-bottom: 1.5rem !important;
+    }
+    
+    .feature-slide .max-w-8xl {
+        padding-left: 1rem;
+        padding-right: 1rem;
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+    
+    .feature-slide .gap-20 {
+        gap: 1.5rem;
+    }
+    
+    .feature-slide img {
+        max-width: 95% !important;
+    }
+    
+    .feature-slide img[alt="CodexZero Mobile Interface"] {
+        max-height: 350px !important;
+        max-width: 200px !important;
+    }
+    
+    .feature-slide .w-24.h-24 {
+        width: 3rem !important;
+        height: 3rem !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    .feature-slide .w-24.h-24 i {
+        font-size: 1.5rem !important;
     }
 }
 </style>
@@ -87,20 +406,26 @@ document.addEventListener('DOMContentLoaded', function() {
     // Create scattered letters
     title.split('').forEach((char, index) => {
         if (char === ' ') {
-            container.appendChild(document.createTextNode(' '));
+            const space = document.createElement('span');
+            space.innerHTML = '&nbsp;';
+            space.className = 'scattered-letter';
+            space.style.opacity = '0';
+            container.appendChild(space);
             return;
         }
         
         const span = document.createElement('span');
         span.textContent = char;
         span.className = 'scattered-letter';
+        span.dataset.originalChar = char;
         
-        // Random scattered positions for initial animation
-        const randomX = (Math.random() - 0.5) * window.innerWidth * 0.8;
-        const randomY = (Math.random() - 0.5) * window.innerHeight * 0.6;
-        const randomRotate = (Math.random() - 0.5) * 360;
+        // Random scattered positions for initial animation - more dramatic spread
+        const randomX = (Math.random() - 0.5) * window.innerWidth * 1.2;
+        const randomY = (Math.random() - 0.5) * window.innerHeight * 0.8;
+        const randomRotate = (Math.random() - 0.5) * 720; // More rotation for fun
+        const randomScale = 0.3 + Math.random() * 0.7; // Random initial scale
         
-        span.style.transform = `translate(${randomX}px, ${randomY}px) rotate(${randomRotate}deg)`;
+        span.style.transform = `translate(${randomX}px, ${randomY}px) rotate(${randomRotate}deg) scale(${randomScale})`;
         
         container.appendChild(span);
     });
@@ -111,10 +436,18 @@ document.addEventListener('DOMContentLoaded', function() {
         letters.forEach((letter, index) => {
             setTimeout(() => {
                 letter.style.opacity = '1';
-                letter.style.transform = 'translate(0, 0) rotate(0deg)';
-            }, index * 100);
+                letter.style.transform = 'translate(0, 0) rotate(0deg) scale(1)';
+            }, index * 80); // Slightly faster animation
         });
-    }, 500);
+        
+        // Start morphing immediately as letters appear
+        setTimeout(() => {
+            if (window.startLokiEffect) {
+                console.log('Starting morphing during letter animation...');
+                window.startLokiEffect();
+            }
+        }, 400); // Start morphing while letters are still animating
+    }, 300); // Start sooner for more immediate impact
     
     // Show subtitle and CTA after title animation
     setTimeout(() => {
@@ -124,6 +457,35 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         document.getElementById('ctaButton').style.opacity = '1';
     }, 2500);
+
+    // Scroll-based gradient animation
+    function updateGradientPosition() {
+        const scrollPercent = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight);
+        const gradientBg = document.getElementById('gradient-bg');
+        
+        // Move the gradient background position based on scroll
+        const backgroundPosition = scrollPercent * 100;
+        gradientBg.style.backgroundPosition = `0% ${backgroundPosition}%`;
+    }
+
+    // Throttle scroll events for better performance
+    let ticking = false;
+    function handleScroll() {
+        if (!ticking) {
+            requestAnimationFrame(() => {
+                updateGradientPosition();
+                ticking = false;
+            });
+            ticking = true;
+        }
+    }
+
+    window.addEventListener('scroll', handleScroll);
+    
+    // Initialize gradient position
+    updateGradientPosition();
 });
+
+
 </script>
 {% endblock %} 

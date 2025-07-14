@@ -2,18 +2,39 @@
 
 {% block title %}Projects - CodexZero{% endblock %}
 
+{% block head %}
+<style>
+/* Dashboard gradient background */
+#dashboard-gradient {
+    background: linear-gradient(135deg, 
+        #fafafa 0%,           /* Very light gray */
+        #f5f5f5 20%,          /* Light gray */
+        #e8f4f8 50%,          /* Very light blue */
+        #f0f9ff 80%,          /* Light sky blue */
+        #fafafa 100%          /* Back to light gray */
+    );
+    background-size: 100% 200vh;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<section class="py-16 px-6">
+<!-- Dashboard Gradient Background -->
+<div id="dashboard-gradient" class="fixed inset-0 -z-10"></div>
+
+<section class="py-16 px-6 relative">
     <div class="max-w-6xl mx-auto">
         <!-- Header Section -->
         <div class="text-center mb-16">
-            <h1 class="text-5xl font-bold tracking-tight mb-4 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+            <h1 class="text-5xl font-bold tracking-tight mb-6 bg-gradient-to-r from-neutral-900 to-neutral-700 bg-clip-text text-transparent">
                 Your Translation Projects
             </h1>
-            <p class="text-lg text-neutral-600 font-medium max-w-2xl mx-auto mb-8 leading-relaxed">
+            <p class="text-xl text-neutral-600 font-medium max-w-2xl mx-auto mb-8 leading-relaxed">
                 Manage and create biblical translations with AI-powered assistance
             </p>
-            <a href="{{ url_for('new_project') }}" class="btn-marker text-lg px-8 py-4">
+            <a href="{{ url_for('projects.new_project') }}" class="inline-flex items-center px-12 py-4 bg-gradient-to-r from-neutral-900 to-neutral-800 text-white text-lg font-semibold rounded-xl hover:from-neutral-800 hover:to-neutral-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl">
                 <i class="fas fa-plus mr-3"></i>
                 Create New Project
             </a>
@@ -22,67 +43,75 @@
         {% if projects %}
             <div class="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
                 {% for project in projects %}
-                <div class="group relative p-8 marker-border-thin paper-cream hover:paper-light transition-all duration-300 transform hover:-translate-y-2 hover:shadow-xl">
+                <div class="group relative bg-white rounded-2xl border border-neutral-200 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 overflow-hidden">
                     <!-- Project Header -->
-                    <div class="mb-6">
-                        <div class="flex items-center mb-3">
-                            <div class="w-12 h-12 paper-light marker-border rounded-lg flex items-center justify-center mr-4">
-                                <i class="fas fa-language text-xl" style="color: #2d2d2d;"></i>
+                    <div class="p-8 pb-6">
+                        <div class="flex items-center mb-6">
+                            <div class="w-12 h-12 bg-neutral-100 border border-neutral-200 rounded-xl flex items-center justify-center mr-4 shadow-sm">
+                                <i class="fas fa-language text-xl text-neutral-700"></i>
                             </div>
                             <div class="flex-grow">
-                                <h3 class="text-xl font-bold leading-tight" style="color: #2d2d2d;">
+                                <h3 class="text-xl font-bold leading-tight text-neutral-900">
                                     {{ project.target_language }}
                                 </h3>
-                                <p class="text-sm font-medium text-neutral-600">
+                                <p class="text-sm font-medium text-neutral-500">
                                     Translation Project
                                 </p>
                             </div>
                         </div>
+
+                        <!-- Project Details -->
+                        <div class="space-y-3">
+                            <div class="flex items-center text-sm text-neutral-700">
+                                <i class="fas fa-users w-4 mr-3 text-neutral-400"></i>
+                                <span class="font-medium">{{ project.audience }}</span>
+                            </div>
+                            <div class="flex items-center text-sm text-neutral-700">
+                                <i class="fas fa-palette w-4 mr-3 text-neutral-400"></i>
+                                <span class="font-medium">{{ project.style }} style</span>
+                            </div>
+                            <div class="flex items-center text-sm text-neutral-700">
+                                <i class="fas fa-calendar w-4 mr-3 text-neutral-400"></i>
+                                <span class="font-medium">{{ project.updated_at.strftime('%b %d, %Y') }}</span>
+                            </div>
+                            {% set regular_files = project.files|rejectattr('file_type', 'equalto', 'training_data')|list %}
+                            {% set total_files = (regular_files|length) + (project.translations|length) %}
+                            {% if total_files > 0 %}
+                            <div class="flex items-center text-sm text-neutral-700">
+                                <i class="fas fa-file-alt w-4 mr-3 text-neutral-400"></i>
+                                <span class="font-medium">{{ total_files }} file{{ 's' if total_files != 1 else '' }}</span>
+                            </div>
+                            {% endif %}
+                            {% set member_count = project.members|length %}
+                            {% if member_count > 1 %}
+                            <div class="flex items-center text-sm text-neutral-700">
+                                <i class="fas fa-user-friends w-4 mr-3 text-neutral-400"></i>
+                                <span class="font-medium">{{ member_count }} member{{ 's' if member_count != 1 else '' }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
                     </div>
-
-                    <!-- Project Details -->
-                    <div class="mb-6 space-y-3">
-                        <div class="flex items-center text-sm text-neutral-700">
-                            <i class="fas fa-users w-4 mr-3 text-neutral-500"></i>
-                            <span class="font-medium">{{ project.audience }}</span>
-                        </div>
-                        <div class="flex items-center text-sm text-neutral-700">
-                            <i class="fas fa-palette w-4 mr-3 text-neutral-500"></i>
-                            <span class="font-medium">{{ project.style }} style</span>
-                        </div>
-                        <div class="flex items-center text-sm text-neutral-700">
-                            <i class="fas fa-calendar w-4 mr-3 text-neutral-500"></i>
-                            <span class="font-medium">{{ project.updated_at.strftime('%b %d, %Y') }}</span>
-                        </div>
-                        {% if project.files %}
-                        <div class="flex items-center text-sm text-neutral-700">
-                            <i class="fas fa-file-alt w-4 mr-3 text-neutral-500"></i>
-                            <span class="font-medium">{{ project.files|length }} file{{ 's' if project.files|length != 1 else '' }}</span>
-                        </div>
-                        {% endif %}
-                    </div>
-
-
 
                     <!-- Action Buttons -->
-                    <div class="flex gap-3">
-                        <a href="{{ url_for('view_project', project_id=project.id) }}" 
-                           class="flex-1 text-center py-3 px-4 paper-white marker-border-thin hover:paper-light transition-all duration-200 text-sm font-bold group-hover:transform group-hover:scale-105">
-                            <i class="fas fa-eye mr-2"></i>
-                            View
-                        </a>
-                        <a href="/project/{{ project.id }}/translate" 
-                           class="flex-1 text-center py-3 px-4 marker-border text-white hover:bg-transparent hover:text-gray-900 transition-all duration-200 text-sm font-bold group-hover:transform group-hover:scale-105"
-                           style="background: #2d2d2d;">
-                            <i class="fas fa-language mr-2"></i>
-                            Translate
-                        </a>
+                    <div class="px-8 pb-8">
+                        <div class="flex gap-3">
+                            <a href="{{ url_for('projects.view_project', project_id=project.id) }}"
+                               class="flex-1 text-center py-3 px-4 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 hover:text-neutral-900 rounded-lg transition-all duration-200 text-sm font-semibold border border-neutral-200 hover:border-neutral-300">
+                                <i class="fas fa-eye mr-2"></i>
+                                View
+                            </a>
+                            <a href="/project/{{ project.id }}/translate" 
+                               class="flex-1 text-center py-3 px-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 rounded-lg transition-all duration-200 text-sm font-semibold shadow-md hover:shadow-lg">
+                                <i class="fas fa-language mr-2"></i>
+                                Translate
+                            </a>
+                        </div>
                     </div>
 
                     <!-- Hover Effect Indicator -->
                     <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <div class="w-8 h-8 paper-white marker-border rounded-full flex items-center justify-center">
-                            <i class="fas fa-arrow-up-right text-sm" style="color: #2d2d2d;"></i>
+                        <div class="w-8 h-8 bg-white border border-neutral-200 rounded-full flex items-center justify-center shadow-sm">
+                            <i class="fas fa-arrow-up-right text-sm text-neutral-600"></i>
                         </div>
                     </div>
                 </div>
@@ -91,47 +120,18 @@
 
         {% else %}
             <!-- Empty State -->
-            <div class="text-center py-24 max-w-2xl mx-auto">
-                <div class="relative mb-8">
-                    <div class="w-24 h-24 paper-light marker-border rounded-2xl mb-6 flex items-center justify-center mx-auto">
-                        <i class="fas fa-book-open text-4xl" style="color: #2d2d2d;"></i>
-                    </div>
-                    <div class="absolute -top-2 -right-2 w-8 h-8 bg-yellow-200 marker-border rounded-full flex items-center justify-center">
-                        <i class="fas fa-plus text-sm" style="color: #2d2d2d;"></i>
-                    </div>
-                </div>
-                
-                <h3 class="text-3xl font-bold mb-4" style="color: #2d2d2d;">Ready to Begin?</h3>
-                <p class="text-lg text-neutral-700 mb-12 font-medium leading-relaxed">
-                    Start your first biblical translation project and experience the power of AI-assisted translation.
-                </p>
-                
-                <div class="space-y-4">
-                    <a href="{{ url_for('new_project') }}" class="btn-marker inline-block text-lg px-8 py-4">
-                        <i class="fas fa-plus mr-3"></i>
-                        Create Your First Project
-                    </a>
-                    <div class="text-sm text-neutral-600 font-medium">
-                        Get started in less than 2 minutes
-                    </div>
-                </div>
-
-                <!-- Feature highlights -->
-                <div class="grid gap-6 mt-16 md:grid-cols-3">
-                    <div class="p-6 paper-light marker-border-thin">
-                        <i class="fas fa-robot text-2xl mb-3" style="color: #2d2d2d;"></i>
-                        <h4 class="font-bold mb-2" style="color: #2d2d2d;">AI-Powered</h4>
-                        <p class="text-sm text-neutral-600">Advanced translation assistance</p>
-                    </div>
-                    <div class="p-6 paper-light marker-border-thin">
-                        <i class="fas fa-globe text-2xl mb-3" style="color: #2d2d2d;"></i>
-                        <h4 class="font-bold mb-2" style="color: #2d2d2d;">Multi-Language</h4>
-                        <p class="text-sm text-neutral-600">Support for various target languages</p>
-                    </div>
-                    <div class="p-6 paper-light marker-border-thin">
-                        <i class="fas fa-users text-2xl mb-3" style="color: #2d2d2d;"></i>
-                        <h4 class="font-bold mb-2" style="color: #2d2d2d;">Contextual</h4>
-                        <p class="text-sm text-neutral-600">Tailored to your audience</p>
+            <div class="text-center py-16 max-w-xl mx-auto">
+                <div class="bg-white rounded-2xl border border-neutral-200 shadow-lg p-12">
+                    <div class="mb-8">
+                        <div class="w-20 h-20 bg-neutral-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                            <i class="fas fa-book-open text-3xl text-neutral-400"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-4 text-neutral-700">No projects yet</h3>
+                        <p class="text-neutral-600 mb-8 leading-relaxed">Create your first translation project to get started with AI-powered Bible translation.</p>
+                        <a href="{{ url_for('projects.new_project') }}" class="inline-flex items-center px-8 py-3 bg-gradient-to-r from-neutral-900 to-neutral-800 text-white font-semibold rounded-xl hover:from-neutral-800 hover:to-neutral-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl">
+                            <i class="fas fa-plus mr-2"></i>
+                            Create Your First Project
+                        </a>
                     </div>
                 </div>
             </div>

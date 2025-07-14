@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="95ef8313-d886-4f88-88bf-d9fd120659d0"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}CodexZero - Zero Draft Bible Translation{% endblock %}</title>
@@ -9,27 +10,31 @@
     <link rel="icon" type="image/vnd.microsoft.icon" href="{{ url_for('favicon') }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     fontFamily: {
-                        'sans': ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-                        'mono': ['SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'monospace'],
+                        'sans': ['Inter', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
+                        'mono': ['JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', 'monospace'],
                     }
                 }
             }
         }
     </script>
     <style>
-        /* Paper-like base styling */
+        /* Base styling */
         body {
-            background: #fefdf8;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
             color: #2d2d2d;
+            font-weight: 400;
+            letter-spacing: -0.01em;
         }
 
-        /* Marker-style borders */
+        /* Legacy marker-style borders for backwards compatibility */
         .marker-border {
             border: 3px solid #2d2d2d;
             border-radius: 2px;
@@ -55,7 +60,7 @@
             border-radius: 2px;
         }
 
-        /* Paper textures */
+        /* Legacy paper textures for backwards compatibility */
         .paper-white {
             background: #fefdf8;
         }
@@ -68,16 +73,16 @@
             background: #f7f6f1;
         }
 
-        /* Custom marker-style buttons */
+        /* Legacy marker-style buttons for backwards compatibility */
         .btn-marker {
             background: #2d2d2d;
             color: #fefdf8;
             border: 3px solid #2d2d2d;
             border-radius: 2px;
             padding: 12px 24px;
-            font-weight: 700;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.025em;
             transition: all 0.2s ease;
         }
 
@@ -88,50 +93,78 @@
             box-shadow: 0 4px 8px rgba(45, 45, 45, 0.2);
         }
 
-        /* Navigation styling */
-        .nav-link {
-            color: #6b7280;
-            transition: all 0.2s ease;
-            padding: 8px 12px;
-            border-radius: 2px;
+        /* Mixed script styling */
+        .mixed-script {
+            font-feature-settings: "liga" off, "calt" off;
         }
 
-        .nav-link:hover {
-            color: #2d2d2d;
-            background: #f7f6f1;
-            border: 2px solid #e5e4dd;
+        /* Loki-style morphing animation */
+        .morphing-text {
+            animation: textMorph 0.1s infinite;
+        }
+
+        @keyframes textMorph {
+            0% { opacity: 1; }
+            50% { opacity: 0.8; }
+            100% { opacity: 1; }
         }
     </style>
+    {% block head %}{% endblock %}
 </head>
-<body class="paper-white text-neutral-900 font-sans min-h-screen flex flex-col">
-    <nav class="border-b marker-border-thin paper-cream">
+<body class="text-neutral-900 font-sans min-h-screen flex flex-col">
+    <nav class="relative bg-white/80 backdrop-blur-sm border-b border-neutral-200 z-50">
         <div class="w-full px-6 py-4">
             <div class="flex items-center justify-between">
-                <a href="{{ url_for('index') }}" class="text-xl font-bold tracking-tight hover:text-blue-600 transition-colors" style="color: #2d2d2d;">CodexZero</a>
+                <a href="{{ url_for('main.index') }}" class="text-xl font-semibold tracking-tight text-neutral-900 hover:text-neutral-700 transition-colors">
+                    CodexZero
+                </a>
                 <div class="flex items-center gap-4">
                     {% if current_user.is_authenticated %}
-                        <a href="{{ url_for('dashboard') }}" class="nav-link text-sm font-medium">
-                            <i class="fas fa-folder mr-1"></i>
-                            Projects
-                        </a>
-                        <a href="{{ url_for('faq') }}" class="nav-link text-sm font-medium">
-                            <i class="fas fa-question-circle mr-1"></i>
+                        <a href="{{ url_for('main.faq') }}" class="text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                            <i class="fas fa-question-circle mr-2"></i>
                             FAQ
                         </a>
-                        <span class="text-sm text-neutral-600 font-medium">
-                            <i class="fas fa-user mr-1"></i>
-                            {{ current_user.name }}
-                        </span>
-                        <a href="{{ url_for('auth.logout') }}" class="nav-link text-sm font-medium">
-                            <i class="fas fa-sign-out-alt mr-1"></i>
-                            Logout
-                        </a>
+                      
+                        <div class="relative group">
+                            <button class="flex items-center gap-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                                <i class="fas fa-user"></i>
+                                <span>{{ current_user.name.split()[0] if current_user.name else 'User' }}</span>
+                                <i class="fas fa-chevron-down text-xs"></i>
+                            </button>
+                            <div class="absolute right-0 top-full mt-2 w-48 bg-white border border-neutral-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                                <div class="px-4 py-3 text-xs font-semibold text-neutral-500 uppercase tracking-wide border-b border-neutral-100 bg-neutral-50 rounded-t-xl">
+                                    {{ current_user.name }}
+                                </div>
+                                <a href="{{ url_for('projects.dashboard') }}" class="block px-4 py-3 text-sm font-medium text-neutral-900 hover:bg-neutral-50 hover:text-blue-600 transition-colors border-b border-neutral-100">
+                                    <i class="fas fa-folder mr-3"></i>
+                                    Projects
+                                </a>
+                                {% if current_user.email == 'danieljlosey@gmail.com' %}
+                                    <a href="{{ url_for('admin.dashboard') }}" class="block px-4 py-3 text-sm font-medium text-neutral-900 hover:bg-neutral-50 hover:text-blue-600 transition-colors border-b border-neutral-100">
+                                        <i class="fas fa-shield-alt mr-3"></i>
+                                        Admin Dashboard
+                                    </a>
+                                    <a href="{{ url_for('admin.models') }}" class="block px-4 py-3 text-sm font-medium text-neutral-900 hover:bg-neutral-50 hover:text-blue-600 transition-colors border-b border-neutral-100">
+                                        <i class="fas fa-robot mr-3"></i>
+                                        Manage Models
+                                    </a>
+                                {% endif %}
+                                <a href="{{ url_for('auth.logout') }}" class="block px-4 py-3 text-sm font-medium text-neutral-900 hover:bg-neutral-50 hover:text-red-600 transition-colors rounded-b-xl">
+                                    <i class="fas fa-sign-out-alt mr-3"></i>
+                                    Sign Out
+                                </a>
+                            </div>
+                        </div>
                     {% else %}
-                        <a href="{{ url_for('faq') }}" class="nav-link text-sm font-medium">
-                            <i class="fas fa-question-circle mr-1"></i>
+                        <a href="{{ url_for('main.faq') }}" class="text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                            <i class="fas fa-question-circle mr-2"></i>
                             FAQ
                         </a>
-                        <a href="{{ url_for('auth.login') }}" class="btn-marker text-sm inline-block">
+                        <a href="{{ url_for('main.philosophy') }}" class="text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                            <i class="fas fa-lightbulb mr-2"></i>
+                            Philosophy
+                        </a>
+                        <a href="{{ url_for('auth.login') }}" class="inline-flex items-center px-6 py-2 bg-gradient-to-r from-neutral-900 to-neutral-800 text-white text-sm font-semibold rounded-lg hover:from-neutral-800 hover:to-neutral-700 transform hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg">
                             <i class="fab fa-google mr-2"></i>
                             Sign in with Google
                         </a>
@@ -144,9 +177,9 @@
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-            <div class="w-full px-6 py-4">
+            <div class="w-full px-6 py-4 relative">
                 {% for category, message in messages %}
-                    <div class="mb-2 p-4 marker-border-thin {% if category == 'error' %}paper-light border-red-400 text-red-700{% elif category == 'success' %}paper-light border-green-400 text-green-700{% else %}paper-light border-blue-400 text-blue-700{% endif %}">
+                    <div class="mb-2 p-4 rounded-xl border {% if category == 'error' %}bg-red-50 border-red-200 text-red-700{% elif category == 'success' %}bg-green-50 border-green-200 text-green-700{% else %}bg-blue-50 border-blue-200 text-blue-700{% endif %} shadow-sm">
                         {{ message }}
                     </div>
                 {% endfor %}
@@ -154,11 +187,11 @@
         {% endif %}
     {% endwith %}
     
-    <main class="flex-grow paper-white">
+    <main class="flex-grow relative">
         {% block content %}{% endblock %}
     </main>
     
-    <footer class="border-t marker-border-thin mt-24 paper-cream">
+    <footer class="relative border-t border-neutral-200 mt-24 bg-white/80 backdrop-blur-sm">
         <div class="w-full px-6 py-8">
             <div class="text-center text-sm text-neutral-600 font-medium">
                 © 2025 Frontier R&D
@@ -166,6 +199,313 @@
         </div>
     </footer>
     
+    <script>
+        // Character replacements - similar-looking alternatives from multiple scripts
+        const characterMaps = {
+            'a': ['а', 'α', 'ɑ', 'à', 'á', 'â', 'ª', 'ᵃ', 'ₐ'],
+            'b': ['б', 'ḃ', 'ḅ', 'ᵇ', 'ь'],
+            'c': ['с', 'ç', 'ć', 'č', 'ĉ', 'ċ', 'ⅽ', 'ᶜ'],
+            'd': ['ḋ', 'ḍ', 'ď', 'ᵈ', 'ⅾ'],
+            'e': ['е', 'ε', 'è', 'é', 'ê', 'ë', 'ē', 'ė', 'ę', 'ₑ', 'ᵉ'],
+            'f': ['ḟ', 'ƒ', 'ᶠ'],
+            'g': ['ģ', 'ĝ', 'ğ', 'ġ', 'ց', 'ᵍ'],
+            'h': ['һ', 'ḣ', 'ḥ', 'ĥ', 'ħ', 'ⱨ', 'ᵸ'],
+            'i': ['і', 'ι', 'ì', 'í', 'î', 'ï', 'ī', 'į', 'ı', 'ᵢ', 'ⁱ'],
+            'j': ['ј', 'ĵ', 'ⱼ'],
+            'k': ['κ', 'ķ', 'ḱ', 'ᵏ', 'ₖ'],
+            'l': ['ł', 'ļ', 'ľ', 'ḷ', 'ₗ', 'ˡ'],
+            'm': ['м', 'ṁ', 'ṃ', 'ᵐ', 'ₘ'],
+            'n': ['п', 'ñ', 'ń', 'ň', 'ņ', 'ṅ', 'ₙ', 'ⁿ'],
+            'o': ['о', 'ο', 'ò', 'ó', 'ô', 'õ', 'ö', 'ø', 'ō', 'ő', 'º', 'ᵒ', 'ₒ'],
+            'p': ['р', 'ρ', 'ṕ', 'ṗ', 'ᵖ', 'ₚ'],
+            'q': ['ʠ', 'ԛ'],
+            'r': ['г', 'ŕ', 'ř', 'ŗ', 'ṙ', 'ᵣ', 'ʳ'],
+            's': ['ѕ', 'ś', 'ş', 'š', 'ṡ', 'ˢ', 'ₛ'],
+            't': ['т', 'τ', 'ţ', 'ť', 'ṫ', 'ᵗ', 'ₜ'],
+            'u': ['υ', 'ù', 'ú', 'û', 'ü', 'ũ', 'ū', 'ŭ', 'ů', 'ᵘ', 'ᵤ'],
+            'v': ['ν', 'ṽ', 'ṿ', 'ᵛ', 'ᵥ'],
+            'w': ['ω', 'ẁ', 'ẃ', 'ẅ', 'ŵ', 'ẇ', 'ʷ'],
+            'x': ['х', 'χ', 'ẋ', 'ˣ'],
+            'y': ['у', 'ý', 'ÿ', 'ŷ', 'ẏ', 'ʸ'],
+            'z': ['ž', 'ź', 'ż', 'ẑ', 'ᶻ'],
+            'A': ['А', 'Α', 'À', 'Á', 'Â', 'Ã', 'Ä', 'Ā', 'Ă', 'Ą', 'Λ'],
+            'B': ['Б', 'Β', 'Ḃ', 'Ḅ', 'Ḇ', 'Ƀ', 'ᴃ'],
+            'C': ['С', 'Ç', 'Ć', 'Ĉ', 'Č', 'Ċ', 'Ƈ', 'Ⅽ'],
+            'D': ['Ḋ', 'Ḍ', 'Ď', 'Đ', 'Ɖ', 'Ḏ'],
+            'E': ['Е', 'Ε', 'È', 'É', 'Ê', 'Ë', 'Ē', 'Ė', 'Ę', 'Ě', 'Ǝ'],
+            'F': ['Ḟ', 'Ƒ', 'Ϝ'],
+            'G': ['Ģ', 'Ĝ', 'Ğ', 'Ġ', 'Ḡ', 'Ɠ'],
+            'H': ['Н', 'Η', 'Ḣ', 'Ḥ', 'Ĥ', 'Ħ', 'Ⱨ'],
+            'I': ['І', 'Ι', 'Ì', 'Í', 'Î', 'Ï', 'Ī', 'Į', 'İ', 'Ɨ', 'ᴵ'],
+            'J': ['Ј', 'Ĵ', 'Ɉ'],
+            'K': ['К', 'Κ', 'Ķ', 'Ḱ', 'Ḳ', 'Ƙ'],
+            'L': ['Ł', 'Ļ', 'Ľ', 'Ḷ', 'Ḻ', 'Ƚ', 'ᴸ'],
+            'M': ['М', 'Μ', 'Ṁ', 'Ṃ', 'Ɱ', 'ᴹ'],
+            'N': ['Ν', 'Ñ', 'Ń', 'Ň', 'Ņ', 'Ṅ', 'Ṇ', 'Ɲ', 'ᴺ'],
+            'O': ['О', 'Ο', 'Ò', 'Ó', 'Ô', 'Õ', 'Ö', 'Ø', 'Ō', 'Ő', 'Ɵ'],
+            'P': ['Р', 'Ρ', 'Ṕ', 'Ṗ', 'Ƥ', 'ᴾ'],
+            'Q': ['Ɋ', 'Ԛ'],
+            'R': ['Ŕ', 'Ř', 'Ŗ', 'Ṙ', 'Ṛ', 'Ɍ', 'ᴿ'],
+            'S': ['Ѕ', 'Σ', 'Ś', 'Ş', 'Š', 'Ṡ', 'Ṣ', 'Ƨ', 'ˢ'],
+            'T': ['Т', 'Τ', 'Ţ', 'Ť', 'Ṫ', 'Ṭ', 'Ƭ', 'ᵀ'],
+            'U': ['Ù', 'Ú', 'Û', 'Ü', 'Ũ', 'Ū', 'Ŭ', 'Ů', 'Ű', 'Ų', 'Ʉ'],
+            'V': ['Ṽ', 'Ṿ', 'Ʋ', 'ⱱ', 'ᵛ'],
+            'W': ['Ω', 'Ẁ', 'Ẃ', 'Ẅ', 'Ŵ', 'Ẇ', 'Ɯ', 'ᵂ'],
+            'X': ['Х', 'Χ', 'Ẋ', 'Ẍ', 'ˣ'],
+            'Y': ['У', 'Υ', 'Ý', 'Ÿ', 'Ŷ', 'Ẏ', 'Ƴ', 'ʸ'],
+            'Z': ['Ž', 'Ź', 'Ż', 'Ẑ', 'Ẓ', 'Ƶ', 'Ζ']
+        };
+
+        function getRandomCharacter(char) {
+            if (characterMaps[char]) {
+                const alternatives = characterMaps[char];
+                return alternatives[Math.floor(Math.random() * alternatives.length)];
+            }
+            return char;
+        }
+
+        function transformText(text) {
+            return text.split('').map(char => {
+                // 90% chance to replace with alternative character for testing
+                if (Math.random() < 0.9) {
+                    return getRandomCharacter(char);
+                }
+                return char;
+            }).join('');
+        }
+
+        // Simple function to initially transform text with random characters
+        function applyInitialTransform() {
+            console.log('Applying initial character transformation...');
+            
+            // Transform navigation logo
+            const logoElement = document.querySelector('nav a[href*="main.index"]');
+            if (logoElement && !logoElement.dataset.transformed) {
+                const originalText = logoElement.textContent;
+                logoElement.dataset.originalText = originalText;
+                logoElement.textContent = transformText(originalText);
+                logoElement.dataset.transformed = 'true';
+                console.log(`Logo transformed: "${originalText}" → "${logoElement.textContent}"`);
+            }
+            
+            // Transform homepage title letters
+            const titleLetters = document.querySelectorAll('.scattered-letter');
+            titleLetters.forEach((span, index) => {
+                if (span.textContent && span.textContent.trim() && span.textContent !== ' ' && !span.dataset.transformed) {
+                    const originalChar = span.textContent;
+                    span.dataset.originalChar = originalChar;
+                    span.textContent = getRandomCharacter(originalChar);
+                    span.dataset.transformed = 'true';
+                    console.log(`Letter ${index} transformed: "${originalChar}" → "${span.textContent}"`);
+                }
+            });
+        }
+
+        // Apply initial transformation and start morphing
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded, applying initial transformation...');
+            setTimeout(applyInitialTransform, 100);
+            
+            // Start morphing immediately for the logo
+            setTimeout(() => {
+                console.log('Starting immediate morphing for logo...');
+                window.startLokiEffect();
+            }, 200);
+            
+            // For the animated title, apply transformation and enhance morphing
+            setTimeout(() => {
+                console.log('Applying transformation after animation...');
+                applyInitialTransform();
+                
+                // Restart morphing to include the new title elements
+                setTimeout(() => {
+                    console.log('Restarting morphing to include title...');
+                    window.startLokiEffect();
+                }, 300);
+            }, 1000); // Start earlier, during the scatter animation
+        });
+
+        // Restart morphing on scroll
+        let scrollTimeout;
+        window.addEventListener('scroll', () => {
+            // Only restart if morphing has stopped (all letters frozen)
+            if (!morphingInterval && frozenElements.size > 0) {
+                console.log('Scroll detected - restarting morphing effect!');
+                
+                // Clear any existing timeout
+                if (scrollTimeout) {
+                    clearTimeout(scrollTimeout);
+                }
+                
+                // Restart after a brief delay to avoid too many restarts
+                scrollTimeout = setTimeout(() => {
+                    // Re-apply initial transformation to scramble the text again
+                    applyInitialTransform();
+                    
+                    // Start morphing again
+                    setTimeout(() => {
+                        window.startLokiEffect();
+                    }, 500);
+                }, 300);
+            }
+        });
+
+
+
+        // Enhanced morphing system with freeze-on-normal and scroll restart
+        let morphingInterval = null;
+        let morphableElements = [];
+        let frozenElements = new Set();
+        
+        window.startLokiEffect = function() {
+            console.log('Starting enhanced morphing effect...');
+            
+            // Stop any existing morphing
+            if (morphingInterval) {
+                clearInterval(morphingInterval);
+                morphingInterval = null;
+            }
+            
+            // Reset frozen elements
+            frozenElements.clear();
+            morphableElements = [];
+            
+            // 1. Navigation logo
+            const logoElement = document.querySelector('nav a[href*="main.index"]');
+            if (logoElement) {
+                // Store original text if not already stored
+                if (!logoElement.dataset.originalText) {
+                    logoElement.dataset.originalText = logoElement.textContent;
+                }
+                
+                const originalText = logoElement.dataset.originalText;
+                originalText.split('').forEach((char, index) => {
+                    if (char.trim() && characterMaps[char]) {
+                        const elementId = `logo-${index}`;
+                        morphableElements.push({
+                            id: elementId,
+                            element: logoElement,
+                            index: index,
+                            originalChar: char,
+                            type: 'logo'
+                        });
+                    }
+                });
+            }
+            
+            // 2. Homepage title letters
+            const titleLetters = document.querySelectorAll('.scattered-letter');
+            titleLetters.forEach((span, spanIndex) => {
+                // Store original character if not already stored
+                if (!span.dataset.originalChar) {
+                    span.dataset.originalChar = span.textContent;
+                }
+                
+                const originalChar = span.dataset.originalChar;
+                if (originalChar && originalChar.trim() && originalChar !== ' ' && characterMaps[originalChar]) {
+                    const elementId = `title-${spanIndex}`;
+                    morphableElements.push({
+                        id: elementId,
+                        element: span,
+                        index: 0,
+                        originalChar: originalChar,
+                        type: 'title'
+                    });
+                }
+            });
+            
+            console.log(`Found ${morphableElements.length} morphable elements`);
+            
+            if (morphableElements.length === 0) {
+                console.log('No morphable elements found');
+                return;
+            }
+            
+            // Start morphing - change one random letter every 133ms (50% faster than 200ms)
+            morphingInterval = setInterval(() => {
+                // Filter out frozen elements
+                const activeMorphableElements = morphableElements.filter(el => !frozenElements.has(el.id));
+                
+                if (activeMorphableElements.length === 0) {
+                    console.log('All elements frozen - text returned to normal!');
+                    clearInterval(morphingInterval);
+                    morphingInterval = null;
+                    return;
+                }
+                
+                const randomIndex = Math.floor(Math.random() * activeMorphableElements.length);
+                const target = activeMorphableElements[randomIndex];
+                
+                const alternatives = characterMaps[target.originalChar];
+                if (!alternatives || alternatives.length === 0) return;
+                
+                // Add the original character to alternatives with higher probability
+                const allOptions = [...alternatives, target.originalChar, target.originalChar, target.originalChar];
+                const newChar = allOptions[Math.floor(Math.random() * allOptions.length)];
+                
+                // Check if we landed on the original character - 50% chance to freeze
+                if (newChar === target.originalChar) {
+                    if (Math.random() < 0.50) { // 50% chance to freeze
+                        console.log(`Letter '${target.originalChar}' returned to normal - freezing! (50% chance)`);
+                        frozenElements.add(target.id);
+                    } else {
+                        console.log(`Letter '${target.originalChar}' returned to normal but didn't freeze (50% chance)`);
+                    }
+                }
+                
+                // Apply the change
+                if (target.type === 'title') {
+                    target.element.textContent = newChar;
+                } else if (target.type === 'logo') {
+                    const currentText = target.element.textContent;
+                    const newText = currentText.substring(0, target.index) + newChar + currentText.substring(target.index + 1);
+                    target.element.textContent = newText;
+                }
+                
+            }, 133); // 50% faster than 200ms (200 * 0.67 ≈ 133)
+        };
+
+        // Add test functions
+        window.testTransform = function() {
+            console.log('Manual transform test triggered');
+            applyInitialTransform();
+        };
+        
+        window.stopAllMorphing = function() {
+            console.log('Stopping all morphing...');
+            if (morphingInterval) {
+                clearInterval(morphingInterval);
+                morphingInterval = null;
+            }
+        };
+        
+        window.restartMorphing = function() {
+            console.log('Manual restart triggered');
+            applyInitialTransform();
+            setTimeout(() => {
+                window.startLokiEffect();
+            }, 500);
+        };
+        
+        window.getMorphingStatus = function() {
+            console.log(`Morphing active: ${morphingInterval !== null}`);
+            console.log(`Frozen elements: ${frozenElements.size}`);
+            console.log(`Total morphable elements: ${morphableElements.length}`);
+            return {
+                active: morphingInterval !== null,
+                frozen: frozenElements.size,
+                total: morphableElements.length
+            };
+        };
+
+        // Also add a simple test on page load
+        setTimeout(() => {
+            console.log('Testing character transformation...');
+            console.log('Original: CodexZero');
+            console.log('Transformed:', transformText('CodexZero'));
+        }, 500);
+    </script>
+
     {% block scripts %}{% endblock %}
 </body>
 </html> 

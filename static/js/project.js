@@ -1,20 +1,49 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Project.js loaded');
     
+    // Tab functionality
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const targetTab = this.getAttribute('data-tab');
+            
+            // Update button states
+            tabButtons.forEach(btn => {
+                btn.classList.remove('active', 'border-blue-600', 'text-blue-600');
+                btn.classList.add('border-transparent', 'text-neutral-500');
+            });
+            
+            this.classList.add('active', 'border-blue-600', 'text-blue-600');
+            this.classList.remove('border-transparent', 'text-neutral-500');
+            
+            // Update content visibility
+            tabContents.forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            const targetContent = document.getElementById(targetTab + '-tab');
+            if (targetContent) {
+                targetContent.classList.remove('hidden');
+            }
+        });
+    });
+    
     // File management modal elements
     const deleteFileModal = document.getElementById('delete-file-modal');
     const closeDeleteModalBtn = document.getElementById('close-delete-modal-btn');
     const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
     const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
     const downloadOriginalBtn = document.getElementById('download-original-btn');
+    
+    // Translation management modal elements
+    const deleteTranslationModal = document.getElementById('delete-translation-modal');
+    const closeDeleteTranslationModalBtn = document.getElementById('close-delete-translation-modal-btn');
+    const cancelDeleteTranslationBtn = document.getElementById('cancel-delete-translation-btn');
+    const confirmDeleteTranslationBtn = document.getElementById('confirm-delete-translation-btn');
 
-    // Combined import modal elements
-    const openImportModalBtn = document.getElementById('open-import-modal-btn');
-    const openImportModalBtnEmpty = document.getElementById('open-import-modal-btn-empty');
-    const importModal = document.getElementById('import-modal');
-    const closeImportModalBtn = document.getElementById('close-import-modal-btn');
-    const cancelImportBtn = document.getElementById('cancel-import-btn');
-    const confirmImportBtn = document.getElementById('confirm-import-btn');
+    // Note: Import modal replaced with drag and drop interface
     
     // File pairing modal elements
     const filePairingModal = document.getElementById('file-pairing-modal');
@@ -23,25 +52,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmPairingBtn = document.getElementById('confirm-pairing-btn');
     const firstFileName = document.getElementById('first-file-name');
     const secondFileSelect = document.getElementById('second-file-select');
+    const pairInstructions = document.getElementById('pair-instructions');
+    const pairCharCount = document.getElementById('pair-char-count');
     
-    // Import modal sections
-    const uploadSection = document.getElementById('upload-section');
-    const corpusSection = document.getElementById('corpus-section');
-    const usfmSection = document.getElementById('usfm-section');
+
     
-    // Corpus elements
-    const corpusFilesLoading = document.getElementById('corpus-files-loading');
-    const corpusFilesList = document.getElementById('corpus-files-list');
-    const corpusFilesEmpty = document.getElementById('corpus-files-empty');
-    const corpusSearchSection = document.getElementById('corpus-search-section');
-    const corpusSearchInput = document.getElementById('corpus-search');
-    const corpusNoResults = document.getElementById('corpus-no-results');
+    // Note: Complex import sections replaced with simple drag and drop
     
     let currentFileToDelete = null;
+    let currentTranslationToDelete = null;
     let originalDownloaded = false;
     let currentFileForPairing = null;
-    let selectedCorpusFile = null;
-    let currentImportMethod = 'upload';
     
     const projectId = window.location.pathname.split('/')[2];
     console.log('Project ID:', projectId);
@@ -53,16 +74,58 @@ document.addEventListener('DOMContentLoaded', function() {
             const fileId = btn.getAttribute('data-file-id');
             const filename = btn.getAttribute('data-filename');
             openDeleteFileModal(fileId, filename);
-        } else if (e.target.closest('.pair-file-btn')) {
-            const btn = e.target.closest('.pair-file-btn');
+        } else if (e.target.closest('.delete-translation-btn')) {
+            const btn = e.target.closest('.delete-translation-btn');
+            const translationId = btn.getAttribute('data-translation-id');
+            const translationName = btn.getAttribute('data-translation-name');
+            openDeleteTranslationModal(translationId, translationName);
+        } else if (e.target.closest('.save-purpose-btn')) {
+            const btn = e.target.closest('.save-purpose-btn');
             const fileId = btn.getAttribute('data-file-id');
-            const filename = btn.getAttribute('data-filename');
-            openPairingModal(fileId, filename);
-        } else if (e.target.closest('.unpair-file-btn')) {
-            const btn = e.target.closest('.unpair-file-btn');
-            const fileId = btn.getAttribute('data-file-id');
-            const filename = btn.getAttribute('data-filename');
-            unpairFile(fileId, filename);
+            const purposeInput = document.querySelector(`.purpose-input[data-file-id="${fileId}"]`);
+            if (purposeInput) {
+                saveFilePurpose(fileId, purposeInput, btn);
+            }
+        } else if (e.target.closest('.save-translation-purpose-btn')) {
+            const btn = e.target.closest('.save-translation-purpose-btn');
+            const translationId = btn.getAttribute('data-translation-id');
+            const purposeInput = document.querySelector(`.translation-purpose-input[data-translation-id="${translationId}"]`);
+            if (purposeInput) {
+                saveTranslationPurpose(translationId, purposeInput, btn);
+            }
+        }
+    });
+    
+    // Character counting for purpose inputs
+    document.addEventListener('input', function(e) {
+        if (e.target.classList.contains('purpose-input')) {
+            const charCounter = e.target.parentElement.querySelector('.char-counter');
+            if (charCounter) {
+                const length = e.target.value.length;
+                charCounter.textContent = `${length} / 1,000`;
+                
+                if (length > 1000) {
+                    charCounter.style.color = '#dc2626';
+                    e.target.style.borderColor = '#dc2626';
+                } else {
+                    charCounter.style.color = '#6b7280';
+                    e.target.style.borderColor = '';
+                }
+            }
+        } else if (e.target.classList.contains('translation-purpose-input')) {
+            const charCounter = e.target.parentElement.querySelector('.translation-char-counter');
+            if (charCounter) {
+                const length = e.target.value.length;
+                charCounter.textContent = `${length} / 1,000`;
+                
+                if (length > 1000) {
+                    charCounter.style.color = '#dc2626';
+                    e.target.style.borderColor = '#dc2626';
+                } else {
+                    charCounter.style.color = '#6b7280';
+                    e.target.style.borderColor = '';
+                }
+            }
         }
     });
     
@@ -84,121 +147,24 @@ document.addEventListener('DOMContentLoaded', function() {
             updateDeleteButtonState();
         });
     }
-
-    // Combined import modal event listeners
-    if (openImportModalBtn) {
-        openImportModalBtn.addEventListener('click', openImportModal);
+    
+    // Translation delete modal event listeners
+    if (closeDeleteTranslationModalBtn) {
+        closeDeleteTranslationModalBtn.addEventListener('click', closeDeleteTranslationModal);
     }
     
-    if (openImportModalBtnEmpty) {
-        openImportModalBtnEmpty.addEventListener('click', openImportModal);
+    if (cancelDeleteTranslationBtn) {
+        cancelDeleteTranslationBtn.addEventListener('click', closeDeleteTranslationModal);
     }
     
-    if (closeImportModalBtn) {
-        closeImportModalBtn.addEventListener('click', closeImportModal);
-    }
-    
-    if (cancelImportBtn) {
-        cancelImportBtn.addEventListener('click', closeImportModal);
-    }
-    
-    if (confirmImportBtn) {
-        confirmImportBtn.addEventListener('click', handleImport);
-    }
-    
-    // File pairing modal event listeners
-    if (closePairingModalBtn) {
-        closePairingModalBtn.addEventListener('click', closePairingModal);
-    }
-    
-    if (cancelPairingBtn) {
-        cancelPairingBtn.addEventListener('click', closePairingModal);
-    }
-    
-    if (confirmPairingBtn) {
-        confirmPairingBtn.addEventListener('click', confirmFilePairing);
-    }
-    
-    if (secondFileSelect) {
-        secondFileSelect.addEventListener('change', function() {
-            const isSelected = this.value !== '';
-            confirmPairingBtn.disabled = !isSelected;
-            if (isSelected) {
-                confirmPairingBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-            } else {
-                confirmPairingBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            }
-        });
-    }
-    
-    // Close import modal when clicking outside
-    if (importModal) {
-        importModal.addEventListener('click', function(e) {
-            if (e.target === importModal) {
-                closeImportModal();
-            }
-        });
-    }
-    
-    // Handle import method selection
-    document.addEventListener('change', function(e) {
-        if (e.target.name === 'import_method') {
-            currentImportMethod = e.target.value;
-            updateImportSections();
-            updateImportButton();
-        }
-        
-        if (e.target.name === 'upload_method' && e.target.closest('#import-modal')) {
-            const fileSection = document.getElementById('file-upload-section');
-            const textSection = document.getElementById('text-paste-section');
-            
-            if (e.target.value === 'file') {
-                fileSection.classList.remove('hidden');
-                textSection.classList.add('hidden');
-            } else {
-                fileSection.classList.add('hidden');
-                textSection.classList.remove('hidden');
-            }
-            updateImportButton();
-        }
-    });
-
-    // Handle text input character counting
-    const textContentUpload = document.getElementById('text-content-upload');
-    const uploadCharCount = document.getElementById('upload-char-count');
-    
-    if (textContentUpload && uploadCharCount) {
-        textContentUpload.addEventListener('input', function() {
-            const length = this.value.length;
-            uploadCharCount.textContent = `${length} / 16,000`;
-            updateImportButton();
-        });
+    if (confirmDeleteTranslationBtn) {
+        confirmDeleteTranslationBtn.addEventListener('click', deleteTranslation);
     }
 
-    // Handle file upload input change
-    const textFileUpload = document.getElementById('text-file-upload');
-    if (textFileUpload) {
-        textFileUpload.addEventListener('change', function() {
-            updateImportButton();
-        });
-    }
+    // Initialize drag and drop file upload
+    setupDragAndDrop();
 
-    // Instructions form handlers
-    const instructionsForm = document.getElementById('instructions-form');
-    const saveInstructionsBtn = document.getElementById('save-instructions-btn');
-    const translationInstructions = document.getElementById('translation-instructions');
-    const charCount = document.getElementById('char-count');
-    
-    if (translationInstructions && charCount) {
-        translationInstructions.addEventListener('input', function() {
-            const length = this.value.length;
-            charCount.textContent = `${length} / 4,000`;
-        });
-    }
-    
-    if (saveInstructionsBtn) {
-        saveInstructionsBtn.addEventListener('click', saveInstructions);
-    }
+
 
     // Fine-tuning functionality
     const filePairSelect = document.getElementById('file-pair-select');
@@ -388,6 +354,42 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    function openDeleteTranslationModal(translationId, translationName) {
+        currentTranslationToDelete = translationId;
+        document.getElementById('delete-translation-filename').textContent = translationName;
+        deleteTranslationModal.classList.remove('hidden');
+    }
+    
+    function closeDeleteTranslationModal() {
+        currentTranslationToDelete = null;
+        deleteTranslationModal.classList.add('hidden');
+    }
+    
+    function deleteTranslation() {
+        if (!currentTranslationToDelete) return;
+        
+        // All translations are now unified Text records
+        fetch(`/project/${projectId}/texts/${currentTranslationToDelete}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                return response.json().then(data => {
+                    throw new Error(data.error || 'Failed to delete translation');
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting translation');
+        });
+    }
+    
     function openImportModal() {
         currentImportMethod = 'upload';
         updateImportSections();
@@ -410,7 +412,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         // Clear file input and text area
-        const fileInput = document.getElementById('text-file-upload');
+        const fileInput = document.getElementById('file-input');
         const textArea = document.getElementById('text-content-upload');
         if (fileInput) fileInput.value = '';
         if (textArea) textArea.value = '';
@@ -424,19 +426,16 @@ document.addEventListener('DOMContentLoaded', function() {
         // Hide all sections first
         uploadSection.classList.add('hidden');
         corpusSection.classList.add('hidden');
-        usfmSection.classList.add('hidden');
         
         // Show the selected section
         switch(currentImportMethod) {
             case 'upload':
                 uploadSection.classList.remove('hidden');
+                setupDragAndDrop(); // Initialize drag and drop for upload
                 break;
             case 'corpus':
                 corpusSection.classList.remove('hidden');
                 loadCorpusFiles();
-                break;
-            case 'usfm':
-                usfmSection.classList.remove('hidden');
                 break;
         }
     }
@@ -448,20 +447,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         switch(currentImportMethod) {
             case 'upload':
-                const uploadMethod = document.querySelector('input[name="upload_method"]:checked')?.value;
-                if (uploadMethod === 'file') {
-                    const fileInput = document.getElementById('text-file-upload');
-                    canImport = fileInput && fileInput.files.length > 0;
-                } else if (uploadMethod === 'text') {
-                    const textArea = document.getElementById('text-content-upload');
-                    canImport = textArea && textArea.value.trim().length > 0;
-                }
+                const fileInput = document.getElementById('file-input');
+                canImport = fileInput && fileInput.files.length > 0;
                 break;
             case 'corpus':
                 canImport = selectedCorpusFile !== null;
-                break;
-            case 'usfm':
-                canImport = false; // USFM redirects to another page
                 break;
         }
         
@@ -480,9 +470,6 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'corpus':
                 confirmImportBtn.textContent = 'Import';
                 break;
-            case 'usfm':
-                confirmImportBtn.textContent = 'Continue';
-                break;
         }
     }
     
@@ -493,9 +480,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 break;
             case 'corpus':
                 importSelectedCorpusFile();
-                break;
-            case 'usfm':
-                window.location.href = `/project/${projectId}/usfm-import`;
                 break;
         }
     }
@@ -508,18 +492,23 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!fileInput.files.length) return;
             
             const formData = new FormData();
-            formData.append('text_file', fileInput.files[0]);
+            formData.append('file', fileInput.files[0]);
             formData.append('upload_method', 'file');
-            formData.append('file_type', 'text'); // Default file type
             
-            fetch(`/project/${projectId}/upload-file`, {
+            fetch(`/project/${projectId}/upload`, {
                 method: 'POST',
                 body: formData
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    location.reload();
+                    if (data.is_usfm && data.redirect_url) {
+                        // USFM detected - redirect to USFM import page
+                        window.location.href = data.redirect_url;
+                    } else {
+                        // Regular text file - reload page
+                        location.reload();
+                    }
                 } else {
                     alert('Error uploading file: ' + data.error);
                 }
@@ -535,16 +524,21 @@ document.addEventListener('DOMContentLoaded', function() {
             const formData = new FormData();
             formData.append('text_content', textContent);
             formData.append('upload_method', 'text');
-            formData.append('file_type', 'text'); // Default file type
             
-            fetch(`/project/${projectId}/upload-file`, {
+            fetch(`/project/${projectId}/upload`, {
                 method: 'POST',
                 body: formData
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    location.reload();
+                    if (data.is_usfm && data.redirect_url) {
+                        // USFM detected - redirect to USFM import page
+                        window.location.href = data.redirect_url;
+                    } else {
+                        // Regular text file - reload page
+                        location.reload();
+                    }
                 } else {
                     alert('Error uploading text: ' + data.error);
                 }
@@ -670,54 +664,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Instructions functionality
-    function saveInstructions() {
-        const instructionsTextarea = document.getElementById('translation-instructions');
-        if (!instructionsTextarea) return;
-        
-        const instructions = instructionsTextarea.value.trim();
-        
-        if (instructions.length > 4000) {
-            alert('Instructions must be 4000 characters or less');
-            return;
-        }
-        
-        const saveBtn = document.getElementById('save-instructions-btn');
-        if (saveBtn) {
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Saving...';
-        }
-        
-        fetch(`/project/${projectId}/update-instructions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ instructions })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                if (saveBtn) {
-                    saveBtn.textContent = 'Saved!';
-                    setTimeout(() => {
-                        saveBtn.textContent = 'Save Instructions';
-                        saveBtn.disabled = false;
-                    }, 2000);
-                }
-            } else {
-                throw new Error(data.error || 'Failed to save');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Failed to save instructions');
-            if (saveBtn) {
-                saveBtn.textContent = 'Save Instructions';
-                saveBtn.disabled = false;
-            }
-        });
-    }
+
 
     // Fine-tuning functionality
     function loadFineTuningModels() {
@@ -1142,127 +1089,118 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // File pairing functions
-    function openPairingModal(fileId, filename) {
-        currentFileForPairing = { id: fileId, name: filename };
+    // File purpose editing functionality
+    function saveFilePurpose(fileId, purposeInput, button) {
+        const purposeDescription = purposeInput.value.trim();
         
-        // Set the first file name
-        firstFileName.textContent = filename;
-        
-        // Populate the second file select with other files
-        populateSecondFileSelect(fileId);
-        
-        // Show the modal
-        filePairingModal.classList.remove('hidden');
-    }
-    
-    function closePairingModal() {
-        filePairingModal.classList.add('hidden');
-        currentFileForPairing = null;
-        secondFileSelect.innerHTML = '<option value="">Choose a file to pair with...</option>';
-        confirmPairingBtn.disabled = true;
-        confirmPairingBtn.classList.add('opacity-50', 'cursor-not-allowed');
-    }
-    
-    function populateSecondFileSelect(excludeFileId) {
-        // Get the line count of the first file for comparison
-        const firstFileBtn = document.querySelector(`[data-file-id="${excludeFileId}"]`);
-        const firstFileLineCount = parseInt(firstFileBtn.getAttribute('data-line-count') || '0');
-        
-        // Get all unpaired files from the individual files section
-        const individualFiles = document.querySelectorAll('.pair-file-btn');
-        secondFileSelect.innerHTML = '<option value="">Choose a file to pair with...</option>';
-        
-        let compatibleFiles = 0;
-        
-        individualFiles.forEach(pairBtn => {
-            const fileId = pairBtn.getAttribute('data-file-id');
-            const filename = pairBtn.getAttribute('data-filename');
-            const lineCount = parseInt(pairBtn.getAttribute('data-line-count') || '0');
-            
-            // Don't include the current file and only show files with matching line count
-            if (fileId !== excludeFileId && lineCount === firstFileLineCount) {
-                const option = document.createElement('option');
-                option.value = fileId;
-                option.textContent = `${filename} (${lineCount} lines)`;
-                secondFileSelect.appendChild(option);
-                compatibleFiles++;
-            }
-        });
-        
-        // If no compatible files, show a message
-        if (compatibleFiles === 0) {
-            const option = document.createElement('option');
-            option.value = '';
-            option.textContent = `No files with ${firstFileLineCount} lines available`;
-            option.disabled = true;
-            secondFileSelect.appendChild(option);
-        }
-    }
-    
-    function confirmFilePairing() {
-        const secondFileId = secondFileSelect.value;
-        
-        if (!secondFileId || !currentFileForPairing) {
-            alert('Please select a file to pair with');
+        if (purposeDescription.length > 1000) {
+            alert('Purpose description must be 1000 characters or less');
             return;
         }
         
-        confirmPairingBtn.disabled = true;
-        confirmPairingBtn.textContent = 'Pairing...';
+        // Visual feedback
+        purposeInput.style.opacity = '0.6';
+        purposeInput.disabled = true;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
         
-        fetch(`/project/${projectId}/files/${currentFileForPairing.id}/pair/${secondFileId}`, {
+        fetch(`/project/${projectId}/files/${fileId}/purpose`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-            }
+            },
+            body: JSON.stringify({ 
+                purpose_description: purposeDescription,
+                file_purpose: purposeDescription ? 'custom' : null
+            })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                closePairingModal();
-                alert(data.message);
-                // Refresh the page to show the pairing
-                window.location.reload();
+                // Show success feedback
+                purposeInput.style.borderColor = '#10b981';
+                button.innerHTML = '<i class="fas fa-check mr-1"></i>Saved!';
+                
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    purposeInput.style.borderColor = '';
+                    button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+                }, 2000);
             } else {
-                alert(data.error || 'Pairing failed');
+                alert('Failed to save purpose: ' + (data.error || 'Unknown error'));
+                purposeInput.style.borderColor = '#ef4444';
+                button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
             }
         })
         .catch(error => {
-            console.error('Pairing error:', error);
-            alert('Pairing failed: ' + error.message);
+            console.error('Save error:', error);
+            alert('Failed to save purpose: ' + error.message);
+            purposeInput.style.borderColor = '#ef4444';
+            button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
         })
         .finally(() => {
-            confirmPairingBtn.disabled = false;
-            confirmPairingBtn.textContent = 'Pair Files';
+            purposeInput.style.opacity = '1';
+            purposeInput.disabled = false;
+            button.disabled = false;
         });
     }
     
-    function unpairFile(fileId, filename) {
-        if (!confirm(`Are you sure you want to unpair "${filename}" from its parallel text?`)) {
+    function saveTranslationPurpose(translationId, purposeInput, button) {
+        const purposeDescription = purposeInput.value.trim();
+        
+        if (purposeDescription.length > 1000) {
+            alert('Purpose description must be 1000 characters or less');
             return;
         }
         
-        fetch(`/project/${projectId}/files/${fileId}/unpair`, {
+        // All translations are now unified Text records
+        // Visual feedback
+        purposeInput.style.opacity = '0.6';
+        purposeInput.disabled = true;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
+        
+        fetch(`/project/${projectId}/texts/${translationId}/purpose`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-            }
+            },
+            body: JSON.stringify({ 
+                description: purposeDescription
+            })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert(data.message);
-                // Refresh the page to show the change
-                window.location.reload();
+                // Show success feedback
+                purposeInput.style.borderColor = '#10b981';
+                button.innerHTML = '<i class="fas fa-check mr-1"></i>Saved!';
+                
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    purposeInput.style.borderColor = '';
+                    button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+                }, 2000);
             } else {
-                alert(data.error || 'Unpair failed');
+                alert('Failed to save purpose: ' + (data.error || 'Unknown error'));
+                purposeInput.style.borderColor = '#ef4444';
+                button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
             }
         })
         .catch(error => {
-            console.error('Unpair error:', error);
-            alert('Unpair failed: ' + error.message);
+            console.error('Save error:', error);
+            alert('Failed to save purpose: ' + error.message);
+            purposeInput.style.borderColor = '#ef4444';
+            button.innerHTML = '<i class="fas fa-save mr-1"></i>Save';
+        })
+        .finally(() => {
+            purposeInput.style.opacity = '1';
+            purposeInput.disabled = false;
+            button.disabled = false;
         });
     }
+    
+
     
     // Close pairing modal when clicking outside
     if (filePairingModal) {
@@ -1272,6 +1210,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+
 
     // Tab switching for fine-tuning types
     function setupFineTuningTabs() {
@@ -1691,6 +1631,28 @@ document.addEventListener('DOMContentLoaded', function() {
         checkProgress();
     }
 
+
+    
+    // Character counting for inline pair instructions
+    document.addEventListener('input', function(e) {
+        if (e.target.matches('textarea[data-file1-id]')) {
+            const textarea = e.target;
+            const charCounter = textarea.parentElement.querySelector('.char-counter');
+            if (charCounter) {
+                const length = textarea.value.length;
+                charCounter.textContent = `${length} / 4,000`;
+                
+                if (length > 4000) {
+                    charCounter.style.color = '#dc2626';
+                    textarea.style.borderColor = '#dc2626';
+                } else {
+                    charCounter.style.color = '#2563eb';
+                    textarea.style.borderColor = '#93c5fd';
+                }
+            }
+        }
+    });
+
     // Add this near the top of the file, with other DOM element selections
     const toggleSectionBtns = document.querySelectorAll('.toggle-section-btn');
 
@@ -1775,6 +1737,180 @@ document.addEventListener('DOMContentLoaded', function() {
                     alert('Failed to toggle model visibility');
                 }
             });
+        });
+    }
+    
+    // Toggle training files section
+    window.toggleTrainingFiles = function() {
+        const filesList = document.getElementById('training-files-list');
+        const chevron = document.getElementById('training-files-chevron');
+        
+        if (filesList.classList.contains('hidden')) {
+            filesList.classList.remove('hidden');
+            chevron.classList.add('rotate-180');
+        } else {
+            filesList.classList.add('hidden');
+            chevron.classList.remove('rotate-180');
+        }
+    };
+
+    // Simple drag and drop file upload
+    function setupDragAndDrop() {
+        // Prevent duplicate setup
+        if (window.dragDropSetup) {
+            console.log('Drag and drop already set up, skipping...');
+            return;
+        }
+        window.dragDropSetup = true;
+        
+        // Get drag and drop zones
+        const dragDropZone = document.getElementById('drag-drop-zone');
+        const dragDropZoneEmpty = document.getElementById('drag-drop-zone-empty');
+        const fileInput = document.getElementById('file-input');
+        const fileInputEmpty = document.getElementById('file-input-empty');
+        
+        console.log('Setting up drag and drop zones...');
+        
+        // Setup for main drag zone (when files exist)
+        if (dragDropZone && fileInput) {
+            console.log('Setting up main drag zone');
+            setupDragAndDropZone(dragDropZone, fileInput, 'upload-progress', 'progress-bar');
+        }
+        
+        // Setup for empty state drag zone
+        if (dragDropZoneEmpty && fileInputEmpty) {
+            console.log('Setting up empty state drag zone');
+            setupDragAndDropZone(dragDropZoneEmpty, fileInputEmpty, 'upload-progress-empty', 'progress-bar-empty');
+        }
+    }
+    
+    function setupDragAndDropZone(zone, input, progressId, progressBarId) {
+        // Click to upload
+        zone.addEventListener('click', () => {
+            input.click();
+        });
+        
+        // File input change
+        input.addEventListener('change', (e) => {
+            console.log('File input change - files:', e.target.files);
+            if (e.target.files.length > 0) {
+                const files = Array.from(e.target.files);
+                // Clear the input immediately to prevent duplicate events
+                e.target.value = '';
+                handleFileUpload(files, progressId, progressBarId);
+            }
+        });
+        
+        // Drag and drop events
+        zone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            zone.classList.add('border-blue-500', 'bg-blue-100');
+        });
+        
+        zone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            zone.classList.remove('border-blue-500', 'bg-blue-100');
+        });
+        
+        zone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            zone.classList.remove('border-blue-500', 'bg-blue-100');
+            
+            const files = Array.from(e.dataTransfer.files);
+            console.log('Drop event - files:', files);
+            if (files.length > 0) {
+                handleFileUpload(files, progressId, progressBarId);
+            }
+        });
+    }
+    
+    function handleFileUpload(files, progressId, progressBarId) {
+        console.log('handleFileUpload called with files:', files);
+        const progressElement = document.getElementById(progressId);
+        const progressBar = document.getElementById(progressBarId);
+        
+        // Check for non-.txt files and redirect to USFM importer
+        const nonTxtFiles = files.filter(file => {
+            const ext = '.' + file.name.toLowerCase().split('.').pop();
+            console.log(`File: ${file.name}, Extension: ${ext}, Is non-txt: ${['.usfm', '.sfm'].includes(ext)}`);
+            return ['.usfm', '.sfm'].includes(ext);
+        });
+        
+        console.log('Non-txt files found:', nonTxtFiles);
+        
+        if (nonTxtFiles.length > 0) {
+            console.log('Redirecting to USFM importer...');
+            // Redirect to USFM importer for non-.txt files
+            window.location.href = `/project/${projectId}/usfm-import`;
+            return;
+        }
+        
+        // Show progress for .txt files
+        if (progressElement) progressElement.classList.remove('hidden');
+        
+        // Filter for .txt files only
+        const txtFiles = files.filter(file => {
+            const ext = '.' + file.name.toLowerCase().split('.').pop();
+            return ext === '.txt';
+        });
+        
+        if (txtFiles.length === 0) {
+            alert('Please select .txt files or use the USFM importer for .usfm/.sfm files');
+            if (progressElement) progressElement.classList.add('hidden');
+            return;
+        }
+        
+        if (txtFiles.length !== files.length) {
+            const skippedCount = files.length - txtFiles.length;
+            alert(`${skippedCount} non-.txt file(s) will be handled by the USFM importer`);
+        }
+        
+        // Upload .txt files one by one
+        uploadFilesSequentially(txtFiles, 0, progressBar, progressElement);
+    }
+    
+    function uploadFilesSequentially(files, index, progressBar, progressElement) {
+        if (index >= files.length) {
+            // All files uploaded
+            setTimeout(() => {
+                if (progressElement) progressElement.classList.add('hidden');
+                location.reload();
+            }, 1000);
+            return;
+        }
+        
+        const file = files[index];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_method', 'file');
+        
+        // Update progress bar
+        const progress = ((index + 1) / files.length) * 100;
+        if (progressBar) progressBar.style.width = `${progress}%`;
+        
+        fetch(`/project/${projectId}/upload`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (data.is_usfm && data.redirect_url) {
+                    // USFM detected - redirect to USFM import page
+                    window.location.href = data.redirect_url;
+                    return;
+                }
+                // Continue with next file
+                uploadFilesSequentially(files, index + 1, progressBar, progressElement);
+            } else {
+                alert(`Error uploading ${file.name}: ${data.error}`);
+                if (progressElement) progressElement.classList.add('hidden');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert(`Error uploading ${file.name}`);
+            if (progressElement) progressElement.classList.add('hidden');
         });
     }
 }); 

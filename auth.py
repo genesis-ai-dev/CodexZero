@@ -47,11 +47,45 @@ def create_flow(redirect_uri=None):
     flow.redirect_uri = redirect_uri
     return flow
 
+@auth.route("/dev-login")
+def dev_login():
+    """Development-only automatic login"""
+    if not current_app.config.get('DEVELOPMENT_MODE'):
+        flash('Development login not available in production', 'error')
+        return redirect(url_for('main.index'))
+    
+    if current_user.is_authenticated:
+        return redirect(url_for('projects.dashboard'))
+    
+    # Create or get development user
+    dev_user = User.query.filter_by(email='dev@codexzero.local').first()
+    if not dev_user:
+        dev_user = User(
+            google_id='dev_user_123',
+            email='dev@codexzero.local',
+            name='Development User',
+            created_at=datetime.utcnow()
+        )
+        db.session.add(dev_user)
+    
+    dev_user.last_login = datetime.utcnow()
+    db.session.commit()
+    
+    login_user(dev_user, remember=True)
+    flash(f'Welcome, {dev_user.name}! (Development Mode)', 'success')
+    
+    return redirect(url_for('projects.dashboard'))
+
 @auth.route("/login")
 def login():
     """Initiate Google OAuth login"""
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return redirect(url_for('main.index'))
+    
+    # In development mode, redirect to dev login
+    if current_app.config.get('DEVELOPMENT_MODE'):
+        flash('Using development login. For Google OAuth, set DEVELOPMENT_MODE=false', 'info')
+        return redirect(url_for('auth.dev_login'))
     
     # Create flow and store the redirect URI used
     flow = create_flow()
@@ -68,10 +102,17 @@ def login():
 @auth.route("/callback")
 def callback():
     """Handle Google OAuth callback"""
+    # Debug logging for production troubleshooting
+    current_app.logger.info(f"OAuth callback received. State param: {request.args.get('state')}, Session state: {session.get('state')}")
+    
     # Verify state parameter
     if request.args.get('state') != session.get('state'):
-        flash('Invalid state parameter', 'error')
-        return redirect(url_for('index'))
+        current_app.logger.warning("OAuth state parameter mismatch - attempting to clear session and retry")
+        # Clear potentially stale session data
+        session.pop('state', None)
+        session.pop('redirect_uri', None)
+        # Redirect to login to start fresh OAuth flow instead of showing error
+        return redirect(url_for('auth.login'))
     
     # Extract the base redirect URI from the current request
     # This ensures it matches exactly what Google is expecting
@@ -102,7 +143,7 @@ def callback():
     
     if not google_id or not email:
         flash('Failed to get user information from Google', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('main.index'))
     
     # Check if user exists, create if not
     user = User.query.filter_by(google_id=google_id).first()
@@ -122,12 +163,17 @@ def callback():
     user.last_login = datetime.utcnow()
     db.session.commit()
     
+    # Log successful authentication
+    current_app.logger.info(f"User authenticated: {user.email} (ID: {user.id})")
+    
     login_user(user, remember=True)
+    current_app.logger.info(f"Flask-Login login_user called for user ID: {user.id}")
+    
     flash(f'Welcome, {user.name}!', 'success')
     
     # Redirect to next page or home
     next_page = request.args.get('next')
-    return redirect(next_page) if next_page else redirect(url_for('index'))
+    return redirect(next_page) if next_page else redirect(url_for('main.index'))
 
 @auth.route("/logout")
 @login_required
@@ -138,4 +184,4 @@ def logout():
     session.pop('state', None)
     session.pop('redirect_uri', None)
     flash('You have been logged out', 'info')
-    return redirect(url_for('index')) 
+    return redirect(url_for('main.index'))

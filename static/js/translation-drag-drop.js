@@ -1,64 +1,155 @@
-// Simple Hover-to-Collect Verse Translation
+// PERFORMANCE: Optimized Hover-Based Drag and Drop Translation
 class TranslationDragDrop {
     constructor(translationEditor) {
         this.editor = translationEditor;
         this.collectedVerses = [];
-        this.collectedVerseNumbers = new Set(); // Track verse numbers to prevent duplicates
+        this.collectedVerseNumbers = new Set();
         this.isDragging = false;
         this.sourceWindowId = null;
-        // Don't set up global listeners here - we'll add them to textareas individually
+        this.lastHoveredWindow = null;
+        
+        // PERFORMANCE: Throttled handlers
+        this.throttledDragEnter = UIUtilities.createThrottledCallback(this.handleDragEnter.bind(this), 16);
+        this.throttledDragOver = UIUtilities.createThrottledCallback(this.handleDragOver.bind(this), 16);
+        
+        this.setupGlobalListeners();
     }
     
     setupGlobalListeners() {
-        // Removed - we'll use dragover events on individual textareas instead
+        // PERFORMANCE: Use passive listeners where possible
+        document.addEventListener('dragstart', this.handleDragStart.bind(this), { passive: true });
+        document.addEventListener('dragend', this.handleDragEnd.bind(this), { passive: true });
+        
+        // PERFORMANCE: Throttled drag over handler
+        document.addEventListener('dragover', this.throttledDragOver, { passive: false });
+        document.addEventListener('drop', this.handleDrop.bind(this), { passive: false });
+    }
+    
+    handleDragStart(e) {
+        if (e.target.classList.contains('sparkle-drag-handle')) {
+            this.isDragging = true;
+            this.sourceWindowId = this.getSourceWindowId(e.target);
+            this.showCounter();
+        }
+    }
+    
+    handleDragEnd(e) {
+        if (this.isDragging) {
+            this.endCollection();
+        }
+    }
+    
+    handleDragOver(e) {
+        if (this.isDragging) {
+            e.preventDefault();
+            
+            // PERFORMANCE: Track last hovered window more efficiently
+            const textWindow = this.getTextWindowFromElement(e.target);
+            if (textWindow && textWindow !== this.lastHoveredWindow) {
+                this.lastHoveredWindow = textWindow;
+                this.updateWindowHighlight(textWindow);
+            }
+        }
+    }
+    
+    handleDragEnter(e) {
+        if (!this.isDragging) return;
+        
+        const textarea = e.target.closest('textarea');
+        if (!textarea) return;
+        
+        const verse = textarea.dataset.verse;
+        const verseIndex = textarea.dataset.verseIndex;
+        
+        // Only collect if this is actually a verse textarea with proper data
+        if (!verse || !verseIndex) return;
+        
+        // Make sure this textarea is in a verse container
+        const verseContainer = textarea.closest('[data-verse]');
+        if (!verseContainer) return;
+        
+        // Get the window containing this textarea
+        const targetWindow = this.getTextWindow(textarea);
+        if (!targetWindow || targetWindow.id !== this.sourceWindowId) return;
+        
+        // Check if already collected using Set for fast lookup
+        if (this.collectedVerseNumbers.has(verse)) return;
+        
+        // Add to collection
+        this.collectVerse(textarea, targetWindow);
+    }
+    
+    handleDrop(e) {
+        if (this.isDragging) {
+            e.preventDefault();
+            
+            const dragData = this.endCollection();
+            if (dragData && dragData.length > 0 && this.lastHoveredWindow) {
+                this.editor.translateFromDrag(dragData, null, this.lastHoveredWindow);
+            }
+        }
     }
     
     setupTextareaForMultiSelect(textarea) {
-        // Only listen for dragenter - fires once when entering the textarea
-        textarea.addEventListener('dragenter', (e) => {
-            if (!this.isDragging) return;
-            
-            const verse = textarea.dataset.verse;
-            const verseIndex = textarea.dataset.verseIndex;
-            
-            // Only collect if this is actually a verse textarea with proper data
-            if (!verse || !verseIndex) return;
-            
-            // Make sure this textarea is in a verse container
-            const verseContainer = textarea.closest('[data-verse]');
-            if (!verseContainer) return;
-            
-            // Get the window containing this textarea
-            const targetWindow = this.getTextWindow(textarea);
-            if (!targetWindow || targetWindow.id !== this.sourceWindowId) return;
-            
-            // Check if already collected using Set for fast lookup
-            if (this.collectedVerseNumbers.has(verse)) return;
-            
-            // Add to collection
-            this.collectVerse(textarea, targetWindow);
-        });
+        // PERFORMANCE: Remove expensive drag listeners for now
+        // These were causing constant event firing during interactions
+        // 
+        // textarea.addEventListener('dragenter', this.throttledDragEnter, { passive: true });
         
-        // Keep dragover for allowing the drop, but don't collect verses
-        textarea.addEventListener('dragover', (e) => {
-            if (this.isDragging) {
-                e.preventDefault(); // Allow dropping
-            }
-        });
+        // Keep only essential functionality
+        textarea.draggable = false; // Disable dragging entirely for performance
+    }
+    
+    getSourceWindowId(element) {
+        const windowElement = element.closest('[data-window-id]');
+        return windowElement ? windowElement.dataset.windowId : null;
+    }
+    
+    getTextWindowFromElement(element) {
+        const windowElement = element.closest('[data-window-id]');
+        if (!windowElement) return null;
+        
+        const windowId = windowElement.dataset.windowId;
+        return this.editor.textWindows.get(windowId);
+    }
+    
+    updateWindowHighlight(textWindow) {
+        // PERFORMANCE: Batch remove previous highlights
+        const previousHighlights = document.querySelectorAll('.drag-target-highlight');
+        UIUtilities.batchToggleClasses(
+            Array.from(previousHighlights),
+            [],
+            ['drag-target-highlight', 'bg-green-50', 'border-green-300']
+        );
+        
+        // PERFORMANCE: Add highlight to current window
+        if (textWindow.element) {
+            UIUtilities.batchToggleClasses(
+                [textWindow.element],
+                ['drag-target-highlight', 'bg-green-50', 'border-green-300'],
+                []
+            );
+        }
     }
     
     startCollection(initialVerse) {
-        // Don't pre-add the initial verse - let dragenter handle all collection
+        // Reset state
         this.collectedVerses = [];
         this.collectedVerseNumbers = new Set();
         this.isDragging = true;
         this.sourceWindowId = initialVerse.sourceId;
+        this.lastHoveredWindow = null;
         
-        // Show counter (will start at 0 until first dragenter)
+        // Automatically add the initial verse that was dragged
+        this.collectedVerses.push(initialVerse);
+        this.collectedVerseNumbers.add(initialVerse.verse);
+        console.log('Auto-added initial verse:', initialVerse.verse);
+        
+        // Show counter
         this.showCounter();
         this.updateCounter();
         
-        console.log('Started collection from window:', this.sourceWindowId, 'Ready to collect verses');
+        console.log('Started collection from window:', this.sourceWindowId, 'with initial verse:', initialVerse.verse);
     }
     
     collectVerse(textarea, targetWindow) {
@@ -107,7 +198,10 @@ class TranslationDragDrop {
         this.collectedVerses = [];
         this.collectedVerseNumbers.clear();
         this.sourceWindowId = null;
+        
         console.log('Ended collection, returning:', result.length, 'verses');
+        console.log('Target window for translation:', this.lastHoveredWindow?.title || 'none detected');
+        
         return result;
     }
     
@@ -126,7 +220,8 @@ class TranslationDragDrop {
     
     updateCounter() {
         if (this.counter) {
-            this.counter.textContent = `${this.collectedVerses.length} verses selected`;
+            const hoverInfo = this.lastHoveredWindow ? ` → ${this.lastHoveredWindow.title}` : '';
+            this.counter.textContent = `${this.collectedVerses.length} verses selected${hoverInfo}`;
         }
     }
     
@@ -137,29 +232,42 @@ class TranslationDragDrop {
         }
     }
     
-    getTextWindow(textarea) {
+    getTextWindow(element) {
+        // Works for both textareas and any element within a window
         for (const [id, window] of this.editor.textWindows) {
-            if (window.element?.contains(textarea)) {
+            if (window.element?.contains(element)) {
                 return window;
             }
         }
         return null;
     }
     
-    // Check if drop target is valid (not the same window as source)
+    // Simplified validation - just check if we have a valid target window
     isValidDropTarget(targetWindow) {
         return targetWindow && targetWindow.id !== this.sourceWindowId;
     }
     
+    // Use the last hovered window as the drop target
+    getDropTargetWindow() {
+        return this.lastHoveredWindow;
+    }
+    
     async translateFromDrag(dragData, targetTextarea, targetWindow = null) {
         if (!dragData) return;
+        
+        // Use the last hovered window if no specific target provided
+        const actualTargetWindow = targetWindow || this.lastHoveredWindow;
+        if (!actualTargetWindow) {
+            console.error('No target window detected for translation');
+            return;
+        }
         
         const verses = Array.isArray(dragData) ? dragData : [dragData];
         
         // Show loading state on all target verses first
         const targetTextareas = [];
         for (const verse of verses) {
-            const textarea = targetWindow?.element?.querySelector(`textarea[data-verse="${verse.verse}"]`);
+            const textarea = actualTargetWindow.element?.querySelector(`textarea[data-verse="${verse.verse}"]`);
             if (textarea) {
                 targetTextareas.push(textarea);
                 // Initial loading state
@@ -180,7 +288,7 @@ class TranslationDragDrop {
                 currentTextarea.style.backgroundColor = '#eff6ff';
                 currentTextarea.placeholder = `Translating verse ${verses[i].verse}...`;
                 
-                await this.translateSingle(verses[i], currentTextarea, targetWindow);
+                await this.translateSingle(verses[i], currentTextarea, actualTargetWindow);
                 
                 // Success state
                 currentTextarea.style.borderColor = '#10b981';
@@ -209,9 +317,9 @@ class TranslationDragDrop {
         try {
             const project = await this.editor.getProjectInfo();
             
-            // Get current translation settings from UI
+            // Get automatic translation settings based on current model
             const settings = this.editor.ui.getTranslationSettings();
-            console.log('Translation request settings:', settings);
+            console.log('Automatic translation settings:', settings);
             
             // Check if target textarea already has content (test mode)
             const existingContent = textarea.value?.trim();
@@ -224,8 +332,8 @@ class TranslationDragDrop {
                 target_language: targetWindow?.targetLanguage || project?.target_language,
                 verse_reference: verse.reference,
                 project_id: this.editor.projectId,
-                temperature: settings.temperature,
-                use_examples: settings.useExamples
+                temperature: settings.temperature,  // Always 0.2
+                use_examples: settings.useExamples  // Auto-determined by model type
             };
             
             // Add test mode parameters if target has content
@@ -256,16 +364,16 @@ class TranslationDragDrop {
             if (data.success) {
                 const verseIndex = parseInt(textarea.dataset.verseIndex);
                 
-                if (data.test_mode) {
+                if (data.test_mode || isTestMode) {
                     // Display test results using dedicated component
                     this.editor.testResults.displayTestResult(textarea, data, verseIndex);
-                    // DO NOT save in test mode - we want to preserve the ground truth!
+                    // CRITICAL: Never save test mode data - preserve ground truth
+                    console.log('Test mode: preserving original content, not saving translation');
                 } else {
                     // Regular translation display
                     this.editor.confidence.displayTranslationWithConfidence(
                         textarea, data.translation, data.confidence, verseIndex, this.editor
                     );
-                    // Only save when not in test mode
                     this.editor.saveSystem.bufferVerseChange(verseIndex, data.translation);
                 }
             } else {
@@ -276,20 +384,10 @@ class TranslationDragDrop {
                 throw new Error(data.error || 'Translation failed');
             }
         } catch (error) {
-            // Error state
+            console.error('Translation error:', error);
             textarea.style.borderColor = '#dc2626';
             textarea.style.backgroundColor = '#fef2f2';
-            textarea.placeholder = `Error translating verse ${verse.verse}`;
-            console.error('Translation failed:', error);
-            
-            // Clear error state after a longer delay
-            setTimeout(() => {
-                textarea.style.borderColor = '';
-                textarea.style.borderWidth = '';
-                textarea.style.backgroundColor = '';
-                textarea.disabled = false;
-                textarea.placeholder = `Edit verse ${verse.verse} or drop text here...`;
-            }, 3000);
+            textarea.placeholder = 'Translation failed';
         }
     }
 }

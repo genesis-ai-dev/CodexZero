@@ -1,181 +1,100 @@
 {% extends "base.html" %}
-{% from 'components/translation_header.html' import translation_header %}
 {% from 'components/translation_sidebar.html' import translation_sidebar %}
-{% from 'components/translation_editor.html' import translation_editor %}
 {% from 'components/translation_modals.html' import translation_modals %}
 {% from 'components/translation_overlays.html' import translation_overlays %}
+{% from 'components/verse_cell.html' import verse_cell %}
+{% from 'components/audio_tuning_modal.html' import audio_tuning_modal %}
 {% include 'components/confidence_tooltip.html' %}
 
 {% block title %}Translation Editor - {{ project.target_language }} - CodexZero{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/translation-editor.css') }}">
+{% endblock %}
+
 {% block content %}
-<style>
-/* Hide footer on translation page - needed for global elements */
-footer, .footer, #footer { display: none !important; }
-body { overflow: hidden; }
-main, .main-content, #main-content { height: 100vh !important; max-height: 100vh !important; }
-
-/* Multi-verse collection styles */
-.verse-collected {
-    transform: scale(0.98);
-    opacity: 0.5;
-    transition: transform 0.2s ease, opacity 0.2s ease;
-    border-style: dashed !important;
+<script>
+document.body.classList.add('translation-page');
+// Force hide nav immediately on mobile
+if (window.innerWidth <= 767) {
+    const nav = document.querySelector('nav');
+    if (nav) nav.style.display = 'none';
 }
+</script>
 
-/* Collection and drag functionality */
-body.is-collecting-verses textarea {
-    pointer-events: auto;
-    user-select: none;
-    cursor: crosshair;
-}
+<!-- Translation Gradient Background -->
+<div id="translation-gradient" class="fixed inset-0 -z-10"></div>
 
-.sparkle-drag-handle:hover {
-    filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.6));
-}
+<section class="h-screen flex flex-col text-gray-800 overflow-hidden relative">
+    
 
-#verse-collection-indicator {
-    animation: float-indicator 2s ease-in-out infinite;
-}
-
-@keyframes float-indicator {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-3px); }
-}
-
-.drop-target-hint {
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5), inset 0 0 20px rgba(16, 185, 129, 0.1);
-    background-color: #f0fdf4 !important;
-    transition: box-shadow 0.2s ease, background-color 0.2s ease;
-}
-
-#drag-indicator {
-    pointer-events: none;
-    z-index: 9999;
-}
-
-.drag-stack {
-    position: relative;
-    transform: scale(0.9);
-    transform-origin: top left;
-    filter: drop-shadow(0 6px 12px rgba(0,0,0,0.3));
-}
-
-.drag-stack-item {
-    position: absolute;
-    background: white;
-    border: 1px solid #3b82f6;
-    border-radius: 3px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    transition: none;
-    opacity: 0.9;
-    pointer-events: none;
-}
-
-.drag-counter {
-    position: absolute;
-    top: -12px;
-    right: -12px;
-    background-color: #3b82f6;
-    color: white;
-    border-radius: 50%;
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    font-size: 14px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    z-index: 10000;
-}
-
-/* Custom range slider styles */
-#temperature-slider {
-    appearance: none;
-    background: transparent;
-    cursor: pointer;
-}
-
-#temperature-slider::-webkit-slider-track {
-    background: #e5e7eb;
-    height: 6px;
-    border-radius: 2px;
-    border: none;
-}
-
-#temperature-slider::-webkit-slider-thumb {
-    appearance: none;
-    background: #2d2d2d;
-    height: 18px;
-    width: 18px;
-    border-radius: 50%;
-    border: none;
-    cursor: pointer;
-    transition: background 0.2s ease;
-}
-
-#temperature-slider::-webkit-slider-thumb:hover {
-    background: #1a1a1a;
-    transform: scale(1.1);
-}
-
-#temperature-slider::-moz-range-track {
-    background: #e5e7eb;
-    height: 6px;
-    border-radius: 2px;
-    border: none;
-}
-
-#temperature-slider::-moz-range-thumb {
-    background: #2d2d2d;
-    height: 18px;
-    width: 18px;
-    border-radius: 50%;
-    border: none;
-    cursor: pointer;
-}
-
-/* Toggle switch styles enhancement */
-.peer:checked + div {
-    background-color: #2d2d2d !important;
-}
-</style>
-
-<!-- Main section with clean background -->
-<section class="h-screen flex flex-col bg-white text-gray-800 overflow-hidden">
-    {{ translation_header(project) }}
                         
+    <!-- Mobile Header -->
+    <header class="md:hidden flex items-center justify-between p-4 bg-white/95 backdrop-blur-sm border-b border-neutral-200 z-50 shadow-sm">
+        <button id="mobile-sidebar-toggle" class="text-neutral-600 p-2 rounded-lg">
+            <i id="sidebar-toggle-icon" class="fas fa-bars text-xl"></i>
+        </button>
+        <h1 class="text-lg font-bold text-neutral-900 tracking-tight">Translation Editor</h1>
+        <div class="w-10"></div> <!-- Spacer for centering -->
+    </header>
+
     <!-- Main Content -->
-    <div class="flex flex-1 overflow-hidden" style="height: calc(100vh - 80px);">
-        {{ translation_sidebar(project) }}
+    <div class="flex flex-1 overflow-hidden main-content-wrapper">
+        <!-- Sidebar Backdrop for Mobile -->
+        <div class="sidebar-backdrop hidden" id="sidebar-backdrop"></div>
+        
+        <div class="translation-sidebar fixed left-0 top-0 h-full w-80 transform -translate-x-full md:translate-x-0 z-50 md:relative md:w-80 md:block">
+            {{ translation_sidebar(project) }}
+        </div>
 
         <!-- Unified Text Workspace -->
-        <div class="flex-1 flex overflow-hidden bg-gray-50 rounded-t-sm">
-            <!-- Secondary Texts Area -->
-            <div id="secondary-texts-area" class="w-1/2 p-6 border-r border-gray-200 border-r-[0.5px] overflow-hidden flex flex-col bg-white rounded-tl-sm">
-                <div class="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-100 border-b-[0.5px]">Reference Texts</div>
+        <div class="flex-1 flex flex-col md:flex-row overflow-hidden bg-neutral-50/50 rounded-t-lg" id="text-workspace">
+            <!-- Mobile Tabs -->
+            <div class="md:hidden flex border-b border-neutral-200 bg-white/90 backdrop-blur-sm">
+                <button class="flex-1 py-3 px-4 text-sm font-semibold border-b-2 border-transparent text-neutral-600" data-tab="references">References</button>
+                <button class="flex-1 py-3 px-4 text-sm font-semibold border-b-2 border-green-500 text-green-700" data-tab="primary">Primary</button>
+            </div>
+            
+            <!-- Secondary Texts Area (Now on Left) -->
+            <div id="secondary-texts-area" class="order-1 hidden md:flex w-full md:w-1/2 p-2 md:p-6 border-t md:border-r md:border-t-0 border-neutral-200 overflow-hidden flex flex-col bg-white/90 backdrop-blur-sm rounded-tl-xl shadow-sm">
+                <div class="text-sm font-semibold text-neutral-700 mb-4 pb-2 border-b border-neutral-200">Reference Texts</div>
                 <div id="secondary-texts-container" class="flex-1 overflow-hidden flex flex-col gap-3">
-                    <div class="text-gray-500 text-center py-20">
-                        Load reference texts from the sidebar
+                    <div class="text-neutral-500 text-center py-20 flex flex-col items-center">
+                        <button id="add-reference-text-btn" class="mb-4 px-8 py-4 bg-blue-50 text-blue-600 border-2 border-dashed border-blue-300 rounded-2xl flex items-center gap-3 font-semibold shadow-sm">
+                            <i class="fas fa-plus"></i>
+                            Load Reference Text
+                        </button>
+                        <p class="text-sm text-neutral-600 font-medium">Load reference texts to compare and translate from</p>
                     </div>
                 </div>
             </div>
             
-            <!-- Primary Text Area -->
-            <div id="primary-text-area" class="w-1/2 p-6 overflow-hidden flex flex-col bg-white rounded-tr-sm">
-                <div class="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-100 border-b-[0.5px]">Primary Translation</div>
-                <div id="primary-text-container" class="flex-1 overflow-y-auto drop-zone-primary transition-all duration-300">
-                    <div class="text-gray-500 text-center py-20">
-                        Select or create a translation to begin
+            <!-- Primary Text Area (Now on Right) -->
+            <div id="primary-text-area" class="order-2 w-full md:w-1/2 p-2 md:p-6 overflow-hidden flex flex-col bg-white/90 backdrop-blur-sm md:border-l-0 border-t border-neutral-200 md:border-t-0 active rounded-tr-xl shadow-sm">
+                <div class="text-sm font-semibold text-neutral-700 mb-4 pb-2 border-b border-neutral-200">Primary Translation</div>
+                <div id="primary-text-container" class="flex-1 overflow-y-auto drop-zone-primary">
+                    <div class="text-neutral-500 text-center py-20 flex flex-col items-center">
+                        <button id="add-primary-text-btn" class="mb-4 px-8 py-4 bg-green-50 text-green-600 border-2 border-dashed border-green-300 rounded-2xl flex items-center gap-3 font-semibold shadow-sm">
+                            <i class="fas fa-plus"></i>
+                            Create or Load Translation
+                        </button>
+                        <p class="text-sm text-neutral-600 font-medium">Create a new translation or load an existing one</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+    
+
 
     {{ translation_modals() }}
     {{ translation_overlays() }}
+    
+    <!-- Include verse cell component -->
+    {{ verse_cell() }}
+    
+    <!-- Include audio tuning modal -->
+    {{ audio_tuning_modal() }}
 </section>
 
 
@@ -190,13 +109,15 @@ class TranslationEditor {
         this.textMetadata = new Map();
         this.primaryTextId = null;
         this.bookChapters = {{ book_chapters|tojson|safe }};
+        this.userRole = '{{ user_role }}';
+        this.canEdit = this.userRole === 'editor' || this.userRole === 'owner';
         
         // Initialize helper classes
         this.storage = new TranslationStorage(this.projectId);
         this.confidence = new TranslationConfidence();
         this.navigation = new TranslationNavigation(this);
         this.saveSystem = new TranslationSave(this);
-        this.ui = new TranslationUI(this);
+        this.ui = new TranslationUI();  // No longer needs editor reference
         this.testResults = new TranslationTestResults(this);
         this.dragDrop = new TranslationDragDrop(this);
         
@@ -205,9 +126,10 @@ class TranslationEditor {
         this.currentBook = navState.book;
         this.currentChapter = navState.chapter;
         
-        this.isReadMode = false;
         this.unsavedChanges = new Map();
         this.hasUnsavedChanges = false;
+        
+
         
         // Make this available globally for TextWindow callbacks
         window.translationEditor = this;
@@ -216,15 +138,397 @@ class TranslationEditor {
     }
     
     initialize() {
-        this.ui.initializeEventListeners();
-        this.ui.addCloseButtonListeners();
-        this.ui.setupPrimaryDropZone();
-        this.loadAllTexts();
+        // PERFORMANCE: Show immediate loading state
+        this.showImmediateLoadingState();
+        
+        this.setupEventListeners();
+        
+        // Show immediate UI
         this.navigation.populateBookOptions();
-        this.navigation.populateTestamentSections();
         this.restoreNavigationState();
-        this.saveSystem.updateSaveButtonState();
-        this.navigation.updateRecentChaptersUI();
+        
+        // Disable editing features for viewers
+        if (!this.canEdit) {
+            this.disableEditingFeatures();
+        }
+        
+        // Load data in background with progress indication
+        this.loadEditorData();
+    }
+    
+    showImmediateLoadingState() {
+        // Show skeleton UI immediately to prevent blank screen
+        const primaryContainer = document.getElementById('primary-text-container');
+        const secondaryContainer = document.getElementById('secondary-texts-container');
+        
+        if (primaryContainer) {
+            primaryContainer.innerHTML = `
+                <div class="animate-pulse p-8">
+                    <div class="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+                    <div class="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                    <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                </div>
+            `;
+        }
+        
+        if (secondaryContainer) {
+            secondaryContainer.innerHTML = `
+                <div class="animate-pulse p-8">
+                    <div class="h-4 bg-gray-200 rounded w-2/3 mb-4"></div>
+                    <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                </div>
+            `;
+        }
+    }
+    
+    async loadEditorData() {
+        try {
+            UIUtilities.showLoading('Loading translation editor...');
+            await this.loadTextMetadata();
+            await this.restoreLayoutStateParallel();
+            this.saveSystem.updateSaveButtonState();
+            this.ui.initializeModels();
+        } catch (error) {
+            console.error('Error loading editor data:', error);
+            this.showGlobalError('Failed to load translation editor. Please refresh the page.');
+        } finally {
+            UIUtilities.hideLoading();
+        }
+    }
+    
+    showGlobalError(message) {
+        const overlay = document.getElementById('global-loading-overlay');
+        if (overlay) {
+            overlay.innerHTML = `
+                <div class="text-center">
+                    <div class="text-red-600 mb-4">
+                        <i class="fas fa-exclamation-triangle text-4xl"></i>
+                    </div>
+                    <div class="text-red-600 mb-4">${message}</div>
+                    <button onclick="location.reload()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                        Retry
+                    </button>
+                </div>
+            `;
+        }
+    }
+    
+    async loadTextMetadata() {
+        const response = await fetch(`/project/${this.projectId}/texts`);
+        const data = await response.json();
+        
+        // Store text metadata for later use
+        this.textMetadata = new Map();
+        if (data.texts) {
+            data.texts.forEach(text => {
+                this.textMetadata.set(text.id, {
+                    name: text.name,
+                    type: text.type,
+                    progress: text.progress
+                });
+            });
+        }
+    }
+    
+    async restoreLayoutStateParallel() {
+        const layoutState = this.storage.getSavedLayoutState();
+        
+        if (layoutState.textIds.length === 0) {
+            // No saved layout, show empty state
+            this.renderPrimaryText();
+            this.renderReferenceTexts();
+            return;
+        }
+        
+        try {
+            UIUtilities.updateLoadingMessage(`Loading ${layoutState.textIds.length} text(s)...`);
+            
+            const loadPromises = layoutState.textIds.map(async (textId) => {
+                try {
+                    const isPrimary = textId === layoutState.primaryTextId;
+                    return await this.loadTextData(textId, isPrimary);
+                } catch (error) {
+                    console.error(`Failed to load text ${textId}:`, error);
+                    return null;
+                }
+            });
+            
+            const results = await Promise.all(loadPromises);
+            
+            results.forEach((result, index) => {
+                if (result) {
+                    const textId = layoutState.textIds[index];
+                    const isPrimary = textId === layoutState.primaryTextId;
+                    this.textWindows.set(textId, result.textWindow);
+                    if (isPrimary) this.primaryTextId = textId;
+                }
+            });
+            
+            this.renderPrimaryText();
+            this.renderReferenceTexts();
+            
+        } catch (error) {
+            console.error('Error restoring layout state:', error);
+            this.renderPrimaryText();
+            this.renderReferenceTexts();
+        }
+    }
+    
+    async loadTextData(textId, isPrimary = false) {
+        if (!textId) return null;
+        
+        const isTranslation = textId.includes('translation_');
+        if (isTranslation) this.currentTranslation = textId;
+        
+        // For translations, we need to find a source text to compare against
+        let sourceId = textId;
+        if (isTranslation) {
+            // Find the first available non-translation text as source
+            let foundSource = null;
+            for (const [id, metadata] of this.textMetadata) {
+                if (metadata.type !== 'Translation' && !id.includes('translation_')) {
+                    foundSource = id;
+                    break;
+                }
+            }
+            
+            if (!foundSource) {
+                console.warn('No source texts available for translation');
+                return null;
+            }
+            
+            sourceId = foundSource;
+        }
+        
+        const response = await fetch(
+            `/project/${this.projectId}/translation/${textId}/chapter/${this.currentBook}/${this.currentChapter}?source_id=${sourceId}`
+        );
+        const data = await response.json();
+        
+        if (!data.verses) {
+            console.error('Error loading text:', data.error);
+            return null;
+        }
+        
+        const windowTitle = this.getWindowTitle(textId);
+        const targetLanguage = await this.getTargetLanguage();
+        const windowType = isPrimary ? 'primary' : 'reference';
+        
+        const textWindow = new TextWindow(textId, data, windowType, windowTitle, targetLanguage);
+        
+        return {
+            textWindow,
+            textId,
+            isPrimary
+        };
+    }
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    setupEventListeners() {
+        // Modal controls
+        document.getElementById('new-translation-btn')?.addEventListener('click', () => {
+            document.getElementById('new-translation-modal').classList.remove('hidden');
+        });
+        
+        document.getElementById('cancel-new-translation')?.addEventListener('click', () => {
+            document.getElementById('new-translation-modal').classList.add('hidden');
+        });
+        
+        document.getElementById('new-translation-form')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.createNewTranslation();
+        });
+        
+        // Navigation controls are now handled by the dropdown components in translation-navigation.js
+        
+        // Save button
+        document.getElementById('save-changes-btn')?.addEventListener('click', async () => {
+            const button = document.getElementById('save-changes-btn');
+            if (button.disabled) return;
+            
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...';
+            button.disabled = true;
+            
+            try {
+                await this.saveAllChanges();
+            } finally {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        });
+        
+
+        
+        // Plus buttons for loading texts (these are in the main content area)
+        document.getElementById('add-reference-text-btn')?.addEventListener('click', () => {
+            this.showTextSelectionModal(false);
+        });
+
+        document.getElementById('add-primary-text-btn')?.addEventListener('click', () => {
+            this.showTextSelectionModal(true);
+        });
+        
+        // Setup primary drop zone
+        this.setupPrimaryDropZone();
+
+        // Mobile sidebar toggle
+        const mobileToggle = document.getElementById('mobile-sidebar-toggle');
+        const sidebar = document.querySelector('.translation-sidebar');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        const toggleIcon = document.getElementById('sidebar-toggle-icon');
+        
+        console.log('Mobile elements found:', {
+            mobileToggle: !!mobileToggle,
+            sidebar: !!sidebar,
+            backdrop: !!backdrop,
+            toggleIcon: !!toggleIcon
+        });
+        
+        if (mobileToggle && sidebar && backdrop && toggleIcon) {
+            // Ensure sidebar starts closed on mobile
+            if (window.innerWidth <= 767) {
+                sidebar.classList.add('-translate-x-full');
+                backdrop.classList.add('hidden');
+                toggleIcon.classList.remove('fa-times');
+                toggleIcon.classList.add('fa-bars');
+            }
+            
+            const closeSidebar = () => {
+                sidebar.classList.add('-translate-x-full');
+                backdrop.classList.add('hidden');
+                toggleIcon.classList.remove('fa-times');
+                toggleIcon.classList.add('fa-bars');
+                console.log('Closing sidebar');
+            };
+            
+            const openSidebar = () => {
+                sidebar.classList.remove('-translate-x-full');
+                backdrop.classList.remove('hidden');
+                toggleIcon.classList.remove('fa-bars');
+                toggleIcon.classList.add('fa-times');
+                console.log('Opening sidebar');
+            };
+            
+            mobileToggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const isOpen = !sidebar.classList.contains('-translate-x-full');
+                console.log('Toggle clicked, isOpen:', isOpen);
+                
+                if (isOpen) {
+                    closeSidebar();
+                } else {
+                    openSidebar();
+                }
+            });
+            
+            // Close sidebar when clicking backdrop or anywhere outside sidebar on mobile
+            backdrop.addEventListener('click', (e) => {
+                e.preventDefault();
+                closeSidebar();
+                console.log('Backdrop clicked, closing sidebar');
+            });
+            
+            // Close sidebar when clicking outside on mobile
+            document.addEventListener('click', (e) => {
+                if (window.innerWidth <= 767) {
+                    const isOpen = !sidebar.classList.contains('-translate-x-full');
+                    if (isOpen && !sidebar.contains(e.target) && !mobileToggle.contains(e.target)) {
+                        closeSidebar();
+                        console.log('Clicked outside sidebar, closing');
+                    }
+                }
+            });
+            
+        } else {
+            console.error('Missing mobile sidebar elements');
+        }
+
+        // Add mobile tabs functionality
+        const tabButtons = document.querySelectorAll('[data-tab]');
+        const primaryArea = document.getElementById('primary-text-area');
+        const secondaryArea = document.getElementById('secondary-texts-area');
+        tabButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                tabButtons.forEach(b => {
+                    b.classList.toggle('border-green-500', b === btn);
+                    b.classList.toggle('border-transparent', b !== btn);
+                    b.classList.toggle('text-green-700', b === btn);
+                    b.classList.toggle('text-gray-600', b !== btn);
+                });
+                primaryArea.classList.toggle('hidden', tab !== 'primary');
+                secondaryArea.classList.toggle('hidden', tab !== 'references');
+            });
+        });
+        // Set initial tab to primary (since it's now the default/main focus)
+        if (tabButtons.length > 0) {
+            const primaryTab = document.querySelector('[data-tab="primary"]');
+            if (primaryTab) primaryTab.click();
+        }
+    }
+    
+    showTextSelectionModal(isPrimary) {
+        this.ui.showTextSelectionModal(isPrimary);
+    }
+    
+    setupPrimaryDropZone() {
+        const primaryContainer = document.getElementById('primary-text-container');
+        if (!primaryContainer) return;
+        
+        primaryContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            primaryContainer.classList.add('drag-over');
+        });
+        
+        primaryContainer.addEventListener('dragleave', (e) => {
+            if (!primaryContainer.contains(e.relatedTarget)) {
+                primaryContainer.classList.remove('drag-over');
+            }
+        });
+        
+        primaryContainer.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            primaryContainer.classList.remove('drag-over');
+            
+            try {
+                const dragData = JSON.parse(e.dataTransfer.getData('text/plain'));
+                if (dragData.type === 'text-selection') {
+                    await this.loadText(dragData.textId, true);
+                }
+            } catch (error) {
+                console.error('Error handling drop:', error);
+            }
+        });
+        
+        // Add close button listeners for text windows
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('.close-text-btn')) {
+                const textId = e.target.dataset.textId;
+                this.closeText(textId);
+            }
+        });
+        
+        // Setup reference buttons
+        const newReferenceBtn = document.getElementById('add-reference-text-btn');
+        if (newReferenceBtn) {
+            newReferenceBtn.addEventListener('click', () => {
+                this.showTextSelectionModal(false);
+            });
+        }
     }
     
     // Layout management
@@ -232,67 +536,8 @@ class TranslationEditor {
         this.storage.saveLayoutState(this.textWindows, this.primaryTextId);
     }
     
-    async restoreLayoutState() {
-        const layoutState = this.storage.getSavedLayoutState();
-        
-        if (layoutState.textIds.length > 0) {
-            try {
-                for (const textId of layoutState.textIds) {
-                    const isPrimary = textId === layoutState.primaryTextId;
-                    await this.loadText(textId, isPrimary);
-                }
-            } catch (error) {
-                console.error('Error restoring layout:', error);
-            }
-        }
-    }
-    
     restoreNavigationState() {
         this.navigation.updateChapterTitle();
-    }
-    
-    // Text loading and management
-    async loadAllTexts() {
-        try {
-            const response = await fetch(`/project/${this.projectId}/texts`);
-            const data = await response.json();
-            
-            // Store text metadata for later use
-            this.textMetadata = new Map();
-            if (data.texts) {
-                data.texts.forEach(text => {
-                    this.textMetadata.set(text.id, {
-                        name: text.name,
-                        type: text.type,
-                        progress: text.progress
-                    });
-                });
-            }
-            
-            this.populateUnifiedDropdown(data);
-            
-            // Restore layout state instead of individual text loading
-            await this.restoreLayoutState();
-        } catch (error) {
-            console.error('Error loading texts:', error);
-        }
-    }
-    
-    populateUnifiedDropdown(data) {
-        const select = document.getElementById('text-select');
-        select.innerHTML = '<option value="">Select any text to load...</option>';
-        
-        if (!data.texts?.length) return;
-        
-        // Add all texts without filtering
-        data.texts.forEach(item => {
-            const option = document.createElement('option');
-            option.value = item.type === 'eBible File' ? item.id : item.id;
-            option.textContent = item.type === 'eBible File' ? 
-                item.name : 
-                `${item.name} (${item.progress}% complete)`;
-            select.appendChild(option);
-        });
     }
     
     async createNewTranslation() {
@@ -314,8 +559,20 @@ class TranslationEditor {
                 document.getElementById('new-translation-modal').classList.add('hidden');
                 document.getElementById('new-translation-form').reset();
                 
-                // Refresh the unified text list
-                this.loadAllTexts();
+                await this.refreshTextMetadata();
+                
+                if (data.translation && data.translation.id) {
+                    const newTranslationModal = document.getElementById('new-translation-modal');
+                    const isPrimary = newTranslationModal.dataset.isPrimary === 'true';
+                    
+                    // Use the ID directly from the backend - it's already in the correct format (text_30)
+                    const translationId = data.translation.id;
+                    await this.loadText(translationId, isPrimary);
+                    
+                    delete newTranslationModal.dataset.isPrimary;
+                } else {
+                    this.loadAllTexts();
+                }
             } else {
                 alert('Error: ' + (data.error || 'Failed to create translation'));
             }
@@ -329,27 +586,15 @@ class TranslationEditor {
         if (!textId) return;
         
         try {
-            const isTranslation = textId.includes('translation_');
-            if (isTranslation) this.currentTranslation = textId;
-            
-            this.showLoadingFeedback(isTranslation);
-            
-            const response = await fetch(
-                `/project/${this.projectId}/translation/${textId}/chapter/${this.currentBook}/${this.currentChapter}?source_id=${textId}`
-            );
-            const data = await response.json();
-            
-            if (!data.verses) {
-                console.error('Error loading text:', data.error);
+            // Use the optimized loading method
+            const result = await this.loadTextData(textId, isPrimary);
+            if (!result) {
+                alert('Failed to load text. Please try again.');
                 return;
             }
             
-            const windowTitle = this.getWindowTitle(textId);
-            const targetLanguage = await this.getTargetLanguage();
-            const windowType = isPrimary ? 'primary' : 'reference';
-            
-            const textWindow = new TextWindow(textId, data, windowType, windowTitle, targetLanguage);
-            this.textWindows.set(textId, textWindow);
+            // Add to text windows
+            this.textWindows.set(textId, result.textWindow);
             
             if (isPrimary) {
                 this.primaryTextId = textId;
@@ -359,41 +604,14 @@ class TranslationEditor {
             }
             
             this.saveLayoutState();
-            this.showSuccessFeedback(windowTitle);
             
         } catch (error) {
             console.error('Error loading text:', error);
-            this.showErrorFeedback();
+            alert('Failed to load text. Please try again.');
         }
     }
     
-    showLoadingFeedback(isTranslation) {
-        const textInfo = document.getElementById('text-info');
-        const textDetails = document.getElementById('text-details');
-        if (textInfo && textDetails) {
-            textInfo.classList.remove('hidden');
-            textDetails.textContent = isTranslation ? 'Loading translation...' : 'Loading text...';
-        }
-    }
-    
-    showSuccessFeedback(windowTitle) {
-        const textInfo = document.getElementById('text-info');
-        const textDetails = document.getElementById('text-details');
-        if (textInfo && textDetails) {
-            textDetails.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i> ${windowTitle} loaded`;
-            setTimeout(() => textInfo.classList.add('hidden'), 2000);
-        }
-    }
-    
-    showErrorFeedback() {
-        const textInfo = document.getElementById('text-info');
-        const textDetails = document.getElementById('text-details');
-        if (textInfo && textDetails) {
-            textInfo.classList.remove('hidden');
-            textDetails.innerHTML = '<i class="fas fa-exclamation-circle text-red-500 mr-1"></i> Failed to load text';
-            setTimeout(() => textInfo.classList.add('hidden'), 3000);
-        }
-    }
+
     
     getWindowTitle(textId) {
         if (!this.textMetadata.has(textId)) return 'Unknown Text';
@@ -402,7 +620,7 @@ class TranslationEditor {
         let title = metadata.name;
         
         if (metadata.type === 'Translation' && metadata.progress !== undefined) {
-            title += ` (${metadata.progress}% complete)`;
+            title += ` (${metadata.progress}%)`;
         }
         
         return title;
@@ -431,69 +649,154 @@ class TranslationEditor {
     
     renderPrimaryText() {
         const container = document.getElementById('primary-text-container');
-        container.innerHTML = '';
         
         if (this.primaryTextId && this.textWindows.has(this.primaryTextId)) {
             const textWindow = this.textWindows.get(this.primaryTextId);
-            textWindow.render(container);
-            this.setupAutoResizeForWindow(textWindow);
+            this.renderTextWindow(container, textWindow);
+        } else {
+            this.renderEmptyPrimaryState(container);
         }
     }
     
     renderReferenceTexts() {
         const container = document.getElementById('secondary-texts-container');
-        container.innerHTML = '';
         
-        // Render all non-primary text windows
-        let hasReferenceTexts = false;
+        // Collect reference text windows first
+        const referenceWindows = [];
         this.textWindows.forEach((textWindow, id) => {
             if (id !== this.primaryTextId) {
-                textWindow.render(container);
-                this.setupAutoResizeForWindow(textWindow);
-                hasReferenceTexts = true;
+                referenceWindows.push(textWindow);
             }
         });
         
-        if (!hasReferenceTexts) {
-            container.innerHTML = '<div class="text-neutral-400 text-center py-20">Load texts from the sidebar</div>';
+        if (referenceWindows.length > 0) {
+            this.renderTextWindows(container, referenceWindows);
+        } else {
+            this.renderEmptyReferenceState(container);
         }
+    }
+    
+    renderTextWindow(container, textWindow) {
+        // Use DocumentFragment for better performance
+        const fragment = document.createDocumentFragment();
+        const tempDiv = document.createElement('div');
+        
+        // Render to temporary div first
+        textWindow.render(tempDiv);
+        
+        // Move all children to fragment
+        while (tempDiv.firstChild) {
+            fragment.appendChild(tempDiv.firstChild);
+        }
+        
+        // Single DOM update
+        container.innerHTML = '';
+        container.appendChild(fragment);
+        
+        // Setup interactions after DOM is ready
+        requestAnimationFrame(() => {
+            this.setupAutoResizeForWindow(textWindow);
+        });
+    }
+    
+    renderTextWindows(container, textWindows) {
+        // Batch render multiple text windows
+        const fragment = document.createDocumentFragment();
+        
+        textWindows.forEach(textWindow => {
+            const tempDiv = document.createElement('div');
+            textWindow.render(tempDiv);
+            
+            while (tempDiv.firstChild) {
+                fragment.appendChild(tempDiv.firstChild);
+            }
+        });
+        
+        // Single DOM update for all windows
+        container.innerHTML = '';
+        container.appendChild(fragment);
+        
+        // Setup interactions for all windows
+        requestAnimationFrame(() => {
+            textWindows.forEach(textWindow => {
+                this.setupAutoResizeForWindow(textWindow);
+            });
+        });
+    }
+    
+    renderEmptyPrimaryState(container) {
+        const buttonText = this.canEdit ? 'Create or Load Translation' : 'Load Translation';
+        const descriptionText = this.canEdit ? 'Create a new translation or load an existing one' : 'Load an existing translation to view';
+        
+        container.innerHTML = `
+            <div class="text-neutral-500 text-center py-8 md:py-20 flex flex-col items-center">
+                <button id="add-primary-text-btn" class="mb-4 px-8 py-4 bg-green-50 text-green-600 border-2 border-dashed border-green-300 rounded-2xl flex items-center gap-3 font-semibold shadow-sm">
+                    <i class="fas fa-plus"></i>
+                    ${buttonText}
+                </button>
+                <p class="text-sm text-neutral-600 font-medium">${descriptionText}</p>
+            </div>
+        `;
+        
+        // Add event listener with debouncing
+        this.setupButtonListener('add-primary-text-btn', () => this.showTextSelectionModal(true));
+    }
+    
+    renderEmptyReferenceState(container) {
+        container.innerHTML = `
+            <div class="text-neutral-500 text-center py-8 md:py-20 flex flex-col items-center">
+                <button id="add-reference-text-btn" class="mb-4 px-8 py-4 bg-blue-50 text-blue-600 border-2 border-dashed border-green-300 rounded-2xl flex items-center gap-3 font-semibold shadow-sm">
+                    <i class="fas fa-plus"></i>
+                    Load Reference Text
+                </button>
+                <p class="text-sm text-neutral-600 font-medium">Load reference texts to compare and translate from</p>
+            </div>
+        `;
+        
+        // Add event listener with debouncing
+        this.setupButtonListener('add-reference-text-btn', () => this.showTextSelectionModal(false));
+    }
+    
+    setupButtonListener(buttonId, handler) {
+        requestAnimationFrame(() => {
+            UIUtilities.setupEventListener(buttonId, 'click', handler);
+        });
     }
     
     setupAutoResizeForWindow(textWindow) {
         if (!textWindow.element) return;
         
         const textareas = textWindow.element.querySelectorAll('textarea');
-        textareas.forEach(textarea => {
-            // Set up auto-resize
-            setTimeout(() => this.ui.autoResizeTextarea(textarea), 0);
-            setTimeout(() => this.ui.autoResizeTextarea(textarea), 100);
-            
-            this.addTextareaListeners(textarea);
-        });
+        if (textareas.length > 0) {
+            requestAnimationFrame(() => {
+                UIUtilities.batchAutoResizeTextareas(textareas);
+                textareas.forEach(textarea => this.addTextareaListeners(textarea));
+            });
+        }
     }
     
     addTextareaListeners(textarea) {
         const verseIndex = parseInt(textarea.dataset.verseIndex);
         
-        textarea.addEventListener('focus', () => {
-            this.highlightSourceVerse(textarea.dataset.verse);
-        });
+        // PERFORMANCE: Skip if listeners already added
+        if (textarea._listenersAdded) return;
+        textarea._listenersAdded = true;
         
-        textarea.addEventListener('input', () => {
-            this.ui.autoResizeTextarea(textarea);
-            this.saveSystem.bufferVerseChange(verseIndex, textarea.value);
-        });
+        // PERFORMANCE: SIMPLEST POSSIBLE input handler
+        let value = '';
+        textarea.addEventListener('input', (e) => {
+            value = e.target.value; // Just store value, nothing else
+        }, { passive: true });
         
+        // PERFORMANCE: Only save on blur
         textarea.addEventListener('blur', () => {
-            this.saveSystem.bufferVerseChange(verseIndex, textarea.value);
-        });
+            this.saveSystem.bufferVerseChange(verseIndex, value);
+        }, { passive: true });
         
-        textarea.addEventListener('change', () => {
-            this.ui.autoResizeTextarea(textarea);
-        });
-        
-        // Add multi-select functionality
-        this.dragDrop.setupTextareaForMultiSelect(textarea);
+        // PERFORMANCE: Remove focus highlighting entirely for now
+        // textarea.addEventListener('focus', () => {
+        //     // Highlighting disabled for better performance
+        // }, { passive: true });
     }
     
     async refreshTextMetadata() {
@@ -522,16 +825,58 @@ class TranslationEditor {
             await this.saveSystem.saveAllChanges();
         }
         
-        // Reload all current text windows with new chapter data
-        const textIds = Array.from(this.textWindows.keys());
-        this.textWindows.clear();
+        // Show loading state
+        UIUtilities.showLoading('Refreshing texts...');
         
-        // Refresh metadata to get latest progress info
-        await this.refreshTextMetadata();
-        
-        for (const textId of textIds) {
-            const isPrimary = textId === this.primaryTextId;
-            await this.loadText(textId, isPrimary);
+        try {
+            // Collect current text info
+            const textIds = Array.from(this.textWindows.keys());
+            const currentPrimaryId = this.primaryTextId;
+            
+            // Clear windows
+            this.textWindows.clear();
+            this.primaryTextId = null;
+            
+            // Refresh metadata first
+            await this.refreshTextMetadata();
+            
+            if (textIds.length > 0) {
+                // Load all texts in parallel
+                const loadPromises = textIds.map(async (textId) => {
+                    try {
+                        const isPrimary = textId === currentPrimaryId;
+                        return await this.loadTextData(textId, isPrimary);
+                    } catch (error) {
+                        console.error(`Failed to refresh text ${textId}:`, error);
+                        return null;
+                    }
+                });
+                
+                const results = await Promise.all(loadPromises);
+                
+                // Process results
+                results.forEach((result, index) => {
+                    if (result) {
+                        const textId = textIds[index];
+                        const isPrimary = textId === currentPrimaryId;
+                        
+                        this.textWindows.set(textId, result.textWindow);
+                        
+                        if (isPrimary) {
+                            this.primaryTextId = textId;
+                        }
+                    }
+                });
+            }
+            
+            // Render everything at once
+            this.renderPrimaryText();
+            this.renderReferenceTexts();
+            
+        } catch (error) {
+            console.error('Error refreshing texts:', error);
+        } finally {
+            UIUtilities.hideLoading();
         }
     }
     
@@ -559,43 +904,32 @@ class TranslationEditor {
         this.saveLayoutState();
     }
     
-    highlightSourceVerse(verseNumber) {
-        document.querySelectorAll('textarea.highlighted').forEach(verse => {
-            verse.classList.remove('highlighted', 'border-gray-800', 'border-[0.5px]', 'bg-stone-50', 'shadow-inner');
-        });
-        
-        const allSourceVerses = document.querySelectorAll(`textarea[data-verse="${verseNumber}"]`);
-        
-        allSourceVerses.forEach((verse, index) => {
-            verse.classList.add('highlighted', 'border-gray-800', 'border-[0.5px]', 'bg-stone-50', 'shadow-inner', 'animate-pulse');
+    closeText(textId) {
+        if (this.textWindows.has(textId)) {
+            this.textWindows.delete(textId);
             
-            setTimeout(() => {
-                const scrollContainer = verse.closest('[data-window-content]');
-                if (!scrollContainer) return;
-                
-                const verseWrapper = verse.closest('[data-verse]');
-                const elementToScroll = verseWrapper || verse;
-                
-                const containerRect = scrollContainer.getBoundingClientRect();
-                const elementRect = elementToScroll.getBoundingClientRect();
-                
-                const relativeTop = elementRect.top - containerRect.top + scrollContainer.scrollTop;
-                const elementHeight = elementRect.height;
-                const containerHeight = scrollContainer.clientHeight;
-                
-                const targetScrollTop = relativeTop - (containerHeight / 2) + (elementHeight / 2);
-                
-                scrollContainer.scrollTo({
-                    top: Math.max(0, targetScrollTop),
-                    behavior: 'smooth'
-                });
-                
-                // Remove animation after scroll
-                setTimeout(() => {
-                    verse.classList.remove('animate-pulse');
-                }, 300);
-            }, index * 50);
-        });
+            // If this was the primary text, clear primary
+            if (textId === this.primaryTextId) {
+                this.primaryTextId = null;
+            }
+            
+            // Re-render both areas
+            this.renderPrimaryText();
+            this.renderReferenceTexts();
+            
+            this.saveLayoutState();
+        }
+    }
+    
+    // PERFORMANCE: Remove highlighting system entirely
+    highlightSourceVerse(verseNumber) {
+        // Disabled for performance - no highlighting
+        return;
+    }
+    
+    scrollToVerseOptimized(verse) {
+        // Disabled for performance - no auto-scrolling
+        return;
     }
     
     // Delegate methods to subsystems
@@ -611,14 +945,34 @@ class TranslationEditor {
         return await this.saveSystem.saveAllChanges();
     }
     
-    async saveVerse(verseIndex, text) {
-        return await this.saveSystem.saveVerse(verseIndex, text);
+    async saveVerse(verseIndex, text, targetId = null, metadata = null) {
+        return await this.saveSystem.saveVerse(verseIndex, text, targetId, metadata);
     }
     
     async translateFromDrag(dragData, targetTextarea, targetWindow = null) {
         return await this.dragDrop.translateFromDrag(dragData, targetTextarea, targetWindow);
     }
     
+    disableEditingFeatures() {
+        // Disable save button
+        const saveBtn = document.getElementById('save-changes-btn');
+        
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'READ-ONLY MODE';
+            saveBtn.style.opacity = '0.5';
+        }
+        
+        // Add a visual indicator
+        const header = document.querySelector('.translation-header');
+        if (header) {
+            const readOnlyBadge = document.createElement('div');
+            readOnlyBadge.className = 'px-3 py-1 bg-yellow-100 text-yellow-800 text-sm font-medium rounded-full';
+            readOnlyBadge.innerHTML = '<i class="fas fa-eye mr-1"></i> Read-Only Access';
+            header.appendChild(readOnlyBadge);
+        }
+    }
+
     async getProjectInfo() {
         try {
             const response = await fetch(`/api/project/${this.projectId}`);
@@ -628,25 +982,65 @@ class TranslationEditor {
             return null;
         }
     }
+    
+    showMessage(message, type = 'info') {
+        // Create a simple toast notification
+        const toast = document.createElement('div');
+        toast.className = `fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg max-w-sm transition-all duration-300 ${
+            type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' :
+            type === 'error' ? 'bg-red-100 text-red-800 border border-red-200' :
+            'bg-blue-100 text-blue-800 border border-blue-200'
+        }`;
+        
+        toast.innerHTML = `
+            <div class="flex items-center gap-2">
+                <i class="fas ${
+                    type === 'success' ? 'fa-check-circle' :
+                    type === 'error' ? 'fa-exclamation-circle' :
+                    'fa-info-circle'
+                }"></i>
+                <span class="text-sm font-medium">${message}</span>
+                <button class="ml-2 text-gray-500 hover:text-gray-700" onclick="this.parentElement.parentElement.remove()">×</button>
+            </div>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Auto-remove after 4 seconds
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, 4000);
+    }
 }
 
-// Initialize when page loads
+// PERFORMANCE: Simplest possible initialization - no virtual scrolling
 document.addEventListener('DOMContentLoaded', () => {
-    new TranslationEditor();
+    const editor = new TranslationEditor();
+    // Just start the editor - no complex systems
 });
 </script>
 
 {% endblock %}
 
 {% block scripts %}
-<!-- Translation Editor JavaScript Components -->
-<script src="{{ url_for('static', filename='js/bible-constants.js') }}"></script>
-<script src="{{ url_for('static', filename='js/text-window.js') }}"></script>
-<script src="{{ url_for('static', filename='js/translation-storage.js') }}"></script>
-<script src="{{ url_for('static', filename='js/translation-confidence.js') }}"></script>
-<script src="{{ url_for('static', filename='js/translation-navigation.js') }}"></script>
-<script src="{{ url_for('static', filename='js/translation-save.js') }}"></script>
-<script src="{{ url_for('static', filename='js/translation-ui.js') }}"></script>
-<script src="{{ url_for('static', filename='js/translation-test-results.js') }}"></script>
-<script src="{{ url_for('static', filename='js/translation-drag-drop.js') }}"></script>
+<!-- Translation Editor JavaScript Components - OPTIMIZED with defer for faster loading -->
+<script defer src="{{ url_for('static', filename='js/ui-utilities.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/verse-history.js') }}"></script>
+    <!-- Virtual scroll removed for performance -->
+<script defer src="{{ url_for('static', filename='js/purpose-manager.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/audio-manager.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/theme-manager.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/bible-constants.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/text-window.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/translation-storage.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/translation-confidence.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/translation-navigation.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/translation-save.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/translation-ui.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/translation-test-results.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/translation-drag-drop.js') }}"></script>
 {% endblock %} 

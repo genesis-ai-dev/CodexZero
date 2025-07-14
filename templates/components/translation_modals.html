@@ -3,31 +3,64 @@
 
 <!-- New Translation Modal -->
 <div id="new-translation-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-    <div class="bg-white border border-black border-[0.5px] rounded-lg p-6 w-full max-w-md mx-4">
-        <h3 class="text-xl font-bold mb-4">Create New Translation</h3>
-        <form id="new-translation-form" class="space-y-4">
+    <div class="bg-white border border-neutral-200 rounded-2xl shadow-xl p-8 w-full max-w-md mx-4">
+        <h3 class="text-2xl font-bold text-neutral-900 mb-6 tracking-tight">Create New Translation</h3>
+        <form id="new-translation-form" class="space-y-6">
             <div>
-                <label for="translation-name" class="block text-sm font-medium text-neutral-700 mb-2">
+                <label for="translation-name" class="block text-sm font-medium text-neutral-700 mb-3">
                     Translation Name
                 </label>
                 <input 
                     type="text" 
                     id="translation-name" 
-                    class="w-full p-3 border border-black border-[0.5px] rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    class="w-full p-4 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 font-medium"
                     placeholder="e.g., Draft 1, Source ESV, Back Translation, etc."
                     required
                 >
             </div>
             
             <div class="flex justify-end space-x-3 pt-4">
-                <button type="button" id="cancel-new-translation" class="px-4 py-2 border border-black border-[0.5px] rounded hover:bg-neutral-100 transition-colors">
+                <button type="button" id="cancel-new-translation" class="px-6 py-3 border border-neutral-200 rounded-xl text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition-all duration-200 font-medium">
                     Cancel
                 </button>
-                <button type="submit" class="px-4 py-2 bg-green-500 text-white border border-black border-[0.5px] rounded hover:bg-green-600 transition-colors">
+                <button type="submit" class="px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105">
                     Create
                 </button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Text Selection Modal -->
+<div id="text-selection-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white border border-neutral-200 rounded-2xl shadow-xl p-8 w-full max-w-md mx-4">
+        <h3 class="text-2xl font-bold text-neutral-900 mb-6 tracking-tight">Load Text</h3>
+        <div class="space-y-6">
+            <div>
+                <label for="text-select" class="block text-sm font-medium text-neutral-700 mb-3">
+                    Select Text to Load
+                </label>
+                <select id="text-select" class="w-full p-4 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-medium">
+                    <option value="">Choose a text...</option>
+                </select>
+            </div>
+            
+            <div id="text-info" class="hidden p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                <div id="text-details" class="text-sm text-blue-900 font-medium">Loading...</div>
+            </div>
+            
+            <div class="flex justify-end space-x-3 pt-4">
+                <button type="button" id="cancel-text-selection" class="px-6 py-3 border border-neutral-200 rounded-xl text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition-all duration-200 font-medium">
+                    Cancel
+                </button>
+                <button type="button" id="add-text-btn" class="hidden px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105">
+                    Load Text
+                </button>
+                <button type="button" id="new-translation-btn" class="px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105">
+                    + New Translation
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 {% endmacro %} 

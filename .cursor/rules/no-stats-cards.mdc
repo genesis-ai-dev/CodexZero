@@ -3,3 +3,44 @@ description:
 globs:
 alwaysApply: false
 ---
+# UI Design Rule: No Stats Cards or Metric Dashboards
+
+## Prohibited UI Patterns
+
+**NEVER** create UI elements that are squares, cards, or containers that primarily display:
+- Large numbers with labels underneath
+- Stats cards / KPI dashboards  
+- Metrics grids
+- Summary statistics displays
+- "At-a-glance metrics"
+- Dashboard widgets with just numbers
+- Info cards that are just numerical data
+
+## Examples of What NOT to Create
+
+```html
+<!-- FORBIDDEN: Stats cards with numbers -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="big-number">42</div>
+        <div class="label">Total Projects</div>
+    </div>
+    <div class="stat-card">
+        <div class="big-number">156</div>
+        <div class="label">Active Users</div>
+    </div>
+</div>
+```
+
+## Preferred Alternatives
+
+Instead of stats cards, integrate metrics naturally into:
+- Headers with contextual information
+- Inline text within content sections
+- Progress indicators within functional elements
+- Badges or counters on actionable items
+- Data visualization that serves a functional purpose
+
+## Design Philosophy
+
+Focus on **functional, content-rich interfaces** rather than numerical summaries that don't provide actionable value. Every UI element should have a clear purpose beyond just displaying a number.

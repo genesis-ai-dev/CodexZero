@@ -1,15 +1,17 @@
 import os
 import json
 import uuid
-from typing import List, Dict, Tuple, Optional
+import random
+from typing import Dict, List, Tuple, Optional, Any
 from openai import OpenAI
+from models import Project, Text, FineTuningJob, db
 from storage import get_storage
-from models import db, ProjectFile, FineTuningJob, Project
+
 
 import time
 from datetime import datetime
 
-# IMPORTANT NOTE: Text fine-tuning model support as of 2024
+# IMPORTANT NOTE: Text fine-tuning model support as of 2025
 # - GPT-4o and GPT-4o-mini do NOT support fine-tuning for text tasks
 # - Only GPT-4.1 series models support text fine-tuning:
 #   * gpt-4.1 - Most capable
@@ -19,8 +21,53 @@ from datetime import datetime
 # For the most current information, check: https://platform.openai.com/docs/guides/fine-tuning
 
 def safe_decode_content(file_content):
-    """Simple UTF-8 decode that ignores problematic bytes"""
-    return file_content.decode('utf-8', errors='ignore')
+    """Safely decode file content to string"""
+    if isinstance(file_content, bytes):
+        return file_content.decode('utf-8', errors='replace')
+    return str(file_content)
+
+
+def get_text_content_as_lines(text_id: int) -> List[str]:
+    """Get content from a unified Text record as list of lines for fine-tuning"""
+    from models import Verse
+    
+    # Get all verses for this text ordered by verse_index
+    verses = Verse.query.filter_by(text_id=text_id).order_by(Verse.verse_index).all()
+    
+    # Convert to lines with proper indexing
+    lines = []
+    for verse in verses:
+        # Extend list if needed to match verse_index
+        while len(lines) <= verse.verse_index:
+            lines.append('')
+        lines[verse.verse_index] = verse.verse_text
+    
+    return lines
+
+
+def _create_instruction_prompt(source_text: str, context_examples: List[str] = None) -> str:
+    """Create instruction prompt with optional context examples"""
+    if context_examples:
+        context_parts = ["TRANSLATION EXAMPLES:"]
+        context_parts.extend(context_examples)
+        context_parts.append("")
+        context_parts.append("Following the style and patterns shown in the examples above:")
+        context_parts.append(f"Translate this text: {source_text}")
+        context_parts.append("")
+        context_parts.append("Provide your final translation inside <translation></translation> tags.")
+        return '\n'.join(context_parts)
+    else:
+        return f"Translate this text: {source_text}\n\nProvide your final translation inside <translation></translation> tags."
+
+def _create_training_example(system_prompt: str, user_prompt: str, target_text: str) -> Dict:
+    """Create a training example in the proper format"""
+    return {
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+            {"role": "assistant", "content": f"<translation>{target_text}</translation>"}
+        ]
+    }
 
 # Global progress cache that persists across requests
 _global_progress_cache = {}
@@ -66,8 +113,17 @@ class FineTuningService:
         return self.get_all_models()
     
     def get_all_models(self) -> Dict:
-        """Get all available models (base + fine-tuned with proper names)"""
-        models = self.base_models.copy()
+        """Get all available models for translation (fine-tuned GPT-4.1 + Claude 3.5 Sonnet only)"""
+        models = {}
+        
+        # Add only Claude 3.5 Sonnet for translation
+        models['claude-3-5-sonnet-20241022'] = {
+            'name': 'Claude 3.5 Sonnet',
+            'description': 'Anthropic\'s most capable model for complex reasoning',
+            'cost_per_1k_tokens': 0.015,
+            'max_context': 200000,
+            'type': 'base'
+        }
         
         # Add fine-tuned models with custom names (exclude hidden models)
         from models import FineTuningJob
@@ -80,9 +136,13 @@ class FineTuningService:
         ).order_by(FineTuningJob.completed_at.desc()).all()
         
         for job in completed_jobs:
+            # Skip jobs with missing text references
+            if not job.source_text or not job.target_text:
+                continue
+                
             models[job.model_name] = {
                 'name': job.display_name,
-                'description': f"Custom model from {job.source_file.original_filename} → {job.target_file.original_filename}",
+                'description': f"Custom model from {job.source_text.name} → {job.target_text.name}",
                 'cost_per_1k_tokens': self.base_models.get('gpt-4.1-mini', {}).get('cost_per_1k_tokens', 0.003),
                 'max_context': 128000,
                 'type': 'fine_tuned',
@@ -95,7 +155,8 @@ class FineTuningService:
         return models
     
     def get_fine_tuning_models_for_project(self, project_id: int) -> Dict:
-        """Get available models for fine-tuning for a specific project"""
+        """Get available models for fine-tuning for a specific project (GPT-4.1 models only)"""
+        # Only allow GPT-4.1 base models for fine-tuning
         models = self.base_models.copy()
         
         # Add project-specific fine-tuned models with custom names (exclude hidden models)
@@ -110,9 +171,13 @@ class FineTuningService:
         ).order_by(FineTuningJob.completed_at.desc()).all()
         
         for job in completed_jobs:
+            # Skip jobs with missing text references
+            if not job.source_text or not job.target_text:
+                continue
+                
             models[job.model_name] = {
                 'name': job.display_name,
-                'description': f"Custom model from {job.source_file.original_filename} → {job.target_file.original_filename}",
+                'description': f"Custom model from {job.source_text.name} → {job.target_text.name}",
                 'cost_per_1k_tokens': self.base_models.get('gpt-4.1-mini', {}).get('cost_per_1k_tokens', 0.003),
                 'max_context': 128000,
                 'type': 'fine_tuned',
@@ -128,27 +193,21 @@ class FineTuningService:
         Get a preview of what a training example will look like.
         Returns a sample training example and summary stats.
         """
-        # Load source and target files
-        source_file = ProjectFile.query.get(source_file_id)
-        target_file = ProjectFile.query.get(target_file_id)
+        # Load source and target texts
+        source_text = Text.query.get(source_file_id)
+        target_text = Text.query.get(target_file_id)
         
-        if not source_file or not target_file:
-            raise ValueError("Source or target file not found")
+        if not source_text or not target_text:
+            raise ValueError("Source or target text not found")
         
         # Get project details for system prompt
         project = Project.query.get(project_id)
         if not project:
             raise ValueError("Project not found")
         
-        # Read file contents
-        source_file_content = self.storage.get_file(source_file.storage_path)
-        target_file_content = self.storage.get_file(target_file.storage_path)
-        source_content = safe_decode_content(source_file_content)
-        target_content = safe_decode_content(target_file_content)
-        
-        # CRITICAL: Maintain line alignment - don't filter empty lines independently
-        source_lines = [line.strip() for line in source_content.split('\n')]
-        target_lines = [line.strip() for line in target_content.split('\n')]
+        # Read text contents from unified schema
+        source_lines = get_text_content_as_lines(source_file_id)
+        target_lines = get_text_content_as_lines(target_file_id)
         
         # Ensure same number of lines
         if len(source_lines) != len(target_lines):
@@ -169,8 +228,8 @@ class FineTuningService:
                     "line_number": i + 1,  # Original line number in file
                     "messages": [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"Translate this text: {source_line}"},
-                        {"role": "assistant", "content": target_line}
+                        {"role": "user", "content": f"Translate this text: {source_line}\n\nProvide your final translation inside <translation></translation> tags."},
+                        {"role": "assistant", "content": f"<translation>{target_line}</translation>"}
                     ],
                     "source_text": source_line,
                     "target_text": target_line
@@ -187,8 +246,8 @@ class FineTuningService:
         jsonl_example = {
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Translate this text: {preview_example['source_text']}"},
-                {"role": "assistant", "content": preview_example['target_text']}
+                {"role": "user", "content": f"Translate this text: {preview_example['source_text']}\n\nProvide your final translation inside <translation></translation> tags."},
+                {"role": "assistant", "content": f"<translation>{preview_example['target_text']}</translation>"}
             ]
         }
         
@@ -196,8 +255,8 @@ class FineTuningService:
             "total_lines": len(source_lines),
             "valid_examples": len(valid_examples),
             "filtered_out": len(source_lines) - len(valid_examples),
-            "source_filename": source_file.original_filename,
-            "target_filename": target_file.original_filename,
+            "source_filename": source_file.name,
+            "target_filename": target_file.name,
             "preview_example": {
                 "line_number": preview_example["line_number"],
                 "system_prompt": preview_example["messages"][0]["content"],
@@ -211,30 +270,24 @@ class FineTuningService:
     
     def create_training_data(self, source_file_id: int, target_file_id: int, project_id: int) -> Tuple[str, int]:
         """
-        Generate JSONL training data from paired source/target files.
+        Generate JSONL training data from paired source/target texts.
         Returns (jsonl_content, num_examples)
         """
-        # Load source and target files
-        source_file = ProjectFile.query.get(source_file_id)
-        target_file = ProjectFile.query.get(target_file_id)
+        # Load source and target texts from unified schema
+        source_text = Text.query.get(source_file_id)
+        target_text = Text.query.get(target_file_id)
         
-        if not source_file or not target_file:
-            raise ValueError("Source or target file not found")
+        if not source_text or not target_text:
+            raise ValueError("Source or target text not found")
         
         # Get project details for system prompt
         project = Project.query.get(project_id)
         if not project:
             raise ValueError("Project not found")
         
-        # Read file contents
-        source_file_content = self.storage.get_file(source_file.storage_path)
-        target_file_content = self.storage.get_file(target_file.storage_path)
-        source_content = safe_decode_content(source_file_content)
-        target_content = safe_decode_content(target_file_content)
-        
-        # CRITICAL: Maintain line alignment - don't filter empty lines independently
-        source_lines = [line.strip() for line in source_content.split('\n')]
-        target_lines = [line.strip() for line in target_content.split('\n')]
+        # Read text contents from unified schema
+        source_lines = get_text_content_as_lines(source_file_id)
+        target_lines = get_text_content_as_lines(target_file_id)
         
         # Ensure same number of lines
         if len(source_lines) != len(target_lines):
@@ -245,8 +298,14 @@ class FineTuningService:
         # Generate JSONL training examples
         training_examples = []
         
+        # Get instructions - pair-specific first, then project fallback
+        instructions = self._get_training_instructions(project_id, source_file_id, target_file_id, project)
+        
         # Create project-specific system prompt
         system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+        
+        if instructions:
+            system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
         
         for source_line, target_line in zip(source_lines, target_lines):
             # Only include if BOTH lines are substantial (maintain alignment)
@@ -254,8 +313,8 @@ class FineTuningService:
                 example = {
                     "messages": [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"Translate this text: {source_line}"},
-                        {"role": "assistant", "content": target_line}
+                        {"role": "user", "content": f"Translate this text: {source_line}\n\nProvide your final translation inside <translation></translation> tags."},
+                        {"role": "assistant", "content": f"<translation>{target_line}</translation>"}
                     ]
                 }
                 training_examples.append(example)
@@ -306,17 +365,8 @@ class FineTuningService:
             self.storage.store_file(jsonl_file, local_path)
             job.training_file_path = local_path
             
-            # Create a ProjectFile record for the JSONL file so it appears in the files section
-            jsonl_project_file = ProjectFile(
-                project_id=project_id,
-                original_filename=f"training_data_job_{job.id}.jsonl",
-                storage_path=local_path,
-                file_type='training_data',  # Special type for JSONL files
-                content_type='application/jsonl',
-                file_size=len(jsonl_content.encode('utf-8')),
-                line_count=num_examples
-            )
-            db.session.add(jsonl_project_file)
+            # Note: JSONL training files are stored in file storage, not database
+            # They're tracked via FineTuningJob.training_file_path
             db.session.commit()
             
             # Now try to upload to OpenAI (this might fail due to connection issues)
@@ -454,8 +504,8 @@ class FineTuningService:
                 'model_name': job.model_name,
                 'display_name': job.display_name,
                 'hidden': job.hidden,
-                'source_file': job.source_file.original_filename if job.source_file else 'Unknown',
-                'target_file': job.target_file.original_filename if job.target_file else 'Unknown',
+                'source_file': job.source_text.name if job.source_text else 'Unknown',
+                'target_file': job.target_text.name if job.target_text else 'Unknown',
                 'training_examples': job.training_examples,
                 'estimated_cost': job.estimated_cost,
                 'created_at': job.created_at.isoformat(),
@@ -493,6 +543,15 @@ class FineTuningService:
         estimated_cost = (total_tokens / 1000) * cost_per_1k_tokens
         return round(estimated_cost, 4)
     
+    def _get_training_instructions(self, project_id: int, source_file_id: int, target_file_id: int, project) -> str:
+        """Get training instructions including target file purpose"""
+        from translation import _get_translation_instructions
+        
+        source_file_id_str = f"file_{source_file_id}"
+        target_file_id_str = f"file_{target_file_id}"
+        
+        return _get_translation_instructions(project_id, source_file_id_str, target_file_id_str, project)
+    
     def get_instruction_tuning_preview(self, source_file_id: int, target_file_id: int, project_id: int, max_examples: int = 100) -> Dict:
         """
         Get a preview of what instruction fine-tuning examples will look like.
@@ -500,27 +559,21 @@ class FineTuningService:
         """
         from translation import _get_translation_examples
         
-        # Load source and target files
-        source_file = ProjectFile.query.get(source_file_id)
-        target_file = ProjectFile.query.get(target_file_id)
+        # Load source and target texts from unified schema
+        source_text = Text.query.get(source_file_id)
+        target_text = Text.query.get(target_file_id)
         
-        if not source_file or not target_file:
-            raise ValueError("Source or target file not found")
+        if not source_text or not target_text:
+            raise ValueError("Source or target text not found")
         
         # Get project details
         project = Project.query.get(project_id)
         if not project:
             raise ValueError("Project not found")
         
-        # Read file contents
-        source_file_content = self.storage.get_file(source_file.storage_path)
-        target_file_content = self.storage.get_file(target_file.storage_path)
-        source_content = safe_decode_content(source_file_content)
-        target_content = safe_decode_content(target_file_content)
-        
-        # CRITICAL: Maintain line alignment
-        source_lines = [line.strip() for line in source_content.split('\n')]
-        target_lines = [line.strip() for line in target_content.split('\n')]
+        # Read text contents from unified schema
+        source_lines = get_text_content_as_lines(source_file_id)
+        target_lines = get_text_content_as_lines(target_file_id)
         
         # Ensure same number of lines
         if len(source_lines) != len(target_lines):
@@ -542,7 +595,6 @@ class FineTuningService:
             raise ValueError("No valid training examples found (both source and target lines must be longer than 10 characters)")
         
         # Select up to max_examples randomly - this is the actual number of training examples
-        import random
         if len(valid_pairs) > max_examples:
             selected_pairs = random.sample(valid_pairs, max_examples)
         else:
@@ -551,8 +603,14 @@ class FineTuningService:
         # Get the first example for preview display
         preview_pair = selected_pairs[0]
         
+        # Get instructions - pair-specific first, then project fallback
+        instructions = self._get_training_instructions(project_id, source_file_id, target_file_id, project)
+        
         # Create project-specific system prompt
         system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+        
+        if instructions:
+            system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
         
         # Use source text as query to find context examples (limit to 5 for cleaner display)
         source_file_id_str = f"file_{source_file_id}"
@@ -577,16 +635,18 @@ class FineTuningService:
             context_parts.append("")
             context_parts.append("Following the style and patterns shown in the examples above:")
             context_parts.append(f"Translate this text: {preview_pair['source_text']}")
+            context_parts.append("")
+            context_parts.append("Provide your final translation inside <translation></translation> tags.")
             user_prompt = '\n'.join(context_parts)
         else:
-            user_prompt = f"Translate this text: {preview_pair['source_text']}"
+            user_prompt = f"Translate this text: {preview_pair['source_text']}\n\nProvide your final translation inside <translation></translation> tags."
         
         # Generate JSONL format for the preview
         jsonl_example = {
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
-                {"role": "assistant", "content": preview_pair["target_text"]}
+                {"role": "assistant", "content": f"<translation>{preview_pair['target_text']}</translation>"}
             ]
         }
         
@@ -595,8 +655,8 @@ class FineTuningService:
             "valid_pairs": len(valid_pairs),
             "selected_examples": len(selected_pairs),  # This is the actual number of training examples
             "max_examples": max_examples,
-            "source_filename": source_file.original_filename,
-            "target_filename": target_file.original_filename,
+            "source_filename": source_file.name,
+            "target_filename": target_file.name,
             "preview_example": {
                 "line_number": preview_pair["line_number"],
                 "system_prompt": system_prompt,
@@ -619,12 +679,12 @@ class FineTuningService:
         """
         from translation import _get_translation_examples
         
-        # Load source and target files
-        source_file = ProjectFile.query.get(source_file_id)
-        target_file = ProjectFile.query.get(target_file_id)
+        # Load source and target texts from unified schema
+        source_text = Text.query.get(source_file_id)
+        target_text = Text.query.get(target_file_id)
         
-        if not source_file or not target_file:
-            raise ValueError("Source or target file not found")
+        if not source_text or not target_text:
+            raise ValueError("Source or target text not found")
         
         # Get project details
         project = Project.query.get(project_id)
@@ -632,17 +692,11 @@ class FineTuningService:
             raise ValueError("Project not found")
         
         if progress_callback:
-            progress_callback(0, max_examples, "Reading files...")
+            progress_callback(0, max_examples, "Reading texts...")
         
-        # Read file contents
-        source_file_content = self.storage.get_file(source_file.storage_path)
-        target_file_content = self.storage.get_file(target_file.storage_path)
-        source_content = safe_decode_content(source_file_content)
-        target_content = safe_decode_content(target_file_content)
-        
-        # CRITICAL: Maintain line alignment
-        source_lines = [line.strip() for line in source_content.split('\n')]
-        target_lines = [line.strip() for line in target_content.split('\n')]
+        # Read text contents from unified schema
+        source_lines = get_text_content_as_lines(source_file_id)
+        target_lines = get_text_content_as_lines(target_file_id)
         
         # Ensure same number of lines
         if len(source_lines) != len(target_lines):
@@ -667,14 +721,19 @@ class FineTuningService:
             progress_callback(0, max_examples, "Selecting examples...")
         
         # Select up to max_examples randomly
-        import random
         if len(valid_pairs) > max_examples:
             selected_pairs = random.sample(valid_pairs, max_examples)
         else:
             selected_pairs = valid_pairs
         
+        # Get instructions - pair-specific first, then project fallback
+        instructions = self._get_training_instructions(project_id, source_file_id, target_file_id, project)
+        
         # Create instruction fine-tuning examples
         system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+        
+        if instructions:
+            system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
         
         source_file_id_str = f"file_{source_file_id}"
         target_file_id_str = f"file_{target_file_id}"
@@ -701,23 +760,8 @@ class FineTuningService:
                 context_examples = []
             
             # Create context-aware instruction
-            if context_examples:
-                context_parts = ["TRANSLATION EXAMPLES:"]
-                context_parts.extend(context_examples)
-                context_parts.append("")
-                context_parts.append("Following the style and patterns shown in the examples above:")
-                context_parts.append(f"Translate this text: {source_text}")
-                user_prompt = '\n'.join(context_parts)
-            else:
-                user_prompt = f"Translate this text: {source_text}"
-            
-            training_example = {
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                    {"role": "assistant", "content": target_text}
-                ]
-            }
+            user_prompt = _create_instruction_prompt(source_text, context_examples)
+            training_example = _create_training_example(system_prompt, user_prompt, target_text)
             training_examples.append(training_example)
         
         if progress_callback:
@@ -779,17 +823,8 @@ class FineTuningService:
             self.storage.store_file(jsonl_file, local_path)
             job.training_file_path = local_path
             
-            # Create a ProjectFile record for the JSONL file
-            jsonl_project_file = ProjectFile(
-                project_id=project_id,
-                original_filename=f"instruction_training_job_{job.id}.jsonl",
-                storage_path=local_path,
-                file_type='training_data',
-                content_type='application/jsonl',
-                file_size=len(jsonl_content.encode('utf-8')),
-                line_count=num_examples
-            )
-            db.session.add(jsonl_project_file)
+            # Note: JSONL training files are stored in file storage, not database
+            # They're tracked via FineTuningJob.training_file_path
             db.session.commit()
             
             # Try to upload to OpenAI
@@ -838,21 +873,15 @@ class FineTuningService:
         Just counts valid lines and estimates cost.
         """
         # Load source and target files
-        source_file = ProjectFile.query.get(source_file_id)
-        target_file = ProjectFile.query.get(target_file_id)
+        source_text = Text.query.get(source_file_id)
+        target_text = Text.query.get(target_file_id)
         
-        if not source_file or not target_file:
-            raise ValueError("Source or target file not found")
+        if not source_text or not target_text:
+            raise ValueError("Source or target text not found")
         
-        # Read file contents
-        source_file_content = self.storage.get_file(source_file.storage_path)
-        target_file_content = self.storage.get_file(target_file.storage_path)
-        source_content = safe_decode_content(source_file_content)
-        target_content = safe_decode_content(target_file_content)
-        
-        # CRITICAL: Maintain line alignment
-        source_lines = [line.strip() for line in source_content.split('\n')]
-        target_lines = [line.strip() for line in target_content.split('\n')]
+        # Read text contents from unified schema
+        source_lines = get_text_content_as_lines(source_file_id)
+        target_lines = get_text_content_as_lines(target_file_id)
         
         # Ensure same number of lines
         if len(source_lines) != len(target_lines):
@@ -874,8 +903,8 @@ class FineTuningService:
             "valid_pairs": valid_pairs,
             "max_examples": max_examples,
             "actual_examples": actual_examples,
-            "source_filename": source_file.original_filename,
-            "target_filename": target_file.original_filename
+            "source_filename": source_file.name,
+            "target_filename": target_file.name
         }
     
     def create_instruction_training_data_with_progress(self, source_file_id: int, target_file_id: int, project_id: int, max_examples: int = 100, progress_callback=None) -> Tuple[str, int]:
@@ -886,11 +915,11 @@ class FineTuningService:
         from translation import _get_translation_examples
         
         # Load source and target files
-        source_file = ProjectFile.query.get(source_file_id)
-        target_file = ProjectFile.query.get(target_file_id)
+        source_text = Text.query.get(source_file_id)
+        target_text = Text.query.get(target_file_id)
         
-        if not source_file or not target_file:
-            raise ValueError("Source or target file not found")
+        if not source_text or not target_text:
+            raise ValueError("Source or target text not found")
         
         # Get project details
         project = Project.query.get(project_id)
@@ -898,17 +927,11 @@ class FineTuningService:
             raise ValueError("Project not found")
         
         if progress_callback:
-            progress_callback(0, max_examples, "Reading files...")
+            progress_callback(0, max_examples, "Reading texts...")
         
-        # Read file contents
-        source_file_content = self.storage.get_file(source_file.storage_path)
-        target_file_content = self.storage.get_file(target_file.storage_path)
-        source_content = safe_decode_content(source_file_content)
-        target_content = safe_decode_content(target_file_content)
-        
-        # CRITICAL: Maintain line alignment
-        source_lines = [line.strip() for line in source_content.split('\n')]
-        target_lines = [line.strip() for line in target_content.split('\n')]
+        # Read text contents from unified schema
+        source_lines = get_text_content_as_lines(source_file_id)
+        target_lines = get_text_content_as_lines(target_file_id)
         
         # Ensure same number of lines
         if len(source_lines) != len(target_lines):
@@ -933,14 +956,19 @@ class FineTuningService:
             progress_callback(0, max_examples, "Selecting examples...")
         
         # Select up to max_examples randomly
-        import random
         if len(valid_pairs) > max_examples:
             selected_pairs = random.sample(valid_pairs, max_examples)
         else:
             selected_pairs = valid_pairs
         
+        # Get instructions - pair-specific first, then project fallback
+        instructions = self._get_training_instructions(project_id, source_file_id, target_file_id, project)
+        
         # Create instruction fine-tuning examples
         system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+        
+        if instructions:
+            system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
         
         source_file_id_str = f"file_{source_file_id}"
         target_file_id_str = f"file_{target_file_id}"
@@ -967,23 +995,8 @@ class FineTuningService:
                 context_examples = []
             
             # Create context-aware instruction
-            if context_examples:
-                context_parts = ["TRANSLATION EXAMPLES:"]
-                context_parts.extend(context_examples)
-                context_parts.append("")
-                context_parts.append("Following the style and patterns shown in the examples above:")
-                context_parts.append(f"Translate this text: {source_text}")
-                user_prompt = '\n'.join(context_parts)
-            else:
-                user_prompt = f"Translate this text: {source_text}"
-            
-            training_example = {
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                    {"role": "assistant", "content": target_text}
-                ]
-            }
+            user_prompt = _create_instruction_prompt(source_text, context_examples)
+            training_example = _create_training_example(system_prompt, user_prompt, target_text)
             training_examples.append(training_example)
         
         if progress_callback:
@@ -997,6 +1010,51 @@ class FineTuningService:
         
         return jsonl_content, len(training_examples)
     
+    def _process_instruction_training_pairs(self, selected_pairs: List[Dict], project: Project, 
+                                          source_file_id: int, target_file_id: int, 
+                                          project_id: int, progress_callback=None) -> List[Dict]:
+        """Process training pairs with context examples - helper method to reduce duplication"""
+        from translation import _get_translation_examples
+        
+        # Get instructions - pair-specific first, then project fallback
+        instructions = self._get_training_instructions(project_id, source_file_id, target_file_id, project)
+        
+        system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+        
+        if instructions:
+            system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
+        
+        source_file_id_str = f"file_{source_file_id}"
+        target_file_id_str = f"file_{target_file_id}"
+        
+        training_examples = []
+        
+        for i, pair in enumerate(selected_pairs):
+            source_text = pair["source_text"]
+            target_text = pair["target_text"]
+            
+            if progress_callback:
+                progress_callback(i + 1, len(selected_pairs), f"Processing example {i + 1}/{len(selected_pairs)}")
+            
+            try:
+                # Use source text as query to find context examples
+                context_examples, _ = _get_translation_examples(
+                    project_id, source_file_id_str, target_file_id_str, source_text
+                )
+                
+                # Remove the exact match if it appears in context and limit examples
+                context_examples = [ex for ex in context_examples if source_text not in ex][:5]
+                
+            except Exception:
+                context_examples = []
+            
+            # Create context-aware instruction
+            user_prompt = _create_instruction_prompt(source_text, context_examples)
+            training_example = _create_training_example(system_prompt, user_prompt, target_text)
+            training_examples.append(training_example)
+        
+        return training_examples
+
     def get_progress(self, progress_id: str) -> Dict:
         """Get progress for a given progress ID"""
         return self.progress_cache.get(progress_id, {"current": 0, "total": 0, "status": "not_found", "message": "Progress not found"})
@@ -1015,11 +1073,11 @@ class FineTuningService:
         from translation import _get_translation_examples
         
         # Load source and target files
-        source_file = ProjectFile.query.get(source_file_id)
-        target_file = ProjectFile.query.get(target_file_id)
+        source_text = Text.query.get(source_file_id)
+        target_text = Text.query.get(target_file_id)
         
-        if not source_file or not target_file:
-            raise ValueError("Source or target file not found")
+        if not source_text or not target_text:
+            raise ValueError("Source or target text not found")
         
         # Get project details
         project = Project.query.get(project_id)
@@ -1027,17 +1085,11 @@ class FineTuningService:
             raise ValueError("Project not found")
         
         if progress_callback:
-            progress_callback(0, max_examples, "Reading files...")
+            progress_callback(0, max_examples, "Reading texts...")
         
-        # Read file contents
-        source_file_content = self.storage.get_file(source_file.storage_path)
-        target_file_content = self.storage.get_file(target_file.storage_path)
-        source_content = safe_decode_content(source_file_content)
-        target_content = safe_decode_content(target_file_content)
-        
-        # CRITICAL: Maintain line alignment
-        source_lines = [line.strip() for line in source_content.split('\n')]
-        target_lines = [line.strip() for line in target_content.split('\n')]
+        # Read text contents from unified schema
+        source_lines = get_text_content_as_lines(source_file_id)
+        target_lines = get_text_content_as_lines(target_file_id)
         
         # Ensure same number of lines
         if len(source_lines) != len(target_lines):
@@ -1062,14 +1114,19 @@ class FineTuningService:
             progress_callback(0, max_examples, "Selecting examples...")
         
         # Select up to max_examples randomly
-        import random
         if len(valid_pairs) > max_examples:
             selected_pairs = random.sample(valid_pairs, max_examples)
         else:
             selected_pairs = valid_pairs
         
+        # Get instructions - pair-specific first, then project fallback
+        instructions = self._get_training_instructions(project_id, source_file_id, target_file_id, project)
+        
         # Create context-aware instruction fine-tuning examples
         system_prompt = f"You are an expert Bible translator specializing in {project.target_language} translation. Translate biblical text accurately while maintaining the meaning, tone, and style appropriate for {project.audience}. Use a {project.style} translation approach."
+        
+        if instructions:
+            system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
         
         source_file_id_str = f"file_{source_file_id}"
         target_file_id_str = f"file_{target_file_id}"
@@ -1097,23 +1154,8 @@ class FineTuningService:
                 context_examples = []
             
             # Create context-aware instruction
-            if context_examples:
-                context_parts = ["TRANSLATION EXAMPLES:"]
-                context_parts.extend(context_examples)
-                context_parts.append("")
-                context_parts.append("Following the style and patterns shown in the examples above:")
-                context_parts.append(f"Translate this text: {source_text}")
-                user_prompt = '\n'.join(context_parts)
-            else:
-                user_prompt = f"Translate this text: {source_text}"
-            
-            training_example = {
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                    {"role": "assistant", "content": target_text}
-                ]
-            }
+            user_prompt = _create_instruction_prompt(source_text, context_examples)
+            training_example = _create_training_example(system_prompt, user_prompt, target_text)
             training_examples.append(training_example)
         
         if progress_callback:

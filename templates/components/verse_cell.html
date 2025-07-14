@@ -1,0 +1,16 @@
+{% macro verse_cell() %}
+<!-- PERFORMANCE: VerseCell class removed - functionality moved to optimized AudioManager in text-window.js -->
+<!-- Audio controls are now always created by AudioManager with improved styling and UX -->
+
+<template id="verse-cell-template">
+    <div class="verse-cell" data-verse-cell>
+        <div class="verse-cell-header">
+            <span class="verse-number">Verse {number}</span>
+            <!-- Audio controls will be dynamically created by AudioManager -->
+        </div>
+        <div class="verse-cell-content">
+            <textarea placeholder="Enter verse translation..."></textarea>
+        </div>
+    </div>
+</template>
+{% endmacro %} 

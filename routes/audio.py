@@ -1,0 +1,298 @@
+import io
+import uuid
+from flask import Blueprint, request, jsonify, send_file, redirect
+from flask_login import login_required, current_user
+from werkzeug.utils import secure_filename
+import openai
+import os
+
+from models import Project, VerseAudio, db
+from utils.project_access import require_project_access
+from storage import get_storage
+
+audio = Blueprint('audio', __name__)
+
+
+@audio.route('/project/<int:project_id>/verse-audio/<text_id>/<int:verse_index>/tts', methods=['POST'])
+@login_required 
+def generate_tts(project_id, text_id, verse_index):
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
+    
+    data = request.get_json()
+    text = data.get('text', '').strip()
+    voice = data.get('voice', 'onyx')
+    instructions = data.get('instructions', '').strip()
+    
+    client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+    
+    # Build the speech request parameters
+    speech_params = {
+        "model": "gpt-4o-mini-tts",
+        "voice": voice,
+        "input": text
+    }
+    
+    # Combine voice profile with specific instructions
+    combined_instructions = []
+    if project.voice_profile:
+        combined_instructions.append(project.voice_profile.strip())
+    if instructions:
+        combined_instructions.append(instructions.strip())
+    
+    if combined_instructions:
+        speech_params["instructions"] = " ".join(combined_instructions)
+    
+    response = client.audio.speech.create(**speech_params)
+    
+    audio_data = io.BytesIO(response.content)
+    storage = get_storage()
+    storage_path = f"audio/{project_id}/{text_id}/{verse_index}_{uuid.uuid4()}_tts.mp3"
+    storage.store_file(audio_data, storage_path)
+    
+    # Replace existing audio
+    existing = VerseAudio.query.filter_by(project_id=project_id, text_id=text_id, verse_index=verse_index).first()
+    if existing:
+        storage.delete_file(existing.storage_path)
+        existing.storage_path = storage_path
+        existing.file_size = len(response.content)
+        audio_id = existing.id
+    else:
+        audio_record = VerseAudio(
+            project_id=project_id, text_id=text_id, verse_index=verse_index,
+            storage_path=storage_path, original_filename="tts.mp3",
+            file_size=len(response.content), content_type='audio/mpeg'
+        )
+        db.session.add(audio_record)
+        db.session.flush()
+        audio_id = audio_record.id
+    
+    db.session.commit()
+    return jsonify({'success': True, 'audio_id': audio_id})
+
+
+@audio.route('/project/<int:project_id>/verse-audio/<text_id>/<int:verse_index>', methods=['POST'])
+@login_required
+def upload_verse_audio(project_id, text_id, verse_index):
+    """Upload audio for a verse"""
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
+    
+    file = request.files.get('audio')
+    if not file or not file.filename:
+        return jsonify({'error': 'No audio file'}), 400
+    
+    # Store file
+    storage = get_storage()
+    filename = secure_filename(file.filename)
+    storage_path = f"audio/{project_id}/{text_id}/{verse_index}_{uuid.uuid4()}_{filename}"
+    storage.store_file(file, storage_path)
+    
+    # Save to database (replace existing if any)
+    existing = VerseAudio.query.filter_by(project_id=project_id, text_id=text_id, verse_index=verse_index).first()
+    if existing:
+        storage.delete_file(existing.storage_path)
+        existing.storage_path = storage_path
+        existing.original_filename = filename
+        existing.file_size = len(file.read())
+        file.seek(0)
+    else:
+        audio_record = VerseAudio(
+            project_id=project_id, text_id=text_id, verse_index=verse_index,
+            storage_path=storage_path, original_filename=filename,
+            file_size=len(file.read()), content_type=file.content_type or 'audio/mpeg'
+        )
+        file.seek(0)
+        db.session.add(audio_record)
+    
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@audio.route('/project/<int:project_id>/verse-audio/<int:audio_id>/download')
+@login_required
+def download_verse_audio(project_id, audio_id):
+    """Download audio file"""
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
+    audio = VerseAudio.query.filter_by(id=audio_id, project_id=project_id).first_or_404()
+    
+    storage = get_storage()
+    if hasattr(storage, 'base_path'):
+        return send_file(io.BytesIO(storage.get_file(audio.storage_path)), 
+                        download_name=audio.original_filename, mimetype=audio.content_type)
+    else:
+        return redirect(storage.get_file_url(audio.storage_path))
+
+
+@audio.route('/project/<int:project_id>/verse-audio/<text_id>/<int:verse_index>/check')
+@login_required
+def check_verse_audio(project_id, text_id, verse_index):
+    """Check if audio exists for a verse"""
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
+    audio = VerseAudio.query.filter_by(project_id=project_id, text_id=text_id, verse_index=verse_index).first()
+    
+    if audio:
+        return jsonify({'exists': True, 'audio_id': audio.id})
+    else:
+        return jsonify({'exists': False})
+
+
+@audio.route('/project/<int:project_id>/verse-audio/<int:audio_id>', methods=['DELETE'])
+@login_required
+def delete_verse_audio(project_id, audio_id):
+    """Delete audio file"""
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
+    audio = VerseAudio.query.filter_by(id=audio_id, project_id=project_id).first_or_404()
+    
+    get_storage().delete_file(audio.storage_path)
+    db.session.delete(audio)
+    db.session.commit()
+    return '', 204
+
+
+@audio.route('/project/<int:project_id>/verse-audio/<text_id>/<int:verse_index>/tts-iterate', methods=['POST'])
+@login_required 
+def generate_tts_iteration(project_id, text_id, verse_index):
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
+    
+    data = request.get_json()
+    text = data.get('text', '').strip()
+    voice = data.get('voice', 'onyx')
+    instructions = data.get('instructions', '').strip()
+    
+    client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+    
+    # Build the speech request parameters
+    speech_params = {
+        "model": "gpt-4o-mini-tts",
+        "voice": voice,
+        "input": text
+    }
+    
+    # Combine voice profile with specific instructions
+    combined_instructions = []
+    if project.voice_profile:
+        combined_instructions.append(project.voice_profile.strip())
+    if instructions:
+        combined_instructions.append(instructions.strip())
+    
+    if combined_instructions:
+        speech_params["instructions"] = " ".join(combined_instructions)
+    
+    response = client.audio.speech.create(**speech_params)
+    
+    audio_data = io.BytesIO(response.content)
+    iteration_id = uuid.uuid4()
+    storage = get_storage()
+    storage_path = f"audio/{project_id}/{text_id}/iterations/{iteration_id}.mp3"
+    storage.store_file(audio_data, storage_path)
+    
+    # Use shorter iteration ID to fit in 50 char text_id limit
+    short_id = str(iteration_id).replace('-', '')[:16]
+    
+    audio_record = VerseAudio(
+        project_id=project_id, 
+        text_id=f"{text_id}_iter_{short_id}",
+        verse_index=verse_index,
+        storage_path=storage_path, 
+        original_filename="iteration.mp3",
+        file_size=len(response.content), 
+        content_type='audio/mpeg'
+    )
+    db.session.add(audio_record)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'audio_id': audio_record.id})
+
+
+@audio.route('/project/<int:project_id>/verse-audio/<text_id>/<int:verse_index>/apply', methods=['POST'])
+@login_required
+def apply_audio_iteration(project_id, text_id, verse_index):
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
+    
+    data = request.get_json()
+    audio_id = data.get('audioId')
+    
+    iteration_audio = VerseAudio.query.filter_by(id=audio_id, project_id=project_id).first_or_404()
+    storage = get_storage()
+    
+    # Get existing audio for this verse
+    existing = VerseAudio.query.filter_by(
+        project_id=project_id, 
+        text_id=text_id, 
+        verse_index=verse_index
+    ).first()
+    
+    # Copy iteration to current audio location
+    iteration_data = storage.get_file(iteration_audio.storage_path)
+    new_storage_path = f"audio/{project_id}/{text_id}/{verse_index}_{uuid.uuid4()}_applied.mp3"
+    storage.store_file(io.BytesIO(iteration_data), new_storage_path)
+    
+    if existing:
+        storage.delete_file(existing.storage_path)
+        existing.storage_path = new_storage_path
+        existing.file_size = len(iteration_data)
+    else:
+        new_audio = VerseAudio(
+            project_id=project_id, text_id=text_id, verse_index=verse_index,
+            storage_path=new_storage_path, original_filename="applied.mp3",
+            file_size=len(iteration_data), content_type='audio/mpeg'
+        )
+        db.session.add(new_audio)
+    
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@audio.route('/project/<int:project_id>/audio/splice', methods=['POST'])
+@login_required
+def splice_audio_files(project_id):
+    """Splice multiple audio files together into one file"""
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
+    
+    data = request.get_json()
+    audio_ids = data.get('audio_ids', [])
+    filename = data.get('filename', 'spliced_audio.mp3')
+    
+    if not audio_ids:
+        return jsonify({'error': 'No audio IDs provided'}), 400
+    
+    try:
+        # Get all audio files
+        audio_files = []
+        storage = get_storage()
+        
+        for audio_id in audio_ids:
+            audio_record = VerseAudio.query.filter_by(
+                id=audio_id, 
+                project_id=project_id
+            ).first()
+            
+            if audio_record:
+                audio_data = storage.get_file(audio_record.storage_path)
+                audio_files.append(audio_data)
+        
+        if not audio_files:
+            return jsonify({'error': 'No valid audio files found'}), 404
+        
+        # Simple concatenation for MP3 files
+        # Note: This is a basic implementation. For production, consider using ffmpeg
+        spliced_data = b''.join(audio_files)
+        
+        # Return the spliced file
+        response = send_file(
+            io.BytesIO(spliced_data),
+            download_name=filename,
+            mimetype='audio/mpeg'
+        )
+        return response
+        
+    except Exception as e:
+        print(f"Error splicing audio files: {e}")
+        return jsonify({'error': 'Failed to splice audio files'}), 500 
