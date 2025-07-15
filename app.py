@@ -17,6 +17,7 @@ from routes.admin import admin
 from routes.audio import audio
 from routes.members import members
 from routes.flags import flags
+from routes.notifications import notifications
 from ai.bot import Chatbot
 
 
@@ -83,6 +84,7 @@ def create_app():
     app.register_blueprint(audio)
     app.register_blueprint(members)
     app.register_blueprint(flags)
+    app.register_blueprint(notifications)
     
     # Static file serving routes
     @app.route('/static/<path:filename>')
@@ -154,6 +156,21 @@ def create_app():
                     
             except Exception as e:
                 print(f"ProjectMember migration warning: {e}")
+            
+            # 3. Ensure user_notifications table exists with proper indexes
+            try:
+                from sqlalchemy import text
+                # Check if user_notifications table exists
+                result = db.session.execute(text("SHOW TABLES LIKE 'user_notifications'"))
+                if not result.fetchone():
+                    # Create the table - db.create_all() should handle this
+                    db.create_all()
+                    print("✓ Created user_notifications table")
+                else:
+                    print("✓ user_notifications table already exists")
+                    
+            except Exception as e:
+                print(f"Notifications migration warning: {e}")
                 
             print("Migrations completed!")
             

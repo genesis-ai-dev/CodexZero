@@ -949,8 +949,8 @@ class TextWindow {
     }
     
     openFlagModal(verseData) {
-        if (window.flagManager) {
-            window.flagManager.openFlagModal(verseData, this.id);
+        if (window.FlagManager) {
+            window.FlagManager.openFlagModal(verseData, this.id);
         }
     }
     

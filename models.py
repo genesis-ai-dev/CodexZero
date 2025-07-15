@@ -455,3 +455,67 @@ class FlagMention(db.Model):
     
     def __repr__(self):
         return f'<FlagMention {self.comment_id}:{self.mentioned_user_id}>'
+
+
+class UserNotification(db.Model):
+    __tablename__ = 'user_notifications'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    # Notification content
+    notification_type = db.Column(db.Enum('flag_mention', 'flag_created', 'flag_comment'), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    
+    # Related entities for navigation
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    flag_id = db.Column(db.Integer, db.ForeignKey('verse_flags.id'), nullable=True)
+    comment_id = db.Column(db.Integer, db.ForeignKey('flag_comments.id'), nullable=True)
+    
+    # Verse location for deep linking
+    text_id = db.Column(db.String(100), nullable=True)
+    verse_index = db.Column(db.Integer, nullable=True)
+    
+    # Status tracking
+    is_read = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    read_at = db.Column(db.DateTime, nullable=True)
+    
+    # Relationships
+    user = db.relationship('User', backref='notifications')
+    project = db.relationship('Project', backref='notifications')
+    flag = db.relationship('VerseFlag', backref='notifications')
+    comment = db.relationship('FlagComment', backref='notifications')
+    
+    __table_args__ = (
+        db.Index('idx_user_notifications', 'user_id', 'is_read', 'created_at'),
+        db.Index('idx_notification_lookup', 'user_id', 'created_at'),
+    )
+    
+    def mark_as_read(self):
+        """Mark notification as read"""
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = datetime.utcnow()
+    
+    def get_deep_link_url(self):
+        """Generate URL for deep linking to the verse and flag"""
+        if self.text_id and self.verse_index is not None and self.flag_id:
+            from utils.translation_manager import VerseReferenceManager
+            try:
+                verse_ref_manager = VerseReferenceManager()
+                verse_reference = verse_ref_manager.get_verse_reference(self.verse_index)
+                if verse_reference:
+                    # Parse reference to get book and chapter
+                    parts = verse_reference.split()
+                    if len(parts) == 2 and ':' in parts[1]:
+                        book = parts[0]
+                        chapter = int(parts[1].split(':')[0])
+                        return f"/project/{self.project_id}/translate?book={book}&chapter={chapter}&verse={self.verse_index}&flag={self.flag_id}"
+            except Exception:
+                pass
+        return f"/project/{self.project_id}"
+    
+    def __repr__(self):
+        return f'<UserNotification {self.id} for user {self.user_id}>'

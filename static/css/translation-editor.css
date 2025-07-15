@@ -353,10 +353,8 @@ body.translation-page #main-content {
         transform: translate3d(0, 0, 0);
     }
     
-    /* Hide sitewide navigation on translation page */
-    body.translation-page nav:first-of-type {
-        display: none !important;
-    }
+    /* Keep sitewide navigation visible on desktop for translation page */
+    /* Only hide it on very small screens if needed */
     
     body.translation-page main {
         padding-top: 0 !important;
@@ -482,10 +480,23 @@ button, select, input {
     background-repeat: no-repeat;
 }
 
-/* Force hide nav on mobile for translation page - moved from inline styles */
+/* Minimal nav on mobile for translation page - only keep notification bell */
 @media (max-width: 767px) {
+    /* Hide logo and FAQ link */
+    body.translation-page nav a[href*="main.index"],
+    body.translation-page nav a[href*="faq"] {
+        display: none;
+    }
+    /* Hide user dropdown (3rd child in the gap-4 container) */
+    body.translation-page nav .flex.items-center.gap-4 > :nth-child(3) {
+        display: none;
+    }
     body.translation-page nav {
-        display: none !important;
+        padding: 0.5rem 1rem;
+        min-height: auto;
+    }
+    body.translation-page nav .flex.items-center.justify-between {
+        justify-content: flex-end;
     }
     body.translation-page main {
         padding-top: 0 !important;

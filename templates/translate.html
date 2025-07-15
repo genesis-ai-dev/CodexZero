@@ -16,17 +16,12 @@
 {% block content %}
 <script>
 document.body.classList.add('translation-page');
-// Force hide nav immediately on mobile
-if (window.innerWidth <= 767) {
-    const nav = document.querySelector('nav');
-    if (nav) nav.style.display = 'none';
-}
 </script>
 
 <!-- Translation Gradient Background -->
 <div id="translation-gradient" class="fixed inset-0 -z-10"></div>
 
-<section class="h-screen flex flex-col text-gray-800 overflow-hidden relative">
+<section class="h-screen flex flex-col text-gray-800 relative">
     
 
                         
@@ -40,7 +35,7 @@ if (window.innerWidth <= 767) {
     </header>
 
     <!-- Main Content -->
-    <div class="flex flex-1 overflow-hidden main-content-wrapper">
+    <div class="flex flex-1 main-content-wrapper">
         <!-- Sidebar Backdrop for Mobile -->
         <div class="sidebar-backdrop hidden" id="sidebar-backdrop"></div>
         
@@ -49,7 +44,7 @@ if (window.innerWidth <= 767) {
         </div>
 
         <!-- Unified Text Workspace -->
-        <div class="flex-1 flex flex-col md:flex-row overflow-hidden bg-neutral-50/50 rounded-t-lg" id="text-workspace">
+        <div class="flex-1 flex flex-col md:flex-row bg-neutral-50/50 rounded-t-lg" id="text-workspace">
             <!-- Mobile Tabs -->
             <div class="md:hidden flex border-b border-neutral-200 bg-white/90 backdrop-blur-sm">
                 <button class="flex-1 py-3 px-4 text-sm font-semibold border-b-2 border-transparent text-neutral-600" data-tab="references">References</button>
@@ -57,8 +52,8 @@ if (window.innerWidth <= 767) {
             </div>
             
             <!-- Secondary Texts Area (Now on Left) -->
-            <div id="secondary-texts-area" class="order-1 hidden md:flex w-full md:w-1/2 p-2 md:p-6 border-t md:border-r md:border-t-0 border-neutral-200 overflow-hidden flex flex-col bg-white/90 backdrop-blur-sm rounded-tl-xl shadow-sm">
-                <div id="secondary-texts-container" class="flex-1 overflow-hidden flex flex-col gap-3">
+            <div id="secondary-texts-area" class="order-1 hidden md:flex w-full md:w-1/2 p-2 md:p-6 border-t md:border-r md:border-t-0 border-neutral-200 flex flex-col bg-white/90 backdrop-blur-sm rounded-tl-xl shadow-sm">
+                <div id="secondary-texts-container" class="flex-1 flex flex-col gap-3">
                     <div class="text-neutral-500 text-center py-20 flex flex-col items-center">
                         <button id="add-reference-text-btn" class="mb-4 px-8 py-4 bg-blue-50 text-blue-600 border-2 border-dashed border-blue-300 rounded-2xl flex items-center gap-3 font-semibold shadow-sm">
                             <i class="fas fa-plus"></i>
@@ -70,7 +65,7 @@ if (window.innerWidth <= 767) {
             </div>
             
             <!-- Primary Text Area (Now on Right) -->
-            <div id="primary-text-area" class="order-2 w-full md:w-1/2 p-2 md:p-6 overflow-hidden flex flex-col bg-white/90 backdrop-blur-sm md:border-l-0 border-t border-neutral-200 md:border-t-0 active rounded-tr-xl shadow-sm">
+            <div id="primary-text-area" class="order-2 w-full md:w-1/2 p-2 md:p-6 flex flex-col bg-white/90 backdrop-blur-sm md:border-l-0 border-t border-neutral-200 md:border-t-0 active rounded-tr-xl shadow-sm">
                 <div id="primary-text-container" class="flex-1 overflow-y-auto drop-zone-primary">
                     <div class="text-neutral-500 text-center py-20 flex flex-col items-center">
                         <button id="add-primary-text-btn" class="mb-4 px-8 py-4 bg-green-50 text-green-600 border-2 border-dashed border-green-300 rounded-2xl flex items-center gap-3 font-semibold shadow-sm">
@@ -128,6 +123,9 @@ class TranslationEditor {
         const navState = this.storage.getNavigationState();
         this.currentBook = navState.book;
         this.currentChapter = navState.chapter;
+        
+        // Handle URL parameters for deep linking
+        this.handleURLParameters();
         
         this.unsavedChanges = new Map();
         this.hasUnsavedChanges = false;
@@ -195,6 +193,11 @@ class TranslationEditor {
             this.showGlobalError('Failed to load translation editor. Please refresh the page.');
         } finally {
             UIUtilities.hideLoading();
+            
+            // Handle deep linking after editor is fully loaded
+            setTimeout(() => {
+                this.handleDeepLinking();
+            }, 500);
         }
     }
     
@@ -1033,6 +1036,90 @@ class TranslationEditor {
             readOnlyBadge.className = 'px-3 py-1 bg-yellow-100 text-yellow-800 text-sm font-medium rounded-full';
             readOnlyBadge.innerHTML = '<i class="fas fa-eye mr-1"></i> Read-Only Access';
             header.appendChild(readOnlyBadge);
+        }
+    }
+    
+    handleURLParameters() {
+        // Parse URL parameters for deep linking
+        const urlParams = new URLSearchParams(window.location.search);
+        const book = urlParams.get('book');
+        const chapter = urlParams.get('chapter');
+        const verse = urlParams.get('verse');
+        const flagId = urlParams.get('flag');
+        
+        // Override navigation state if URL parameters are present
+        if (book && chapter) {
+            this.currentBook = book;
+            this.currentChapter = parseInt(chapter);
+            
+            // Store the deep link parameters for use after initialization
+            this.deepLinkParams = {
+                book: book,
+                chapter: parseInt(chapter),
+                verse: verse ? parseInt(verse) : null,
+                flagId: flagId ? parseInt(flagId) : null
+            };
+            
+            console.log('Deep link detected:', this.deepLinkParams);
+        }
+    }
+    
+    async handleDeepLinking() {
+        // This method is called after the editor is fully initialized
+        if (!this.deepLinkParams) return;
+        
+        const { book, chapter, verse, flagId } = this.deepLinkParams;
+        
+        try {
+            console.log(`Deep linking to ${book} ${chapter}${verse ? `:${verse}` : ''}`);
+            
+            // Navigate to the specified book/chapter
+            if (this.virtualScrollManager) {
+                await this.virtualScrollManager.scrollToBookChapter(book, chapter);
+            } else {
+                // Fallback navigation
+                this.currentBook = book;
+                this.currentChapter = chapter;
+                this.refreshAllTexts();
+            }
+            
+            // If a specific verse is provided, scroll to it
+            if (verse !== null && this.virtualScrollManager) {
+                // Wait a bit for the chapter to load
+                setTimeout(async () => {
+                    try {
+                        await this.virtualScrollManager.scrollToVerseIndex('primary', verse);
+                    } catch (error) {
+                        console.error('Error scrolling to verse:', error);
+                    }
+                }, 1000);
+            }
+            
+            // If a flag ID is provided, open the flag modal
+            if (flagId) {
+                setTimeout(() => {
+                    this.openFlagModal(flagId, verse);
+                }, 1500); // Wait for scrolling to complete
+            }
+            
+            // Clean the URL without refreshing the page
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            
+        } catch (error) {
+            console.error('Error handling deep link:', error);
+        } finally {
+            // Clear the deep link parameters
+            this.deepLinkParams = null;
+        }
+    }
+    
+    openFlagModal(flagId, verseIndex = null) {
+        // Open the flag modal for the specified flag
+        if (window.FlagManager) {
+            window.FlagManager.openFlagDetails(flagId);
+        } else {
+            console.error('Flag manager not available');
         }
     }
 
