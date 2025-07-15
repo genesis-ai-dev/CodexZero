@@ -369,3 +369,89 @@ class FineTuningJob(db.Model):
 
 
 # Legacy models - still in use by the application
+
+
+class VerseFlag(db.Model):
+    __tablename__ = 'verse_flags'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    status = db.Column(db.Enum('open', 'closed'), nullable=False, default='open')
+    
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    closed_at = db.Column(db.DateTime, nullable=True)
+    closed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    
+    # Relationships
+    project = db.relationship('Project', backref='flags')
+    creator = db.relationship('User', foreign_keys=[created_by], backref='created_flags')
+    closer = db.relationship('User', foreign_keys=[closed_by], backref='closed_flags')
+    associations = db.relationship('VerseFlagAssociation', backref='flag', lazy='dynamic', cascade='all, delete-orphan')
+    comments = db.relationship('FlagComment', backref='flag', lazy='dynamic', cascade='all, delete-orphan')
+    
+    __table_args__ = (
+        db.Index('idx_project_flags', 'project_id', 'status', 'created_at'),
+    )
+    
+    def __repr__(self):
+        return f'<VerseFlag {self.id}>'
+
+
+class VerseFlagAssociation(db.Model):
+    __tablename__ = 'verse_flag_associations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    flag_id = db.Column(db.Integer, db.ForeignKey('verse_flags.id'), nullable=False)
+    text_id = db.Column(db.String(100), nullable=False)
+    verse_index = db.Column(db.Integer, nullable=False)
+    
+    __table_args__ = (
+        db.UniqueConstraint('flag_id', 'text_id', 'verse_index', name='unique_flag_verse'),
+        db.Index('idx_verse_flags', 'text_id', 'verse_index'),
+    )
+    
+    def __repr__(self):
+        return f'<VerseFlagAssociation {self.flag_id}:{self.text_id}:{self.verse_index}>'
+
+
+class FlagComment(db.Model):
+    __tablename__ = 'flag_comments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    flag_id = db.Column(db.Integer, db.ForeignKey('verse_flags.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    comment_text = db.Column(db.Text, nullable=False)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    edited_at = db.Column(db.DateTime, nullable=True)
+    
+    # Relationships
+    user = db.relationship('User', backref='flag_comments')
+    mentions = db.relationship('FlagMention', backref='comment', lazy='dynamic', cascade='all, delete-orphan')
+    
+    __table_args__ = (
+        db.Index('idx_flag_comments', 'flag_id', 'created_at'),
+    )
+    
+    def __repr__(self):
+        return f'<FlagComment {self.id} by {self.user_id}>'
+
+
+class FlagMention(db.Model):
+    __tablename__ = 'flag_mentions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    comment_id = db.Column(db.Integer, db.ForeignKey('flag_comments.id'), nullable=False)
+    mentioned_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    mentioned_user = db.relationship('User', backref='flag_mentions')
+    
+    __table_args__ = (
+        db.UniqueConstraint('comment_id', 'mentioned_user_id', name='unique_mention'),
+    )
+    
+    def __repr__(self):
+        return f'<FlagMention {self.comment_id}:{self.mentioned_user_id}>'

@@ -16,6 +16,7 @@ from routes.fine_tuning import fine_tuning
 from routes.admin import admin
 from routes.audio import audio
 from routes.members import members
+from routes.flags import flags
 from ai.bot import Chatbot
 
 
@@ -81,6 +82,7 @@ def create_app():
     app.register_blueprint(admin)
     app.register_blueprint(audio)
     app.register_blueprint(members)
+    app.register_blueprint(flags)
     
     # Static file serving routes
     @app.route('/static/<path:filename>')
@@ -100,6 +102,61 @@ def create_app():
         try:
             db.create_all()
             print("Database tables initialized successfully")
+            
+            # Run automatic migrations (remove this section after deployment)
+            print("Running automatic migrations...")
+            
+            # 1. Drop title and priority columns from verse_flags if they exist
+            try:
+                from sqlalchemy import text
+                # Check if columns exist before dropping them
+                result = db.session.execute(text("SHOW COLUMNS FROM verse_flags LIKE 'title'"))
+                if result.fetchone():
+                    db.session.execute(text("ALTER TABLE verse_flags DROP COLUMN title"))
+                    print("✓ Dropped title column from verse_flags")
+                
+                result = db.session.execute(text("SHOW COLUMNS FROM verse_flags LIKE 'priority'"))
+                if result.fetchone():
+                    db.session.execute(text("ALTER TABLE verse_flags DROP COLUMN priority"))
+                    print("✓ Dropped priority column from verse_flags")
+                    
+            except Exception as e:
+                print(f"Schema migration warning: {e}")
+            
+            # 2. Add missing ProjectMember entries for existing projects
+            try:
+                from models import Project, ProjectMember
+                from datetime import datetime
+                
+                missing_count = 0
+                for project in Project.query.all():
+                    existing_member = ProjectMember.query.filter_by(
+                        project_id=project.id, 
+                        user_id=project.user_id
+                    ).first()
+                    
+                    if not existing_member:
+                        member = ProjectMember(
+                            project_id=project.id,
+                            user_id=project.user_id,
+                            role='owner',
+                            invited_by=project.user_id,
+                            accepted_at=project.created_at or datetime.utcnow()
+                        )
+                        db.session.add(member)
+                        missing_count += 1
+                
+                if missing_count > 0:
+                    db.session.commit()
+                    print(f"✓ Added {missing_count} missing ProjectMember entries")
+                else:
+                    print("✓ All projects already have ProjectMember entries")
+                    
+            except Exception as e:
+                print(f"ProjectMember migration warning: {e}")
+                
+            print("Migrations completed!")
+            
         except Exception as e:
             print(f"Database connection failed during startup: {e}")
             print("App will start without database initialization")

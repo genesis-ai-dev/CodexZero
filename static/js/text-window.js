@@ -861,6 +861,16 @@ class TextWindow {
             historyButton.onclick = () => this.showVerseHistory(verseData, textarea);
             rightFragment.appendChild(historyButton);
             
+            // Flag button for all users
+            const flagButton = document.createElement('button');
+            flagButton.className = 'w-6 h-6 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm hover:text-gray-600 flag-btn';
+            flagButton.innerHTML = '<i class="fas fa-flag text-xs"></i>';
+            flagButton.title = 'View/Add flags';
+            flagButton.setAttribute('data-verse-index', verseData.index);
+            
+            flagButton.onclick = () => this.openFlagModal(verseData);
+            rightFragment.appendChild(flagButton);
+            
             // Audio download button for primary windows
             if (this.type === 'primary') {
                 const audioDownloadButton = document.createElement('button');
@@ -936,6 +946,12 @@ class TextWindow {
         
         // Show history for this verse
         window.translationEditor.verseHistory.showHistory(textId, verseData.index);
+    }
+    
+    openFlagModal(verseData) {
+        if (window.flagManager) {
+            window.flagManager.openFlagModal(verseData, this.id);
+        }
     }
     
     downloadVerseAudio(verseData, verseWrapper) {

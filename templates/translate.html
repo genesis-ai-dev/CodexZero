@@ -4,6 +4,7 @@
 {% from 'components/translation_overlays.html' import translation_overlays %}
 {% from 'components/verse_cell.html' import verse_cell %}
 {% from 'components/audio_tuning_modal.html' import audio_tuning_modal %}
+{% from 'components/flag_modal.html' import flag_modal %}
 {% include 'components/confidence_tooltip.html' %}
 
 {% block title %}Translation Editor - {{ project.target_language }} - CodexZero{% endblock %}
@@ -93,6 +94,9 @@ if (window.innerWidth <= 767) {
     
     <!-- Include audio tuning modal -->
     {{ audio_tuning_modal() }}
+    
+    <!-- Include flag modal -->
+    {{ flag_modal() }}
 </section>
 
 
@@ -1163,6 +1167,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- Translation Editor JavaScript Components - OPTIMIZED with defer for faster loading -->
 <script defer src="{{ url_for('static', filename='js/ui-utilities.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/verse-history.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/flag-manager.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/virtual-scroll-manager.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/purpose-manager.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/audio-manager.js') }}"></script>
