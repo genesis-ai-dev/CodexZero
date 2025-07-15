@@ -19,7 +19,6 @@
                     <i class="fas fa-sync-alt text-sm"></i>
                 </button>
             </div>
-            <p class="text-sm text-neutral-600 mb-4 leading-relaxed">Choose base models or your custom fine-tuned models</p>
             
             <!-- Custom Model Dropdown -->
             <div class="relative mb-3">
@@ -27,7 +26,7 @@
                     <span id="translation-model-text" class="flex-1 truncate">Loading models...</span>
                     <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="translation-model-chevron"></i>
                 </button>
-                <div id="translation-model-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
+                <div id="translation-model-dropdown" class="fixed z-[9999] bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
                     <div class="p-2 text-sm text-neutral-500 text-center">Loading models...</div>
                 </div>
             </div>
@@ -35,18 +34,15 @@
         </div>
         
         <!-- Navigation Section -->
-        <div class="p-6 flex-1 overflow-y-auto">
-            <h3 class="text-lg font-bold text-neutral-900 tracking-tight mb-4">Navigation</h3>
-            
+        <div class="p-6 flex-1 overflow-y-auto">            
             <!-- Book Selection -->
             <div class="mb-4">
-                <label class="block text-sm font-medium text-neutral-600 mb-2">Book</label>
                 <div class="relative">
                     <button id="goto-book-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
                         <span id="goto-book-text" class="flex-1 truncate">Select Book...</span>
                         <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="goto-book-chevron"></i>
                     </button>
-                    <div id="goto-book-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
+                    <div id="goto-book-dropdown" class="fixed z-[9999] bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
                         <div class="p-2 text-sm text-neutral-500 text-center">Select a book...</div>
                     </div>
                 </div>
@@ -54,13 +50,12 @@
             
             <!-- Chapter Selection -->
             <div class="mb-6">
-                <label class="block text-sm font-medium text-neutral-600 mb-2">Chapter</label>
                 <div class="relative">
                     <button id="goto-chapter-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
                         <span id="goto-chapter-text" class="flex-1 truncate">Select Chapter...</span>
                         <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="goto-chapter-chevron"></i>
                     </button>
-                    <div id="goto-chapter-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
+                    <div id="goto-chapter-dropdown" class="fixed z-[9999] bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
                         <div class="p-2 text-sm text-neutral-500 text-center">Select a chapter...</div>
                     </div>
                 </div>
@@ -102,6 +97,12 @@ function initializeCustomDropdowns() {
         
         // Open this dropdown if it was closed
         if (!isOpen) {
+            // Position the dropdown relative to the button
+            const buttonRect = button.getBoundingClientRect();
+            dropdown.style.left = buttonRect.left + 'px';
+            dropdown.style.top = (buttonRect.bottom + 4) + 'px';
+            dropdown.style.width = buttonRect.width + 'px';
+            
             dropdown.classList.remove('hidden');
             chevron.style.transform = 'rotate(180deg)';
         }
