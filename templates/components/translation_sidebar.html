@@ -34,7 +34,15 @@
         </div>
         
         <!-- Navigation Section -->
-        <div class="p-6 flex-1 overflow-y-auto">            
+        <div class="p-6 flex-1 overflow-y-auto">
+            <!-- Navigation Sync Indicator -->
+            <div id="nav-sync-indicator" class="hidden mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div class="flex items-center text-sm text-blue-700">
+                    <i class="fas fa-sync-alt fa-spin mr-2"></i>
+                    <span>Syncing with scroll position...</span>
+                </div>
+            </div>
+            
             <!-- Book Selection -->
             <div class="mb-4">
                 <div class="relative">
@@ -130,7 +138,25 @@ function initializeCustomDropdowns() {
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize custom dropdowns
     initializeCustomDropdowns();
+    
+    // Listen for navigation updates from scroll
+    document.addEventListener('navigationUpdated', (event) => {
+        showNavigationSyncFeedback(event.detail);
+    });
 });
+
+// Show navigation sync feedback
+function showNavigationSyncFeedback(detail) {
+    const indicator = document.getElementById('nav-sync-indicator');
+    if (indicator) {
+        indicator.classList.remove('hidden');
+        
+        // Hide after a short delay
+        setTimeout(() => {
+            indicator.classList.add('hidden');
+        }, 1500);
+    }
+}
 
 // Helper functions for dropdown management
 window.setModelDropdownOption = function(value, text, description = '', type = '') {
@@ -154,32 +180,76 @@ window.setModelDropdownOption = function(value, text, description = '', type = '
     document.getElementById('translation-model-chevron').style.transform = 'rotate(0deg)';
 };
 
-window.setBookDropdownOption = function(value, text) {
+window.setBookDropdownOption = function(value, text, isFromScroll = false) {
     const textElement = document.getElementById('goto-book-text');
     const button = document.getElementById('goto-book-button');
     const dropdown = document.getElementById('goto-book-dropdown');
     
     if (textElement) {
+        // Add visual feedback if updated from scroll
+        if (isFromScroll) {
+            textElement.style.transition = 'all 0.3s ease';
+            textElement.style.color = '#2563eb'; // Blue color for sync feedback
+            
+            setTimeout(() => {
+                textElement.style.color = '';
+            }, 1000);
+        }
+        
         textElement.textContent = text;
     }
     
     button.dataset.value = value;
     dropdown.classList.add('hidden');
     document.getElementById('goto-book-chevron').style.transform = 'rotate(0deg)';
+    
+    // Add subtle animation to indicate sync
+    if (isFromScroll && button) {
+        button.style.transition = 'all 0.3s ease';
+        button.style.transform = 'scale(1.02)';
+        button.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.15)';
+        
+        setTimeout(() => {
+            button.style.transform = '';
+            button.style.boxShadow = '';
+        }, 300);
+    }
 };
 
-window.setChapterDropdownOption = function(value, text) {
+window.setChapterDropdownOption = function(value, text, isFromScroll = false) {
     const textElement = document.getElementById('goto-chapter-text');
     const button = document.getElementById('goto-chapter-button');
     const dropdown = document.getElementById('goto-chapter-dropdown');
     
     if (textElement) {
+        // Add visual feedback if updated from scroll
+        if (isFromScroll) {
+            textElement.style.transition = 'all 0.3s ease';
+            textElement.style.color = '#2563eb'; // Blue color for sync feedback
+            
+            setTimeout(() => {
+                textElement.style.color = '';
+            }, 1000);
+        }
+        
         textElement.textContent = text;
     }
     
     button.dataset.value = value;
     dropdown.classList.add('hidden');
     document.getElementById('goto-chapter-chevron').style.transform = 'rotate(0deg)';
+    
+    // Add subtle animation to indicate sync
+    if (isFromScroll && button) {
+        button.style.transition = 'all 0.3s ease';
+        button.style.transform = 'scale(1.02)';
+        button.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.15)';
+        
+        setTimeout(() => {
+            button.style.transform = '';
+            button.style.boxShadow = '';
+        }, 300);
+    }
 };
 
 window.populateModelDropdown = function(models) {

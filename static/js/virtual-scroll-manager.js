@@ -23,6 +23,9 @@ class VirtualScrollManager {
         // Scroll handling
         this.scrollHandlers = new Map(); // windowId -> handler function
         
+        // Navigation update throttling
+        this.navigationUpdateTimeout = null;
+        
         console.log('VirtualScrollManager: Initialized with optimized settings');
     }
     
@@ -77,7 +80,7 @@ class VirtualScrollManager {
             // Debounced navigation update
             scrollTimeout = setTimeout(() => {
                 this.updateNavigationFromScroll(windowId, container);
-            }, 500);
+            }, 200);
         };
     }
     
@@ -455,41 +458,113 @@ class VirtualScrollManager {
 
     
     updateNavigationFromScroll(windowId, container) {
-        const scrollTop = container.scrollTop;
-        const currentVerseIndex = Math.floor(scrollTop / this.VERSE_HEIGHT);
+        // Get the currently visible verse by examining DOM elements
+        const currentVerseElement = this.getCurrentVisibleVerse(windowId, container);
         
-        // Validate index
-        if (currentVerseIndex < 0 || currentVerseIndex > this.MAX_VERSE_INDEX) {
+        if (!currentVerseElement) {
+            // Fallback to estimation if no verse elements found
+            const scrollTop = container.scrollTop;
+            const currentVerseIndex = Math.floor(scrollTop / this.VERSE_HEIGHT);
+            
+            if (currentVerseIndex >= 0 && currentVerseIndex <= this.MAX_VERSE_INDEX) {
+                this.fetchAndUpdateNavigation(currentVerseIndex);
+            }
             return;
         }
         
-        // Get verse info to update navigation
-        fetch(`/project/${this.editor.projectId}/verse-info/${currentVerseIndex}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.book && data.chapter) {
-                    // Update navigation if changed
-                    if (data.book !== this.editor.currentBook || data.chapter !== this.editor.currentChapter) {
-                        this.editor.currentBook = data.book;
-                        this.editor.currentChapter = data.chapter;
-                        
-                        // Update UI
-                        if (window.setBookDropdownOption) {
-                            window.setBookDropdownOption(data.book, BibleConstants.getBookDisplayName(data.book));
-                        }
-                        if (window.setChapterDropdownOption) {
-                            window.setChapterDropdownOption(data.chapter, `Chapter ${data.chapter}`);
-                        }
-                        
-                        // Save state
-                        this.editor.storage.saveNavigationState(data.book, data.chapter);
-                        this.editor.navigation.updateChapterOptions();
+        const verseIndex = parseInt(currentVerseElement.dataset.verseIndex);
+        if (!isNaN(verseIndex)) {
+            this.fetchAndUpdateNavigation(verseIndex);
+        }
+    }
+    
+    getCurrentVisibleVerse(windowId, container) {
+        const scrollTop = container.scrollTop;
+        const containerHeight = container.clientHeight;
+        const viewportCenter = scrollTop + (containerHeight / 2);
+        
+        // Get all verse elements
+        const verseElements = container.querySelectorAll('[data-verse-index]');
+        
+        let closestElement = null;
+        let closestDistance = Infinity;
+        
+        verseElements.forEach(element => {
+            const elementTop = element.offsetTop;
+            const elementHeight = element.offsetHeight;
+            const elementCenter = elementTop + (elementHeight / 2);
+            
+            // Distance from viewport center to element center
+            const distance = Math.abs(viewportCenter - elementCenter);
+            
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestElement = element;
+            }
+        });
+        
+        return closestElement;
+    }
+    
+    fetchAndUpdateNavigation(verseIndex) {
+        // Throttle API calls to avoid overwhelming the server
+        if (this.navigationUpdateTimeout) {
+            return;
+        }
+        
+        this.navigationUpdateTimeout = setTimeout(() => {
+            this.navigationUpdateTimeout = null;
+            
+            fetch(`/project/${this.editor.projectId}/verse-info/${verseIndex}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.book && data.chapter) {
+                        this.updateNavigationUI(data.book, data.chapter, verseIndex);
                     }
-                }
-            })
-            .catch(error => {
-                console.error('Error updating navigation:', error);
-            });
+                })
+                .catch(error => {
+                    console.error('Error updating navigation:', error);
+                });
+        }, 100); // 100ms throttle
+    }
+    
+    updateNavigationUI(book, chapter, verseIndex) {
+        // Only update if actually changed
+        if (book === this.editor.currentBook && chapter === this.editor.currentChapter) {
+            return;
+        }
+        
+        console.log(`VirtualScrollManager: Navigation updated to ${book} ${chapter} (verse ${verseIndex})`);
+        
+        this.editor.currentBook = book;
+        this.editor.currentChapter = chapter;
+        
+        // Update sidebar dropdowns with smooth transitions
+        if (window.setBookDropdownOption && window.BibleConstants) {
+            const bookDisplayName = window.BibleConstants.getBookDisplayName ? 
+                window.BibleConstants.getBookDisplayName(book) : book;
+            window.setBookDropdownOption(book, bookDisplayName, true);
+        }
+        
+        if (window.setChapterDropdownOption) {
+            window.setChapterDropdownOption(chapter, `Chapter ${chapter}`, true);
+        }
+        
+        // Save state
+        if (this.editor.storage) {
+            this.editor.storage.saveNavigationState(book, chapter);
+        }
+        
+        // Update chapter options if navigation object exists
+        if (this.editor.navigation && this.editor.navigation.updateChapterOptions) {
+            this.editor.navigation.updateChapterOptions();
+        }
+        
+        // Trigger custom event for other components that might need to sync
+        const navigationEvent = new CustomEvent('navigationUpdated', {
+            detail: { book, chapter, verseIndex }
+        });
+        document.dispatchEvent(navigationEvent);
     }
     
     cleanupDistantVerses(windowId) {
@@ -568,6 +643,12 @@ class VirtualScrollManager {
                 container.innerHTML = '';
                 container.scrollTop = 0;
             });
+        }
+        
+        // Clear navigation timeout
+        if (this.navigationUpdateTimeout) {
+            clearTimeout(this.navigationUpdateTimeout);
+            this.navigationUpdateTimeout = null;
         }
     }
     
