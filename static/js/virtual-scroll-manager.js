@@ -108,16 +108,20 @@ class VirtualScrollManager {
     }
     
     async scrollToBookChapter(book, chapter) {
-        console.log(`VirtualScrollManager: DIRECT NAVIGATION to ${book} ${chapter}`);
+        console.log(`VirtualScrollManager: Navigating to ${book} ${chapter}`);
         
-        // Just clear everything and load the chapter directly
+        // Store current book/chapter for context
+        this.currentBook = book;
+        this.currentChapter = chapter;
+        
+        // Load the chapter but maintain ability to scroll to other chapters
         this.containers.forEach(async (container, windowId) => {
-            await this.loadChapterDirect(windowId, book, chapter);
+            await this.loadChapterWithContext(windowId, book, chapter);
         });
     }
     
-    async loadChapterDirect(windowId, book, chapter) {
-        console.log(`VirtualScrollManager: DIRECT LOAD ${windowId} for ${book} ${chapter}`);
+    async loadChapterWithContext(windowId, book, chapter) {
+        console.log(`VirtualScrollManager: Loading ${book} ${chapter} for ${windowId}`);
         
         // Get the container and text window
         const container = this.containers.get(windowId);
@@ -128,12 +132,11 @@ class VirtualScrollManager {
             return;
         }
         
-        // STEP 1: Clear everything
+        // Clear existing content
         container.innerHTML = '';
         container.scrollTop = 0;
         this.loadedVerses.get(windowId)?.clear();
         this.renderedVerses.get(windowId)?.clear();
-        this.currentChapterIndex.delete(windowId);
         this.isLoading.set(windowId, false);
         this.loadingDirection.set(windowId, null);
         
@@ -198,7 +201,7 @@ class VirtualScrollManager {
                 UIUtilities.batchAutoResizeTextareas(textareas);
             });
             
-            // STEP 8: Store chapter start index for reference
+            // Store chapter start index for reference
             if (data.verses.length > 0) {
                 this.currentChapterIndex.set(windowId, data.verses[0].index);
             }
@@ -211,23 +214,16 @@ class VirtualScrollManager {
         }
     }
     
-    // Keep the old method for backward compatibility with infinite scroll
+    // Initial load method
     async loadInitialVerses(windowId, book, chapter) {
-        console.log(`VirtualScrollManager: Redirecting to direct chapter load for ${windowId}`);
-        await this.loadChapterDirect(windowId, book, chapter);
+        console.log(`VirtualScrollManager: Initial load for ${windowId}`);
+        await this.loadChapterWithContext(windowId, book, chapter);
     }
     
     async loadMoreVerses(windowId, direction) {
         // Check if already loading
         if (this.isLoading.get(windowId)) {
             console.log(`VirtualScrollManager: Already loading for ${windowId}, skipping ${direction} load`);
-            return;
-        }
-        
-        // Check if we're already loading in this direction
-        const currentDirection = this.loadingDirection.get(windowId);
-        if (currentDirection === direction) {
-            console.log(`VirtualScrollManager: Already loading ${direction} for ${windowId}`);
             return;
         }
         
@@ -249,42 +245,67 @@ class VirtualScrollManager {
             let startIndex, endIndex;
             
             if (direction === 'forward') {
-                // Load after current range
+                // Try to load next set of verses
                 startIndex = maxIndex + 1;
                 endIndex = Math.min(this.MAX_VERSE_INDEX, startIndex + this.VERSES_PER_LOAD - 1);
                 
                 if (startIndex > this.MAX_VERSE_INDEX) {
-                    console.log(`VirtualScrollManager: Already at end for ${windowId}`);
+                    console.log(`VirtualScrollManager: Reached end of Bible for ${windowId}`);
                     return;
                 }
+                
+                // Just load the range - the backend will handle chapter boundaries
+                
             } else {
-                // Load before current range
+                // Try to load previous set of verses
                 endIndex = minIndex - 1;
                 startIndex = Math.max(this.MIN_VERSE_INDEX, endIndex - this.VERSES_PER_LOAD + 1);
                 
                 if (endIndex < this.MIN_VERSE_INDEX) {
-                    console.log(`VirtualScrollManager: Already at beginning for ${windowId}`);
+                    console.log(`VirtualScrollManager: Reached beginning of Bible for ${windowId}`);
                     return;
                 }
+                
+                // Just load the range - the backend will handle chapter boundaries
             }
             
             console.log(`VirtualScrollManager: Loading ${direction} for ${windowId}: verses ${startIndex}-${endIndex}`);
             
-            // Store scroll position before loading (important for backward loading)
+            // Store scroll position before loading (critical for backward loading)
             const container = this.containers.get(windowId);
             const oldScrollTop = container.scrollTop;
             const oldScrollHeight = container.scrollHeight;
             
+            // Store the first visible element for reference
+            const firstVisibleElement = this.getCurrentVisibleVerse(windowId, container);
+            const firstVisibleIndex = firstVisibleElement ? parseInt(firstVisibleElement.dataset.verseIndex) : null;
+            const firstVisibleOffsetTop = firstVisibleElement ? firstVisibleElement.offsetTop : 0;
+            
             await this.loadVerseRange(windowId, startIndex, endIndex);
             
-            // Adjust scroll position if loading backward
-            if (direction === 'backward' && container) {
-                const newScrollHeight = container.scrollHeight;
-                const heightAdded = newScrollHeight - oldScrollHeight;
-                if (heightAdded > 0) {
-                    container.scrollTop = oldScrollTop + heightAdded;
-                    console.log(`VirtualScrollManager: Adjusted scroll by ${heightAdded}px after backward load`);
-                }
+            // Adjust scroll position if loading backward to maintain visual position
+            if (direction === 'backward' && container && firstVisibleElement) {
+                // Wait for DOM to update
+                requestAnimationFrame(() => {
+                    // Find the same element that was visible before
+                    const sameElement = container.querySelector(`[data-verse-index="${firstVisibleIndex}"]`);
+                    if (sameElement) {
+                        // Calculate how much the element moved
+                        const newOffsetTop = sameElement.offsetTop;
+                        const offsetDifference = newOffsetTop - firstVisibleOffsetTop;
+                        
+                        // Adjust scroll to keep the same element in view
+                        container.scrollTop = oldScrollTop + offsetDifference;
+                        console.log(`VirtualScrollManager: Maintained scroll position by adjusting ${offsetDifference}px`);
+                    } else {
+                        // Fallback: adjust by height difference
+                        const newScrollHeight = container.scrollHeight;
+                        const heightAdded = newScrollHeight - oldScrollHeight;
+                        if (heightAdded > 0) {
+                            container.scrollTop = oldScrollTop + heightAdded;
+                        }
+                    }
+                });
             }
             
         } catch (error) {
@@ -650,86 +671,5 @@ class VirtualScrollManager {
             clearTimeout(this.navigationUpdateTimeout);
             this.navigationUpdateTimeout = null;
         }
-    }
-    
-    // Emergency reset - completely clear everything
-    emergencyReset() {
-        console.log('VirtualScrollManager: EMERGENCY RESET - clearing all state');
-        
-        this.containers.forEach((container, windowId) => {
-            container.innerHTML = '';
-            container.scrollTop = 0;
-        });
-        
-        this.loadedVerses.clear();
-        this.renderedVerses.clear();
-        this.currentChapterIndex.clear();
-        this.isLoading.clear();
-        this.loadingDirection.clear();
-        
-        // Re-initialize maps
-        this.containers.forEach((container, windowId) => {
-            this.loadedVerses.set(windowId, new Map());
-            this.renderedVerses.set(windowId, new Set());
-            this.isLoading.set(windowId, false);
-            this.loadingDirection.set(windowId, null);
-        });
-    }
-    
-    getDebugInfo() {
-        const info = {};
-        this.containers.forEach((container, windowId) => {
-            const loaded = this.loadedVerses.get(windowId);
-            const rendered = this.renderedVerses.get(windowId);
-            const currentChapterIndex = this.currentChapterIndex.get(windowId);
-            
-            info[windowId] = {
-                loadedCount: loaded ? loaded.size : 0,
-                renderedCount: rendered ? rendered.size : 0,
-                isLoading: this.isLoading.get(windowId),
-                loadingDirection: this.loadingDirection.get(windowId),
-                currentChapterIndex: currentChapterIndex,
-                scrollTop: container.scrollTop,
-                scrollHeight: container.scrollHeight,
-                clientHeight: container.clientHeight,
-                memoryOptimized: rendered ? rendered.size <= this.MAX_RENDERED_VERSES : true,
-                loadedRange: loaded && loaded.size > 0 ? {
-                    min: Math.min(...loaded.keys()),
-                    max: Math.max(...loaded.keys())
-                } : null
-            };
-        });
-        return info;
-    }
-    
-    getPerformanceMetrics() {
-        const metrics = {
-            totalWindows: this.containers.size,
-            totalLoadedVerses: 0,
-            totalRenderedVerses: 0,
-            averageLoadedPerWindow: 0,
-            averageRenderedPerWindow: 0,
-            memoryEfficient: true
-        };
-        
-        this.containers.forEach((container, windowId) => {
-            const loaded = this.loadedVerses.get(windowId);
-            const rendered = this.renderedVerses.get(windowId);
-            
-            if (loaded) metrics.totalLoadedVerses += loaded.size;
-            if (rendered) {
-                metrics.totalRenderedVerses += rendered.size;
-                if (rendered.size > this.MAX_RENDERED_VERSES) {
-                    metrics.memoryEfficient = false;
-                }
-            }
-        });
-        
-        if (metrics.totalWindows > 0) {
-            metrics.averageLoadedPerWindow = Math.round(metrics.totalLoadedVerses / metrics.totalWindows);
-            metrics.averageRenderedPerWindow = Math.round(metrics.totalRenderedVerses / metrics.totalWindows);
-        }
-        
-        return metrics;
     }
 } 

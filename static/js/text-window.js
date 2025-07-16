@@ -17,7 +17,7 @@ class TextWindow {
     
     render(container) {
         const textWindow = document.createElement('div');
-        textWindow.className = `flex flex-col border border-neutral-200 rounded-xl overflow-hidden bg-white min-h-15 flex-1 shadow-sm`;
+        textWindow.className = `flex flex-col border border-neutral-200 rounded-xl bg-white min-h-15 flex-1 shadow-sm`;
         textWindow.dataset.textId = this.id;
         textWindow.dataset.windowId = this.id;
         
@@ -575,6 +575,10 @@ class TextWindow {
         content.className = 'flex-1 overflow-y-auto overflow-x-hidden p-4 leading-tight text-sm bg-white';
         content.setAttribute('data-window-content', 'true');
         
+        // CRITICAL: Ensure proper scroll container setup for flex layouts
+        content.style.minHeight = '0';
+        content.style.flex = '1';
+        
         // Add purpose section
         const purposeSection = this.createPurposeSection();
         content.appendChild(purposeSection);
@@ -789,23 +793,13 @@ class TextWindow {
     attachOptimizedTextareaListeners(textarea) {
         // PERFORMANCE: SIMPLEST POSSIBLE - just store the value
         let currentValue = textarea.value || '';
-        let resizeTimeout;
         let hasChanges = false;
         
         textarea.addEventListener('input', (e) => {
             const newValue = e.target.value;
             hasChanges = (newValue !== currentValue);
             currentValue = newValue;
-            
-            // PERFORMANCE: Debounce height adjustment to prevent scroll jank
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => {
-                const lines = currentValue.split('\n').length;
-                const newHeight = Math.max(80, lines * 24 + 32);
-                if (Math.abs(textarea.offsetHeight - newHeight) > 20) { // Increased threshold
-                    textarea.style.height = newHeight + 'px';
-                }
-            }, 150); // Debounce for 150ms
+            // NOTE: Height auto-resize is handled by virtual-scroll-manager.js to avoid conflicts
         }, { passive: true });
         
         // AUTO-SAVE: Save when user moves to different cell or leaves the textarea

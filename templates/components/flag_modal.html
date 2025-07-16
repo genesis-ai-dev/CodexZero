@@ -1,59 +1,100 @@
 {% macro flag_modal() %}
-<div id="flag-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+<div id="flag-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden">
     <div class="flex items-center justify-center min-h-screen p-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col border border-neutral-200">
-            <!-- Modal Header -->
-            <div class="flex items-center justify-between p-6 border-b border-neutral-200">
-                <div class="flex items-center space-x-4">
-                    <h3 id="flag-modal-title" class="text-xl font-bold text-neutral-900 tracking-tight">Verse Flags</h3>
-                    <span id="flag-details-status" class="px-3 py-1 rounded-full text-sm font-medium hidden"></span>
+        <div class="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+            
+            <!-- Header -->
+            <div class="flex items-center justify-between p-5 bg-slate-800 text-white border-b border-slate-700">
+                <div class="flex items-center space-x-3">
+                    <div class="w-9 h-9 bg-red-500 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-flag text-white"></i>
+                    </div>
+                    <div>
+                        <h3 id="flag-modal-title" class="text-xl font-bold text-white">Flags</h3>
+                        <span id="flag-verse-reference" class="text-sm text-slate-300 font-medium">Verse Reference</span>
+                    </div>
                 </div>
-                <div class="flex items-center space-x-2">
-                    <button id="flag-status-toggle" onclick="toggleFlagStatus()" class="px-4 py-2 text-sm border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-all duration-200 font-medium hidden">
+                
+                <div class="flex items-center space-x-3">
+                    <button onclick="showNewThreadForm()" id="new-thread-btn" class="px-4 py-2 text-sm font-semibold bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors shadow-sm">
+                        <i class="fas fa-plus mr-2"></i>New Flag
                     </button>
-                    <button onclick="closeFlagModal()" class="text-neutral-400 hover:text-neutral-600 p-2 rounded-lg hover:bg-neutral-100 transition-all duration-200">
-                        <i class="fas fa-times text-lg"></i>
+                    <button onclick="showFlagModalView('list')" id="back-to-list-btn" class="px-4 py-2 text-sm font-medium bg-slate-600 text-slate-200 rounded-lg hover:bg-slate-500 transition-colors hidden">
+                        <i class="fas fa-arrow-left mr-2"></i>Back
+                    </button>
+                    <button onclick="closeFlagModal()" class="w-9 h-9 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors flex items-center justify-center">
+                        <i class="fas fa-times"></i>
                     </button>
                 </div>
             </div>
-            
-            <!-- Verse Info Header -->
-            <div class="p-6 bg-blue-50 border-b border-blue-200">
-                <div class="text-sm font-medium text-blue-900 mb-2">
-                    <span id="flag-verse-label">Current Verse:</span>
+
+            <!-- Verse Cell Section -->
+            <div class="p-5 bg-slate-100 border-b border-slate-200">
+                <div id="flag-verse-cell-container">
+                    <!-- Verse cell will be created here by JavaScript using the same structure as text-window.js -->
                 </div>
-                <div id="flag-verse-reference" class="text-blue-900 font-semibold text-lg"></div>
             </div>
             
-            <!-- Main Content Area -->
-            <div class="flex-1 overflow-y-auto">
+            <!-- Content Area -->
+            <div class="flex-1 overflow-y-auto bg-slate-50">
                 <!-- Flags List View -->
-                <div id="flags-list-view" class="p-6 space-y-4">
-                    <div id="flags-list"></div>
+                <div id="flags-list-view" class="p-5">
+                    <div class="flex items-center justify-between mb-5">
+                        <span id="flags-count" class="text-base font-semibold text-slate-800">0 flags</span>
+                    </div>
+                    <div id="flags-list" class="space-y-4"></div>
                 </div>
                 
-                <!-- Flag Details View -->
-                <div id="flag-details-view" class="p-6 hidden">
-                    <div id="flag-comments" class="space-y-4"></div>
-                </div>
-            </div>
-            
-            <!-- Footer Actions -->
-            <div class="border-t border-neutral-200 p-6 bg-neutral-50">
-                <!-- List View Footer -->
-                <div id="flags-list-footer">
-                    <button onclick="showNewThreadForm()" class="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105">
-                        <i class="fas fa-plus mr-2"></i>Start New Thread
-                    </button>
-                </div>
-                
-                <!-- Details View Footer -->
-                <div id="flag-details-footer" class="hidden">
-                    <div class="flex space-x-3">
-                        <textarea id="new-comment-text" rows="2" class="flex-1 border border-neutral-300 rounded-xl px-4 py-3 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-none" placeholder="Add a comment... Use @ to mention team members." maxlength="5000"></textarea>
-                        <button onclick="addComment()" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl">
-                            <i class="fas fa-paper-plane mr-2"></i>Post
+                <!-- Flag Details View (Discord-like Chat) -->
+                <div id="flag-details-view" class="flex flex-col h-full hidden">
+                    <!-- Chat Header -->
+                    <div class="flex items-center justify-between px-5 py-3 bg-white border-b border-slate-200 shadow-sm">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                                <i class="fas fa-flag text-white text-sm"></i>
+                            </div>
+                            <div>
+                                <span id="flag-details-status" class="px-3 py-1 rounded-full text-sm font-semibold hidden"></span>
+                            </div>
+                        </div>
+                        <button id="flag-status-toggle" onclick="toggleFlagStatus()" class="px-4 py-2 text-sm font-medium bg-slate-100 border rounded-lg hover:bg-slate-200 transition-colors hidden">
                         </button>
+                    </div>
+                    
+                    <!-- Messages Area -->
+                    <div id="flag-comments" class="flex-1 overflow-y-auto px-1 py-2 space-y-0.5 bg-slate-50"></div>
+                    
+                    <!-- Message Input Area -->
+                    <div class="p-4 bg-white border-t border-slate-200">
+                        <div class="flex space-x-3">
+                            <div class="flex-1 relative">
+                                <div class="bg-slate-100 border border-slate-300 rounded-xl focus-within:border-slate-400 transition-colors">
+                                    <textarea 
+                                        id="new-comment-text" 
+                                        rows="2" 
+                                        class="w-full bg-transparent px-4 py-3 text-base resize-none focus:outline-none placeholder-slate-500" 
+                                        placeholder="Message this flag thread..."
+                                        maxlength="5000"
+                                    ></textarea>
+                                    <div class="flex items-center justify-between px-4 pb-2">
+                                        <div class="text-xs text-slate-400 font-medium">
+                                            <span id="comment-char-count">0</span>/5000
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <button class="w-8 h-8 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-200 transition-colors flex items-center justify-center" title="Add emoji">
+                                                <i class="fas fa-smile"></i>
+                                            </button>
+                                            <button class="w-8 h-8 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-200 transition-colors flex items-center justify-center" title="Attach file">
+                                                <i class="fas fa-paperclip"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onclick="addComment()" class="self-end px-4 py-3 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 transition-colors font-semibold shadow-sm" title="Send message">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -61,6 +102,6 @@
     </div>
 </div>
 
-<div id="mention-dropdown" class="fixed bg-white border border-neutral-200 rounded-lg shadow-lg max-h-40 overflow-y-auto hidden z-50">
+<div id="mention-dropdown" class="fixed bg-white border border-slate-200 rounded-lg shadow-xl max-h-40 overflow-y-auto hidden z-50">
 </div>
 {% endmacro %} 

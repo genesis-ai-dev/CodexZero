@@ -2,15 +2,12 @@
 const FLAG_CONSTANTS = {
     MAX_COMMENT_LENGTH: 5000,
     EMPTY_STATE_MESSAGE: 'No flags for this verse',
-    CREATE_FLAG_MESSAGE: 'Create a flag to start a discussion or note an issue',
-    NEW_THREAD_MESSAGE: 'Start a new thread',
-    NEW_THREAD_SUBTITLE: 'Write your first comment below'
+    CREATE_FLAG_MESSAGE: 'Create a flag to start a discussion or note an issue'
 };
 
 // Error handling utility
 const ErrorHandler = {
     show(message, type = 'error') {
-        // Simple consistent error display - could be enhanced to use toast notifications
         console.error(`Flag System ${type}:`, message);
         alert(`Error: ${message}`);
     },
@@ -36,20 +33,22 @@ class FlagManager {
             flagModal: document.getElementById('flag-modal'),
             flagModalTitle: document.getElementById('flag-modal-title'),
             flagsList: document.getElementById('flags-list'),
+            flagsCount: document.getElementById('flags-count'),
             flagComments: document.getElementById('flag-comments'),
             flagVerseReference: document.getElementById('flag-verse-reference'),
-            flagVerseLabel: document.getElementById('flag-verse-label'),
             flagDetailsStatus: document.getElementById('flag-details-status'),
             flagStatusToggle: document.getElementById('flag-status-toggle'),
             newCommentText: document.getElementById('new-comment-text'),
+            commentCharCount: document.getElementById('comment-char-count'),
             mentionDropdown: document.getElementById('mention-dropdown'),
             flagsListView: document.getElementById('flags-list-view'),
             flagDetailsView: document.getElementById('flag-details-view'),
-            flagsListFooter: document.getElementById('flags-list-footer'),
-            flagDetailsFooter: document.getElementById('flag-details-footer')
+            newThreadBtn: document.getElementById('new-thread-btn'),
+            backToListBtn: document.getElementById('back-to-list-btn'),
+            flagVerseCellContainer: document.getElementById('flag-verse-cell-container')
         };
         
-        this.setupMentionHandlers();
+        this.setupCommentCharCounter();
     }
     
     async openFlagModal(verseData, textId) {
@@ -59,33 +58,30 @@ class FlagManager {
         // Show list view
         this.showFlagModalView('list');
         
+        // Set verse information
         this.elements.flagVerseReference.textContent = verseData.reference;
         this.elements.flagModal.classList.remove('hidden');
         
+        // Create verse cell using proper verse cell structure
+        await this.createVerseCell();
+        
+        // Load flags for this verse
         await this.loadVerseFlags();
     }
     
     showFlagModalView(view) {
         if (view === 'list') {
-            // Show list view
-            this.elements.flagModalTitle.textContent = 'Verse Flags';
-            this.elements.flagVerseLabel.textContent = 'Current Verse:';
+            this.elements.flagModalTitle.textContent = 'Flags';
             this.elements.flagsListView.classList.remove('hidden');
             this.elements.flagDetailsView.classList.add('hidden');
-            this.elements.flagsListFooter.classList.remove('hidden');
-            this.elements.flagDetailsFooter.classList.add('hidden');
-            this.elements.flagDetailsStatus.classList.add('hidden');
-            this.elements.flagStatusToggle.classList.add('hidden');
+            this.elements.newThreadBtn.classList.remove('hidden');
+            this.elements.backToListBtn.classList.add('hidden');
         } else if (view === 'details') {
-            // Show details view
-            this.elements.flagModalTitle.textContent = 'Thread';
-            this.elements.flagVerseLabel.textContent = 'Associated Verses:';
+            this.elements.flagModalTitle.textContent = 'Flag Details';
             this.elements.flagsListView.classList.add('hidden');
             this.elements.flagDetailsView.classList.remove('hidden');
-            this.elements.flagsListFooter.classList.add('hidden');
-            this.elements.flagDetailsFooter.classList.remove('hidden');
-            this.elements.flagDetailsStatus.classList.remove('hidden');
-            this.elements.flagStatusToggle.classList.remove('hidden');
+            this.elements.newThreadBtn.classList.add('hidden');
+            this.elements.backToListBtn.classList.remove('hidden');
         }
     }
     
@@ -104,29 +100,50 @@ class FlagManager {
     renderFlagsList(flags) {
         const container = this.elements.flagsList;
         
+        // Update flags count
+        if (this.elements.flagsCount) {
+            this.elements.flagsCount.textContent = `${flags.length} flag${flags.length !== 1 ? 's' : ''}`;
+        }
+        
         if (flags.length === 0) {
             container.innerHTML = `
-                <div class="text-center py-8 text-neutral-500">
-                    <i class="fas fa-flag text-4xl mb-4 text-neutral-300"></i>
-                    <p class="text-lg font-medium">${FLAG_CONSTANTS.EMPTY_STATE_MESSAGE}</p>
-                    <p class="text-sm">${FLAG_CONSTANTS.CREATE_FLAG_MESSAGE}</p>
+                <div class="text-center py-16 text-slate-500">
+                    <div class="w-20 h-20 mx-auto mb-6 bg-slate-100 rounded-2xl flex items-center justify-center">
+                        <i class="fas fa-flag text-slate-400 text-3xl"></i>
+                    </div>
+                    <p class="text-xl font-semibold mb-3">No flags yet</p>
+                    <p class="text-base">Create a flag to report an issue or start a discussion about this verse</p>
                 </div>
             `;
             return;
         }
         
         container.innerHTML = flags.map(flag => `
-            <div class="border border-neutral-200 rounded-xl p-4 hover:bg-neutral-50 transition-all duration-200 cursor-pointer" onclick="openFlagDetails(${flag.id})">
-                <div class="flex items-start justify-between mb-3">
-                    <div class="flex-1 mr-4">
-                        <p class="text-neutral-900 mb-2">${this.escapeHtml(flag.first_comment)}</p>
-                        <div class="flex items-center justify-between text-sm text-neutral-600">
-                            <span>by ${this.escapeHtml(flag.created_by.name)} • ${this.formatDate(flag.created_at)}</span>
-                            <span>${flag.comment_count} comment${flag.comment_count !== 1 ? 's' : ''}</span>
+            <div class="bg-white border border-slate-200 rounded-xl p-5 hover:shadow-lg hover:border-slate-300 transition-all cursor-pointer group" onclick="openFlagDetails(${flag.id})">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="flex items-center space-x-3">
+                        ${this.renderStatusBadge(flag.status)}
+                    </div>
+                    <span class="text-sm text-slate-500 font-medium">${this.formatDate(flag.created_at)}</span>
+                </div>
+                <div class="mb-4">
+                    <p class="text-slate-800 leading-relaxed mb-3 line-clamp-3 text-base">${this.escapeHtml(flag.first_comment)}</p>
+                    <div class="flex items-center justify-between text-sm text-slate-500">
+                        <div class="flex items-center space-x-4">
+                            <span class="flex items-center font-medium">
+                                <i class="fas fa-user mr-2"></i>
+                                ${this.escapeHtml(flag.created_by.name)}
+                            </span>
+                            <span class="flex items-center font-medium">
+                                <i class="fas fa-comments mr-2"></i>
+                                ${flag.comment_count} ${flag.comment_count === 1 ? 'comment' : 'comments'}
+                            </span>
                         </div>
                     </div>
-                    <div class="flex items-center space-x-2 flex-shrink-0">
-                        ${this.renderStatusBadge(flag.status)}
+                </div>
+                <div class="flex items-center justify-end">
+                    <div class="text-sm text-slate-400 group-hover:text-red-500 transition-colors font-medium">
+                        Click to view flag <i class="fas fa-arrow-right ml-2"></i>
                     </div>
                 </div>
             </div>
@@ -135,43 +152,37 @@ class FlagManager {
     
     renderStatusBadge(status) {
         const classes = status === 'open' 
-            ? 'bg-green-100 text-green-700' 
+            ? 'bg-green-100 text-green-800' 
             : 'bg-gray-100 text-gray-700';
-        return `<span class="px-2 py-1 rounded-full text-xs font-medium ${classes}">${status}</span>`;
+        return `<span class="px-3 py-1.5 rounded-full text-sm font-semibold ${classes}">${status}</span>`;
     }
     
-
-    
     async showNewThreadForm() {
-        // Go directly to the thread view with a new thread
         this.currentFlagId = null;
         
         this.elements.flagDetailsStatus.textContent = 'open';
-        this.elements.flagDetailsStatus.className = 'px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700';
+        this.elements.flagDetailsStatus.className = 'px-3 py-1.5 rounded-full text-sm font-semibold bg-green-100 text-green-800';
+        this.elements.flagDetailsStatus.classList.remove('hidden');
         
-        this.elements.flagStatusToggle.textContent = 'Close Thread';
-        this.elements.flagStatusToggle.style.display = 'none'; // Hide until thread is created
-        
-        this.elements.flagVerseReference.textContent = `Verse ${this.currentVerseData.verse}`;
+        this.elements.flagStatusToggle.textContent = 'Close Flag';
+        this.elements.flagStatusToggle.classList.add('hidden'); // Hide until flag is created
         
         // Clear comments and show placeholder
         this.elements.flagComments.innerHTML = `
-            <div class="text-center py-8 text-neutral-500">
-                <i class="fas fa-comments text-4xl mb-4 text-neutral-300"></i>
-                <p class="text-lg font-medium">${FLAG_CONSTANTS.NEW_THREAD_MESSAGE}</p>
-                <p class="text-sm">${FLAG_CONSTANTS.NEW_THREAD_SUBTITLE}</p>
+            <div class="text-center py-12 text-slate-500">
+                <i class="fas fa-flag text-5xl mb-6 text-slate-300"></i>
+                <p class="text-xl font-semibold mb-2">Start a new flag</p>
+                <p class="text-base">Write your first comment below to create this flag</p>
             </div>
         `;
         
         // Switch to details view
         this.showFlagModalView('details');
         
-        // Focus on comment input and setup mention handlers
+        // Focus on comment input
         this.elements.newCommentText.focus();
         this.setupMentionHandlersForTextarea(this.elements.newCommentText);
     }
-    
-
     
     async createNewThread(commentText) {
         try {
@@ -188,12 +199,12 @@ class FlagManager {
             const data = await response.json();
             if (data.success) {
                 this.currentFlagId = data.flag_id;
-                this.openFlagDetails(data.flag_id);
+                await this.openFlagDetails(data.flag_id);
             } else {
-                ErrorHandler.show(data.error || 'Failed to create thread');
+                ErrorHandler.show(data.error || 'Failed to create flag');
             }
         } catch (error) {
-            ErrorHandler.logAndShow('Failed to create thread', error);
+            ErrorHandler.logAndShow('Failed to create flag', error);
         }
     }
     
@@ -212,93 +223,347 @@ class FlagManager {
                 };
                 this.currentTextId = 'primary'; // Default to primary text
                 this.elements.flagModal.classList.remove('hidden');
+                await this.createVerseCell();
             }
             
             this.elements.flagDetailsStatus.textContent = flag.status;
-            this.elements.flagDetailsStatus.className = `px-3 py-1 rounded-full text-sm font-medium ${this.getStatusClasses(flag.status)}`;
+            this.elements.flagDetailsStatus.className = `px-3 py-1.5 rounded-full text-sm font-semibold ${this.getStatusClasses(flag.status)}`;
+            this.elements.flagDetailsStatus.classList.remove('hidden');
             
             this.elements.flagStatusToggle.textContent = flag.status === 'open' ? 'Close Flag' : 'Reopen Flag';
+            this.elements.flagStatusToggle.classList.remove('hidden');
             
-            const versesText = flag.verses.map(v => `Verse ${v.verse_index + 1}`).join(', ');
-            this.elements.flagVerseReference.textContent = versesText;
-            
-            this.renderComments(flag.comments);
+            this.renderTimeline(flag.timeline);
             
             // Switch to details view
             this.showFlagModalView('details');
             
-            // Setup mention handlers for this modal
+            // Setup mention handlers
             this.setupMentionHandlersForTextarea(this.elements.newCommentText);
         } catch (error) {
             ErrorHandler.logAndShow('Failed to load flag details', error);
         }
     }
     
-    renderComments(comments) {
+    renderTimeline(timeline) {
         const container = this.elements.flagComments;
         
-        // Clear existing content
-        container.innerHTML = '';
-        
-        if (comments.length === 0) {
+        if (!timeline || timeline.length === 0) {
             container.innerHTML = `
-                <div class="text-center py-8 text-neutral-500">
-                    <i class="fas fa-comments text-4xl mb-4 text-neutral-300"></i>
-                    <p class="text-lg font-medium">No comments yet</p>
-                    <p class="text-sm">Be the first to add a comment</p>
+                <div class="text-center py-12 text-slate-500">
+                    <div class="w-16 h-16 mx-auto mb-4 bg-slate-200 rounded-full flex items-center justify-center">
+                        <i class="fas fa-comments text-slate-400 text-2xl"></i>
+                    </div>
+                    <p class="text-lg font-medium">No messages yet</p>
+                    <p class="text-sm">Be the first to comment on this flag</p>
                 </div>
             `;
             return;
         }
         
-        // Create fragment for better performance
-        const fragment = document.createDocumentFragment();
+        // Group consecutive revisions and consecutive messages by same user
+        const groupedTimeline = this.groupConsecutiveItems(timeline);
         
-        comments.forEach(comment => {
-            const commentEl = this.createCommentElement(comment);
-            fragment.appendChild(commentEl);
-        });
-        
-        container.appendChild(fragment);
+        container.innerHTML = groupedTimeline.map(group => {
+            if (group.type === 'comment') {
+                return this.renderDiscordMessage(group, false); // First message shows username
+            } else if (group.type === 'comment_group') {
+                return group.comments.map((comment, index) => 
+                    this.renderDiscordMessage(comment, index > 0) // Only first shows username
+                ).join('');
+            } else if (group.type === 'revision_group') {
+                return this.renderRevisionGroup(group);
+            }
+        }).join('');
     }
     
-    createCommentElement(comment) {
-        const commentDiv = document.createElement('div');
-        commentDiv.className = 'flex space-x-3 p-4 bg-neutral-50 rounded-xl';
+    renderDiscordMessage(comment, isGrouped = false) {
+        const commentText = comment.text.replace(
+            /@([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g,
+            '<span class="text-indigo-600 font-medium bg-indigo-50 px-1 rounded">@$1</span>'
+        );
         
-        commentDiv.innerHTML = `
-            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <i class="fas fa-user text-blue-600 text-sm"></i>
-            </div>
-            <div class="flex-1">
-                <div class="flex items-center space-x-2 mb-2">
-                    <span class="font-medium text-neutral-900">${this.escapeHtml(comment.user.name)}</span>
-                    <span class="text-sm text-neutral-500">${this.formatDate(comment.created_at)}</span>
-                    ${comment.edited_at ? `<span class="text-xs text-neutral-400">(edited)</span>` : ''}
+        // Generate a consistent avatar color based on user name
+        const avatarColor = this.getUserAvatarColor(comment.user.name);
+        const userInitials = this.getUserInitials(comment.user.name);
+        
+        // Format timestamp in Discord style
+        const timestamp = this.formatDiscordTimestamp(comment.created_at);
+        
+        if (isGrouped) {
+            // Grouped message - no username, minimal spacing, timestamp on hover
+            return `
+                <div class="flex group hover:bg-slate-100/50 px-1 py-0.5 -mx-1 rounded transition-colors">
+                    <!-- Timestamp space (shows on hover) -->
+                    <div class="flex-shrink-0 w-12 flex items-start justify-end pr-2">
+                        <span class="text-xs text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">${timestamp}</span>
+                    </div>
+                    
+                    <!-- Message Content -->
+                    <div class="flex-1 min-w-0">
+                        <!-- Message Body -->
+                        <div class="text-slate-800 leading-snug whitespace-pre-wrap break-words text-sm">
+                            ${commentText}
+                            ${comment.edited_at ? `
+                                <span class="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded ml-1" title="Edited ${this.formatDate(comment.edited_at)}">
+                                    edited
+                                </span>
+                            ` : ''}
+                        </div>
+                    </div>
                 </div>
-                <div class="text-neutral-700">${this.renderCommentText(comment.text)}</div>
+            `;
+        } else {
+            // First message from user - show full header
+            return `
+                <div class="flex group hover:bg-slate-100/50 px-1 py-1 -mx-1 rounded transition-colors">
+                    <!-- User Avatar -->
+                    <div class="flex-shrink-0 mr-2">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-xs ${avatarColor}">
+                            ${userInitials}
+                        </div>
+                    </div>
+                    
+                    <!-- Message Content -->
+                    <div class="flex-1 min-w-0">
+                        <!-- Message Header -->
+                        <div class="flex items-baseline space-x-1 mb-0.5">
+                            <span class="font-semibold text-slate-900 hover:underline cursor-pointer text-sm">${this.escapeHtml(comment.user.name)}</span>
+                            <span class="text-xs text-slate-500 font-medium">${timestamp}</span>
+                            ${comment.edited_at ? `
+                                <span class="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded" title="Edited ${this.formatDate(comment.edited_at)}">
+                                    edited
+                                </span>
+                            ` : ''}
+                        </div>
+                        
+                        <!-- Message Body -->
+                        <div class="text-slate-800 leading-snug whitespace-pre-wrap break-words text-sm">
+                            ${commentText}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+    
+    renderRevisionGroup(group) {
+        const firstRevision = group.revisions[0];
+        const revisionCount = group.revisions.length;
+        const avatarColor = this.getUserAvatarColor(firstRevision.user.name);
+        const userInitials = this.getUserInitials(firstRevision.user.name);
+        const timestamp = this.formatDiscordTimestamp(firstRevision.created_at);
+        
+        return `
+            <div class="flex space-x-2 group hover:bg-emerald-50/50 px-2 py-1 -mx-2 rounded transition-colors">
+                <!-- User Avatar -->
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-xs ${avatarColor} relative">
+                        ${userInitials}
+                        <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full flex items-center justify-center">
+                            <i class="fas fa-pencil-alt text-white text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Revision Content -->
+                <div class="flex-1 min-w-0">
+                    <!-- Revision Header -->
+                    <div class="flex items-baseline space-x-1 mb-1">
+                        <span class="font-semibold text-slate-900 text-sm">${this.escapeHtml(firstRevision.user.name)}</span>
+                        <span class="text-sm text-emerald-600 font-medium">
+                            ${revisionCount === 1 ? 'made a revision' : `made ${revisionCount} revisions`}
+                        </span>
+                        <span class="text-xs text-slate-500 font-medium">${timestamp}</span>
+                        ${revisionCount > 1 ? `
+                            <span class="text-xs text-slate-500">
+                                - ${this.formatDiscordTimestamp(group.revisions[revisionCount-1].created_at)}
+                            </span>
+                        ` : ''}
+                    </div>
+                    
+                    <!-- Revision Summary Card -->
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-2 mb-1">
+                        <div class="flex items-center justify-between cursor-pointer" onclick="this.querySelector('.revision-toggle').click()">
+                            <div class="flex items-center space-x-2">
+                                <button class="revision-toggle text-emerald-600 hover:text-emerald-800 transition-colors" onclick="event.stopPropagation(); this.closest('.group').querySelector('.revision-details').classList.toggle('hidden'); this.querySelector('i').classList.toggle('fa-chevron-right'); this.querySelector('i').classList.toggle('fa-chevron-down');">
+                                    <i class="fas fa-chevron-right text-sm"></i>
+                                </button>
+                                <span class="text-sm font-medium text-emerald-800">
+                                    View ${revisionCount === 1 ? 'revision' : `${revisionCount} revisions`}
+                                </span>
+                            </div>
+                            <div class="text-xs text-emerald-600 bg-emerald-100 px-2 py-1 rounded-full">
+                                ${revisionCount} change${revisionCount !== 1 ? 's' : ''}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Detailed Revisions (Hidden by default) -->
+                    <div class="revision-details hidden space-y-2 ml-3 pl-3 border-l-2 border-emerald-200">
+                        ${group.revisions.map(revision => {
+                            const editTypeLabel = {
+                                'create': 'edited verse',
+                                'update': 'edited verse',
+                                'delete': 'edited verse',
+                                'revert': 'reverted verse'
+                            }[revision.edit_type] || 'edited verse';
+                            
+                            return `
+                                <div class="bg-white border border-emerald-200 rounded-lg p-3 shadow-sm">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <div class="flex items-center space-x-2">
+                                            <div class="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                                            <span class="text-sm font-medium text-emerald-700">${editTypeLabel}</span>
+                                        </div>
+                                        <span class="text-xs text-slate-500">${this.formatDiscordTimestamp(revision.created_at)}</span>
+                                    </div>
+                                    ${revision.edit_comment ? `
+                                        <div class="text-sm text-slate-600 italic mb-2 bg-slate-50 p-2 rounded border-l-4 border-slate-300">
+                                            "${this.escapeHtml(revision.edit_comment)}"
+                                        </div>
+                                    ` : ''}
+                                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                                        <div class="text-xs text-slate-500 mb-1 font-medium">VERSE TEXT</div>
+                                        <div class="text-slate-800 text-sm leading-relaxed font-mono">
+                                            ${this.escapeHtml(revision.new_text)}
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
             </div>
         `;
-        
-        return commentDiv;
     }
     
-    // Method to add single comment (for future use when adding comments)
-    addCommentToDisplay(comment) {
-        const container = this.elements.flagComments;
+    groupConsecutiveRevisions(timeline) {
+        const grouped = [];
+        let currentRevisionGroup = null;
         
-        // If showing empty state, clear it first
-        if (container.querySelector('.text-center')) {
-            container.innerHTML = '';
+        for (const item of timeline) {
+            if (item.type === 'verse_edit') {
+                // Check if we can add to current group (same user and consecutive)
+                if (currentRevisionGroup && 
+                    currentRevisionGroup.user.id === item.user.id) {
+                    currentRevisionGroup.revisions.push(item);
+                } else {
+                    // Start new revision group
+                    if (currentRevisionGroup) {
+                        grouped.push(currentRevisionGroup);
+                    }
+                    currentRevisionGroup = {
+                        type: 'revision_group',
+                        user: item.user,
+                        revisions: [item]
+                    };
+                }
+            } else {
+                // Non-revision item, close current group if exists
+                if (currentRevisionGroup) {
+                    grouped.push(currentRevisionGroup);
+                    currentRevisionGroup = null;
+                }
+                grouped.push(item);
+            }
         }
         
-        const commentEl = this.createCommentElement(comment);
-        container.appendChild(commentEl);
+        // Don't forget the last group
+        if (currentRevisionGroup) {
+            grouped.push(currentRevisionGroup);
+        }
+        
+        return grouped;
     }
     
-    renderCommentText(text) {
-        return this.escapeHtml(text).replace(/@(\w+(?:\.\w+)*@\w+(?:\.\w+)+|\w+)/g, 
-            '<span class="text-blue-600 font-medium">@$1</span>');
+    groupConsecutiveItems(timeline) {
+        const grouped = [];
+        let currentRevisionGroup = null;
+        let currentCommentGroup = null;
+        
+        for (const item of timeline) {
+            if (item.type === 'verse_edit') {
+                // Close any current comment group
+                if (currentCommentGroup) {
+                    if (currentCommentGroup.comments.length === 1) {
+                        grouped.push(currentCommentGroup.comments[0]);
+                    } else {
+                        grouped.push(currentCommentGroup);
+                    }
+                    currentCommentGroup = null;
+                }
+                
+                // Handle revision grouping
+                if (currentRevisionGroup && 
+                    currentRevisionGroup.user.id === item.user.id) {
+                    currentRevisionGroup.revisions.push(item);
+                } else {
+                    if (currentRevisionGroup) {
+                        grouped.push(currentRevisionGroup);
+                    }
+                    currentRevisionGroup = {
+                        type: 'revision_group',
+                        user: item.user,
+                        revisions: [item]
+                    };
+                }
+            } else if (item.type === 'comment') {
+                // Close any current revision group
+                if (currentRevisionGroup) {
+                    grouped.push(currentRevisionGroup);
+                    currentRevisionGroup = null;
+                }
+                
+                // Handle comment grouping
+                if (currentCommentGroup && 
+                    currentCommentGroup.user.id === item.user.id) {
+                    currentCommentGroup.comments.push(item);
+                } else {
+                    if (currentCommentGroup) {
+                        if (currentCommentGroup.comments.length === 1) {
+                            grouped.push(currentCommentGroup.comments[0]);
+                        } else {
+                            grouped.push(currentCommentGroup);
+                        }
+                    }
+                    currentCommentGroup = {
+                        type: 'comment_group',
+                        user: item.user,
+                        comments: [item]
+                    };
+                }
+            } else {
+                // Other item types, close current groups
+                if (currentRevisionGroup) {
+                    grouped.push(currentRevisionGroup);
+                    currentRevisionGroup = null;
+                }
+                if (currentCommentGroup) {
+                    if (currentCommentGroup.comments.length === 1) {
+                        grouped.push(currentCommentGroup.comments[0]);
+                    } else {
+                        grouped.push(currentCommentGroup);
+                    }
+                    currentCommentGroup = null;
+                }
+                grouped.push(item);
+            }
+        }
+        
+        // Don't forget the last groups
+        if (currentRevisionGroup) {
+            grouped.push(currentRevisionGroup);
+        }
+        if (currentCommentGroup) {
+            if (currentCommentGroup.comments.length === 1) {
+                grouped.push(currentCommentGroup.comments[0]);
+            } else {
+                grouped.push(currentCommentGroup);
+            }
+        }
+        
+        return grouped;
     }
     
     async addComment() {
@@ -306,7 +571,7 @@ class FlagManager {
         
         if (!text) return;
         
-        // If no current flag ID, create a new thread
+        // If no current flag ID, create a new flag
         if (!this.currentFlagId) {
             await this.createNewThread(text);
             return;
@@ -322,7 +587,7 @@ class FlagManager {
             const data = await response.json();
             if (data.success) {
                 this.elements.newCommentText.value = '';
-                this.openFlagDetails(this.currentFlagId);
+                await this.openFlagDetails(this.currentFlagId);
             } else {
                 ErrorHandler.show(data.error || 'Failed to add comment');
             }
@@ -344,7 +609,7 @@ class FlagManager {
             
             const data = await response.json();
             if (data.success) {
-                this.openFlagDetails(this.currentFlagId);
+                await this.openFlagDetails(this.currentFlagId);
             } else {
                 ErrorHandler.show(data.error || 'Failed to update flag status');
             }
@@ -353,10 +618,261 @@ class FlagManager {
         }
     }
     
-    setupMentionHandlers() {
-        // Setup is done dynamically when modals are opened since elements don't exist yet
+    // Create verse cell using the same structure as text-window.js
+    async createVerseCell() {
+        if (!this.currentVerseData || !this.currentTextId) return;
+        
+        // Clear existing content
+        this.elements.flagVerseCellContainer.innerHTML = '';
+        
+        // Use the same verse cell structure as TextWindow
+        const verseWrapper = document.createElement('div');
+        verseWrapper.className = 'verse-cell relative border border-stone-300 rounded-sm overflow-hidden bg-white mb-4';
+        verseWrapper.dataset.verse = this.currentVerseData.verse;
+        verseWrapper.dataset.verseCell = 'true';
+        verseWrapper.dataset.verseIndex = this.currentVerseData.index;
+        
+        // Create navigation bar (same as text-window.js)
+        const navBar = document.createElement('div');
+        navBar.className = 'flex items-center justify-between px-3 py-0.5 bg-gray-50 border-b border-gray-200 min-h-[22px]';
+        
+        // Left side: Audio controls container (if editing is enabled)
+        const leftControlsContainer = document.createElement('div');
+        leftControlsContainer.className = 'flex items-center gap-1';
+        
+        // Center: Verse label
+        const verseLabel = document.createElement('div');
+        verseLabel.className = 'text-xs font-semibold px-2 py-1 rounded-sm text-red-600 bg-red-50 absolute left-1/2 transform -translate-x-1/2';
+        verseLabel.textContent = this.currentVerseData.reference;
+        
+        // Right side: Controls container
+        const controlsContainer = document.createElement('div');
+        controlsContainer.className = 'flex items-center gap-1';
+        
+        navBar.appendChild(leftControlsContainer);
+        navBar.appendChild(verseLabel);
+        navBar.appendChild(controlsContainer);
+        verseWrapper.appendChild(navBar);
+        
+        // Create textarea (same as text-window.js)
+        const textarea = document.createElement('textarea');
+        textarea.className = 'w-full p-4 border-0 text-base leading-7 resize-none focus:ring-0 focus:outline-none bg-white font-[\'Inter\'] overflow-hidden';
+        textarea.placeholder = `Edit verse ${this.currentVerseData.verse} or drop text here...`;
+        textarea.dataset.verse = this.currentVerseData.verse;
+        textarea.dataset.verseIndex = this.currentVerseData.index;
+        textarea.dataset.reference = this.currentVerseData.reference || `Verse ${this.currentVerseData.verse}`;
+        textarea.draggable = false;
+        
+        // Load verse content
+        await this.loadVerseContent(textarea);
+        
+        // Set proper height based on content
+        const lines = (textarea.value || '').split('\n').length;
+        const minHeight = Math.max(80, lines * 24 + 32);
+        textarea.style.height = minHeight + 'px';
+        
+        verseWrapper.appendChild(textarea);
+        
+        // Add the same controls as text-window.js
+        this.setupVerseControls(controlsContainer, leftControlsContainer, textarea, verseWrapper);
+        
+        this.elements.flagVerseCellContainer.appendChild(verseWrapper);
     }
     
+    // Setup verse controls like in text-window.js
+    setupVerseControls(rightControlsContainer, leftControlsContainer, textarea, verseWrapper) {
+        const rightFragment = document.createDocumentFragment();
+        
+        // History button (same as text-window.js)
+        const historyButton = document.createElement('button');
+        historyButton.className = 'w-6 h-6 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm hover:text-gray-600';
+        historyButton.innerHTML = '<i class="fas fa-history text-xs"></i>';
+        historyButton.title = 'View edit history';
+        historyButton.onclick = () => this.showVerseHistory();
+        rightFragment.appendChild(historyButton);
+        
+        // Audio download button (same as text-window.js)
+        const audioDownloadButton = document.createElement('button');
+        audioDownloadButton.className = 'w-6 h-6 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm hover:text-gray-600';
+        audioDownloadButton.innerHTML = '<i class="fas fa-download text-xs"></i>';
+        audioDownloadButton.title = 'Download verse audio';
+        audioDownloadButton.style.display = 'none';
+        audioDownloadButton.onclick = (e) => {
+            e.stopPropagation();
+            this.downloadVerseAudio(verseWrapper);
+        };
+        rightFragment.appendChild(audioDownloadButton);
+        verseWrapper._audioDownloadButton = audioDownloadButton;
+        
+        // Add editing controls if user can edit
+        if (window.translationEditor?.canEdit) {
+            // Audio controls on the left (same as text-window.js)
+            if (window.translationEditor.textWindows?.get(this.currentTextId)?.audioManager) {
+                const audioManager = window.translationEditor.textWindows.get(this.currentTextId).audioManager;
+                audioManager.createAudioControls(leftControlsContainer, this.currentVerseData, textarea);
+            }
+            
+            // Sparkle button (AI translate)
+            const sparkleButton = document.createElement('button');
+            sparkleButton.className = 'w-7 h-7 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm';
+            sparkleButton.innerHTML = '<i class="fas fa-magic text-sm"></i>';
+            sparkleButton.title = 'Translate this verse with AI';
+            sparkleButton.onclick = (e) => this.handleSparkleClick(e, textarea, sparkleButton);
+            rightFragment.appendChild(sparkleButton);
+            
+            // Drag handle
+            const dragHandle = document.createElement('div');
+            dragHandle.className = 'w-7 h-7 bg-gray-100 border border-gray-300 rounded-sm cursor-move flex items-center justify-center';
+            dragHandle.innerHTML = '<i class="fas fa-arrows-alt text-sm text-gray-500"></i>';
+            dragHandle.title = 'Drag to translate';
+            dragHandle.draggable = true;
+            rightFragment.appendChild(dragHandle);
+        } else {
+            // Disable editing for viewers
+            textarea.disabled = true;
+            textarea.style.backgroundColor = '#f9fafb';
+            textarea.style.cursor = 'not-allowed';
+            textarea.placeholder = 'Read-only mode - Editor access required to edit';
+        }
+        
+        rightControlsContainer.appendChild(rightFragment);
+    }
+    
+    async loadVerseContent(textarea) {
+        if (!this.currentVerseData || !this.currentTextId) return;
+        
+        try {
+            // Try to find verse content from the translation editor
+            if (window.translationEditor) {
+                const textWindow = window.translationEditor.textWindows.get(this.currentTextId);
+                if (textWindow && textWindow.element) {
+                    // Find existing textarea in the text window for this verse
+                    const existingTextarea = textWindow.element.querySelector(`textarea[data-verse-index="${this.currentVerseData.index}"]`);
+                    if (existingTextarea) {
+                        textarea.value = existingTextarea.value || '';
+                        return;
+                    }
+                    
+                    // Alternative: try finding by verse number
+                    const verseTextarea = textWindow.element.querySelector(`textarea[data-verse="${this.currentVerseData.verse}"]`);
+                    if (verseTextarea) {
+                        textarea.value = verseTextarea.value || '';
+                        return;
+                    }
+                }
+            }
+            
+            // Fallback: try to find any existing textarea with this verse anywhere in the document
+            const existingTextarea = document.querySelector(`textarea[data-verse-index="${this.currentVerseData.index}"]`);
+            if (existingTextarea && existingTextarea !== textarea) {
+                textarea.value = existingTextarea.value || '';
+                return;
+            }
+            
+            // Set empty if no content found
+            textarea.value = '';
+        } catch (error) {
+            console.error('Error loading verse content:', error);
+            textarea.value = '';
+            textarea.placeholder = 'Error loading verse content';
+        }
+    }
+    
+    showVerseHistory() {
+        // Use the same verse history system as text-window.js
+        const textId = this.currentTextId.startsWith('text_') ? 
+            parseInt(this.currentTextId.replace('text_', '')) : 
+            parseInt(this.currentTextId);
+        
+        if (!window.translationEditor.verseHistory) {
+            window.translationEditor.verseHistory = new VerseHistory(window.translationEditor);
+        }
+        
+        window.translationEditor.verseHistory.showHistory(textId, this.currentVerseData.index);
+    }
+    
+    downloadVerseAudio(verseWrapper) {
+        // Same logic as text-window.js
+        let audioControls = null;
+        const allElements = verseWrapper.querySelectorAll('*');
+        for (const el of allElements) {
+            if (el._audioId) {
+                audioControls = el;
+                break;
+            }
+        }
+        
+        if (!audioControls || !audioControls._audioId) {
+            alert('No audio file available for this verse.');
+            return;
+        }
+        
+        const projectId = window.location.pathname.split('/')[2];
+        const editor = window.translationEditor;
+        const book = editor?.currentBook || 'Unknown';
+        const chapter = editor?.currentChapter || '1';
+        
+        const link = document.createElement('a');
+        link.href = `/project/${projectId}/verse-audio/${audioControls._audioId}/download`;
+        link.download = `${book}_${chapter}_verse_${this.currentVerseData.verse}.mp3`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+    
+    async handleSparkleClick(e, textarea, sparkleButton) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Find source text from other windows (same logic as text-window.js)
+        let sourceText = '';
+        let sourceWindow = null;
+        
+        const textWindows = window.translationEditor.textWindows;
+        
+        for (const [id, textWindow] of textWindows) {
+            if (textWindow.id !== this.currentTextId) {
+                const sourceTextarea = textWindow.element?.querySelector(`textarea[data-verse="${this.currentVerseData.verse}"]`);
+                if (sourceTextarea && sourceTextarea.value?.trim()) {
+                    sourceText = sourceTextarea.value.trim();
+                    sourceWindow = textWindow;
+                    break;
+                }
+            }
+        }
+        
+        if (!sourceText) {
+            sparkleButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+            sparkleButton.style.color = '#dc2626';
+            setTimeout(() => {
+                sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+                sparkleButton.style.color = '';
+            }, 1000);
+            return;
+        }
+        
+        // Use existing translation system
+        const dragData = {
+            sourceText: sourceText,
+            sourceId: sourceWindow.id,
+            verse: this.currentVerseData.verse,
+            reference: this.currentVerseData.reference,
+            sourceType: sourceWindow.type,
+            sourceTitle: sourceWindow.title
+        };
+        
+        sparkleButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        sparkleButton.style.color = '#3b82f6';
+        
+        // Delegate to the main translation system
+        if (window.translationEditor.textWindows.get(this.currentTextId)) {
+            const textWindow = window.translationEditor.textWindows.get(this.currentTextId);
+            // Use the text window's translation system
+            // This would need to be implemented to work with the modal context
+        }
+    }
+    
+    // Mention system (simplified)
     setupMentionHandlersForTextarea(textarea) {
         if (textarea) {
             textarea.addEventListener('input', (e) => this.handleMentionInput(e));
@@ -400,7 +916,7 @@ class FlagManager {
     }
     
     showMentionDropdown(textarea, members, atPos) {
-        const dropdown = document.getElementById('mention-dropdown');
+        const dropdown = this.elements.mentionDropdown;
         
         if (members.length === 0) {
             this.hideMentionDropdown();
@@ -408,10 +924,10 @@ class FlagManager {
         }
         
         dropdown.innerHTML = members.map(member => `
-            <div class="mention-option px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm" 
+            <div class="mention-option px-3 py-2 hover:bg-red-50 cursor-pointer text-sm" 
                  data-name="${member.name}" data-email="${member.email}">
                 <div class="font-medium">${this.escapeHtml(member.name)}</div>
-                <div class="text-xs text-neutral-500">${this.escapeHtml(member.email)}</div>
+                <div class="text-xs text-slate-500">${this.escapeHtml(member.email)}</div>
             </div>
         `).join('');
         
@@ -455,11 +971,24 @@ class FlagManager {
         }
     }
     
-    getStatusClasses(status) {
-        return status === 'open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700';
+    setupCommentCharCounter() {
+        if (this.elements.newCommentText && this.elements.commentCharCount) {
+            this.elements.newCommentText.addEventListener('input', () => {
+                const count = this.elements.newCommentText.value.length;
+                this.elements.commentCharCount.textContent = count;
+                
+                if (count > 4500) {
+                    this.elements.commentCharCount.classList.add('text-red-500');
+                } else {
+                    this.elements.commentCharCount.classList.remove('text-red-500');
+                }
+            });
+        }
     }
     
-
+    getStatusClasses(status) {
+        return status === 'open' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700';
+    }
     
     formatDate(dateString) {
         const date = new Date(dateString);
@@ -484,9 +1013,61 @@ class FlagManager {
     closeFlagModal() {
         this.elements.flagModal.classList.add('hidden');
     }
+
+    getUserAvatarColor(name) {
+        // Generate consistent colors based on name hash
+        const colors = [
+            'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 
+            'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500',
+            'bg-orange-500', 'bg-cyan-500', 'bg-lime-500', 'bg-rose-500'
+        ];
+        
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) {
+            hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        
+        return colors[Math.abs(hash) % colors.length];
+    }
+    
+    getUserInitials(name) {
+        return name.split(' ')
+            .map(part => part.charAt(0))
+            .join('')
+            .substring(0, 2)
+            .toUpperCase();
+    }
+    
+    formatDiscordTimestamp(dateString) {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        
+        if (diffMs < 60000) { // Less than 1 minute
+            return 'just now';
+        } else if (diffMs < 3600000) { // Less than 1 hour
+            const minutes = Math.floor(diffMs / 60000);
+            return `${minutes}m ago`;
+        } else if (diffMs < 86400000) { // Less than 1 day
+            const hours = Math.floor(diffMs / 3600000);
+            return `${hours}h ago`;
+        } else if (diffDays === 1) {
+            return 'yesterday';
+        } else if (diffDays < 7) {
+            return `${diffDays} days ago`;
+        } else {
+            // Show date in MM/DD/YYYY format
+            return date.toLocaleDateString('en-US', {
+                month: 'numeric',
+                day: 'numeric',
+                year: 'numeric'
+            });
+        }
+    }
 }
 
-// Module pattern to avoid global pollution
+// Module pattern
 const FlagManagerModule = (() => {
     let instance;
     
@@ -497,18 +1078,18 @@ const FlagManagerModule = (() => {
         return instance;
     }
     
-    // Public API
     return {
         openFlagDetails: (flagId) => getInstance().openFlagDetails(flagId),
         showNewThreadForm: () => getInstance().showNewThreadForm(),
         addComment: () => getInstance().addComment(),
         toggleFlagStatus: () => getInstance().toggleFlagStatus(),
         closeFlagModal: () => getInstance().closeFlagModal(),
-        openFlagModal: (verseData, textId) => getInstance().openFlagModal(verseData, textId)
+        openFlagModal: (verseData, textId) => getInstance().openFlagModal(verseData, textId),
+        showFlagModalView: (view) => getInstance().showFlagModalView(view)
     };
 })();
 
-// Global functions for template compatibility (cleaner than updating all templates)
+// Global functions for template compatibility
 function openFlagDetails(flagId) {
     FlagManagerModule.openFlagDetails(flagId);
 }
@@ -527,6 +1108,14 @@ function toggleFlagStatus() {
 
 function closeFlagModal() {
     FlagManagerModule.closeFlagModal();
+}
+
+function openFlagModal(verseData, textId) {
+    FlagManagerModule.openFlagModal(verseData, textId);
+}
+
+function showFlagModalView(view) {
+    FlagManagerModule.showFlagModalView(view);
 }
 
 // Export for other modules

@@ -1,249 +1,127 @@
-/* Translation Editor Styles - Extracted from template */
+/* Translation Editor Styles - Ultra Simplified */
 
-/* PERFORMANCE OPTIMIZATIONS */
-/* Use CSS containment to improve rendering performance */
-.translation-editor {
-    /* Remove expensive containment and will-change */
+/* Stop page scrolling, let content scroll */
+body.translation-page {
+    overflow: hidden;
+    height: 100vh;
 }
 
-/* Optimize text rendering for large content */
-.text-window {
-    /* Remove expensive containment and will-change */
+/* Ensure text workspace has proper height constraints */
+#text-workspace {
+    height: calc(100vh - 120px); /* Account for header and padding */
+    min-height: 0;
 }
 
-/* Reduce repaints during scrolling */
-.verse-cell {
-    /* Remove expensive transforms and containment */
-    width: 100%;
-    margin-bottom: 1rem;
+/* Text areas should fill available height but not exceed it */
+#primary-text-area,
+#secondary-texts-area {
+    height: 100%;
+    min-height: 0;
 }
 
-/* Custom Dropdown Styles */
+/* Containers within text areas should be constrained */
+#primary-text-container,
+#secondary-texts-container {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Prevent any overflow at this level */
+}
+
+/* Make text content areas properly flexible and scrollable */
+/* Text window containers should be height-constrained */
+[data-window-id], 
+[data-text-id] {
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+[data-window-content] {
+    flex: 1 1 auto;
+    min-height: 0; /* Critical for flex containers to allow scrolling */
+    height: 0; /* Force it to respect flex instead of content */
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Basic dropdown styling */
 .dropdown-option {
-    transition: all 0.15s ease-in-out;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-weight: 500;
-    letter-spacing: -0.025em;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid #e5e7eb;
 }
 
 .dropdown-option:hover {
     background-color: #f8fafc;
-    transform: translateX(2px);
-    box-shadow: inset 3px 0 0 #3b82f6;
 }
 
-.dropdown-option:active {
-    background-color: #e2e8f0;
-    transform: translateX(1px);
-}
-
-.dropdown-option:first-child {
-    border-top-left-radius: 0.5rem;
-    border-top-right-radius: 0.5rem;
-}
-
-.dropdown-option:last-child {
-    border-bottom-left-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-    border-bottom: none;
-}
-
-/* Dropdown scrollbar styling */
-[id$="-dropdown"]::-webkit-scrollbar {
-    width: 6px;
-}
-
-[id$="-dropdown"]::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 3px;
-}
-
-[id$="-dropdown"]::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
-
-[id$="-dropdown"]::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-}
-
-/* Enhanced dropdown container styling */
+/* Dropdown containers */
 [id$="-dropdown"] {
+    background: white;
     border: 1px solid #e5e7eb;
-    box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    backdrop-filter: blur(8px);
-    background-color: rgba(255, 255, 255, 0.95);
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    max-height: 200px;
+    overflow-y: auto;
 }
 
-/* Dropdown animation */
-[id$="-dropdown"] {
-    transform-origin: top;
-    animation: dropdown-appear 0.15s ease-out;
-}
-
-@keyframes dropdown-appear {
-    from {
-        opacity: 0;
-        transform: translateY(-4px) scaleY(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scaleY(1);
-    }
-}
-
-/* Chevron rotation animation */
-[id$="-chevron"] {
-    transition: transform 0.2s ease-in-out;
-}
-
-/* CRITICAL: Optimize textarea performance for better INP */
-.text-window textarea {
-    width: 100% !important;
-    box-sizing: border-box;
-    min-height: 80px;
+/* Simple textarea styling */
+textarea {
     resize: none;
-    /* Remove all expensive properties */
-    
-    /* PERFORMANCE: Ensure full width and proper sizing */
-    display: block;
-    margin: 0;
-    padding: 1rem;
-    border: none;
-    outline: none;
-    font-family: 'Inter', sans-serif;
-    font-size: 1rem;
-    line-height: 1.75;
-    overflow-y: auto;
-    overflow-x: hidden;
-    
-    /* PERFORMANCE: Smooth scrolling within textareas */
-    scroll-behavior: auto; /* Disable smooth scroll for input responsiveness */
-    -webkit-overflow-scrolling: touch;
-    
-    /* PERFORMANCE: Prevent scroll jank during input */
-    contain: layout;
-    transform: translateZ(0);
-}
-
-/* PERFORMANCE: Disable any expand/contract behavior */
-.verse-cell.expanded textarea,
-.verse-cell textarea {
-    width: 100% !important;
-    /* Prevent any size changes on focus/blur */
-}
-
-.verse-cell.expanded {
-    /* Remove any expanded state styling that might affect layout */
-}
-
-.verse-cell {
-    /* Ensure consistent verse cell sizing */
     width: 100%;
-    margin-bottom: 1rem;
+    min-height: 80px;
 }
 
-/* PERFORMANCE: Simple focus states */
-.text-window textarea:focus {
-    outline: 1px solid #3b82f6;
-    border-color: #3b82f6;
+textarea:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: -2px;
 }
 
-/* PERFORMANCE: Optimize highlighted verses */
-.text-window textarea.highlighted {
-    /* Use transform instead of changing border properties */
-    transform: translateZ(0) scale(1.01);
-    /* Avoid expensive background changes */
-    background-color: #f8fafc;
-    /* Simple border change */
-    border-color: #64748b;
+/* Drag and drop feedback */
+.verse-collected {
+    opacity: 0.5;
+    border-style: dashed !important;
 }
 
-/* PERFORMANCE: Optimize verse cells for better input performance */
-.verse-cell {
-    /* Ensure consistent verse cell sizing */
-    width: 100%;
-    margin-bottom: 1rem;
-    
-    /* PERFORMANCE: Optimize for smooth scrolling */
-    contain: layout style;
-    transform: translateZ(0);
-    
-    /* PERFORMANCE: Prevent layout shifts during scrolling */
-    min-height: 120px; /* Consistent minimum height */
-    
-    /* PERFORMANCE: Optimize rendering pipeline */
-    content-visibility: auto;
-    contain-intrinsic-size: 0 120px;
+.drop-target-hint {
+    border: 2px solid #10b981 !important;
+    background-color: #f0fdf4 !important;
 }
 
-/* PERFORMANCE: Optimize input composition (IME) */
-.text-window textarea:focus {
-    /* Better IME composition performance */
-    ime-mode: active;
-    composition-event: auto;
-}
-
-/* PERFORMANCE: Optimize for mobile input */
+/* Mobile adjustments */
 @media (max-width: 767px) {
-    .text-window textarea {
-        /* Reduce font size for better mobile performance */
-        font-size: 16px; /* Prevents zoom on iOS */
-        /* Optimize touch input */
-        touch-action: manipulation;
-        /* Reduce layout complexity */
-        line-height: 1.4;
+    #text-workspace {
+        height: calc(100vh - 80px); /* Smaller header on mobile */
     }
     
-    /* PERFORMANCE: Simplify mobile interactions */
-    .text-window textarea:focus {
-        /* Disable zoom and other expensive mobile behaviors */
-        user-select: text;
-        -webkit-user-select: text;
-        -webkit-touch-callout: none;
+    [data-window-content] {
+        /* Keep flex behavior on mobile too */
+        flex: 1;
+        min-height: 0;
+        max-height: 100%;
     }
     
-    /* Mobile dropdown adjustments */
-    [id$="-dropdown"] {
-        max-height: 200px; /* Smaller on mobile */
-        font-size: 14px;
+    .translation-sidebar {
+        width: 80vw;
     }
     
-    .dropdown-option {
-        padding: 0.75rem 1rem; /* Larger touch targets */
+    textarea {
+        font-size: 16px; /* Prevent zoom on iOS */
     }
 }
 
-/* PERFORMANCE: Simple scroll containers */
-[data-window-content] {
-    width: 100%;
-    box-sizing: border-box;
-    /* PERFORMANCE: Smooth scrolling optimizations */
-    overflow-y: auto;
-    overflow-x: hidden;
-    scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch; /* iOS smooth scrolling */
-    
-    /* PERFORMANCE: GPU acceleration for smooth scrolling */
-    transform: translateZ(0);
-    will-change: scroll-position;
-    
-    /* PERFORMANCE: Reduce scroll jank */
-    contain: layout;
-    isolation: isolate;
-    
-    /* PERFORMANCE: Optimize scroll performance */
-    scrollbar-width: thin;
-    scrollbar-color: #cbd5e0 #f7fafc;
+/* Ensure verse cells don't break scrolling */
+.verse-cell {
+    flex-shrink: 0; /* Don't shrink verse cells */
+    max-width: 100%; /* But constrain width */
 }
 
-/* PERFORMANCE: Optimize scrollbar for WebKit browsers */
+/* Clean scrollbars */
 [data-window-content]::-webkit-scrollbar {
     width: 8px;
-}
-
-[data-window-content]::-webkit-scrollbar-track {
-    background: #f7fafc;
 }
 
 [data-window-content]::-webkit-scrollbar-thumb {
@@ -252,290 +130,15 @@
 }
 
 [data-window-content]::-webkit-scrollbar-thumb:hover {
-    background: #a0aec0;
+    background: #94a3b8;
 }
 
-/* Ensure text windows take full width */
-.text-window,
-[data-window-id] {
-    width: 100%;
-    box-sizing: border-box;
-}
-
-/* Progressive loading styles */
-.loading-sentinel {
-    width: 100%;
-    padding: 1rem;
-    text-align: center;
-    border-top: 1px solid #e5e7eb;
-    margin-top: 1rem;
-}
-
-/* Ensure proper spacing in text workspace */
-#text-workspace {
-    width: 100%;
-    height: 100%;
-}
-
-#primary-text-area,
-#secondary-texts-area {
-    width: 100%;
-    height: 100%;
-    box-sizing: border-box;
-}
-
-/* Fix container spacing */
-#primary-text-container,
-#secondary-texts-container {
-    width: 100%;
-    height: 100%;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-}
-
-/* Global overrides for translation page */
-body.translation-page {
+/* Line clamp utility for flag modal */
+.line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-}
-
-body.translation-page footer,
-body.translation-page .footer,
-body.translation-page #footer {
-    display: none !important;
-}
-
-body.translation-page main,
-body.translation-page .main-content,
-body.translation-page #main-content {
-    height: 100vh !important;
-    max-height: 100vh !important;
-}
-
-
-
-/* Drag and Drop Features */
-.verse-collected {
-    opacity: 0.5;
-    border-style: dashed !important;
-}
-
-.drop-target-hint {
-    border: 3px solid rgba(16, 185, 129, 0.5);
-    background-color: #f0fdf4 !important;
-}
-
-.sparkle-translate-btn,
-.sparkle-drag-handle {
-    background: rgba(255, 255, 255, 0.8);
-    border-radius: 4px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    min-width: 44px;
-    min-height: 44px;
-}
-
-/* Mobile Responsive Styles - OPTIMIZED */
-@media (max-width: 767px) {
-    /* PERFORMANCE: Reduce animations on mobile to improve performance */
-    * {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-    }
-    
-    /* PERFORMANCE: Use transform3d for better mobile performance */
-    .translation-sidebar {
-        transform: translate3d(-100%, 0, 0);
-        will-change: transform;
-    }
-    
-    .translation-sidebar:not(.-translate-x-full) {
-        transform: translate3d(0, 0, 0);
-    }
-    
-    /* Keep sitewide navigation visible on desktop for translation page */
-    /* Only hide it on very small screens if needed */
-    
-    body.translation-page main {
-        padding-top: 0 !important;
-    }
-    
-    .main-content-wrapper {
-        margin-top: 0 !important;
-    }
-    
-    /* Reduce overall paddings */
-    .translation-sidebar {
-        padding: 0.5rem;
-    }
-    
-    #text-workspace {
-        margin: 0;
-    }
-    
-    /* Tighten empty states */
-    .py-8 {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    
-    .translation-sidebar {
-        width: 80vw;
-    }
-
-    .sidebar-backdrop {
-        background: rgba(0, 0, 0, 0.5);
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        width: 100vw;
-        height: 100vh;
-        z-index: 40;
-        display: none;
-    }
-
-    .sidebar-backdrop:not(.hidden) {
-        display: block;
-    }
-
-    /* Full-screen modals on mobile */
-    #new-translation-modal > div,
-    #text-selection-modal > div,
-    #audio-tuning-modal > div {
-        width: 100vw;
-        height: 100vh;
-        max-width: none;
-        max-height: none;
-        border-radius: 0;
-        margin: 0;
-        padding: 1rem;
-    }
-
-    /* Adjust padding and sizes for mobile */
-    .p-6 {
-        padding: 1rem;
-    }
-
-    .p-4 {
-        padding: 0.75rem;
-    }
-
-    /* Make buttons and interactive elements larger for touch */
-    button, .btn {
-        min-height: 44px;
-        padding: 0.75rem 1rem;
-    }
-
-    /* Adjust modal content for mobile */
-    .modal-content {
-        padding: 1rem;
-    }
-
-    /* Hide desktop-only elements */
-    .hidden-mobile {
-        display: none;
-    }
-
-    /* Stack elements vertically on mobile */
-    .mobile-stack {
-        flex-direction: column;
-    }
-
-    /* Reduce font sizes slightly for mobile */
-    .text-sm {
-        font-size: 0.825rem;
-    }
-
-    /* Ensure touch targets are large enough */
-    textarea {
-        min-height: 2.5rem;
-        padding: 0.75rem;
-    }
-}
-
-/* General modal adjustments */
-.fixed.inset-0 {
-    overflow-y: auto;
-}
-
-/* Improve touch targets */
-button, select, input {
-    min-height: 44px;
-    min-width: 44px;
-}
-
-/* Translation page gradient background - moved from inline styles */
-#translation-gradient {
-    background: linear-gradient(135deg, 
-        #fafafa 0%,           /* Very light gray */
-        #f5f5f5 20%,          /* Light gray */
-        #e8f4f8 50%,          /* Very light blue */
-        #f0f9ff 80%,          /* Light sky blue */
-        #fafafa 100%          /* Back to light gray */
-    );
-    background-size: 100% 200vh;
-    background-attachment: fixed;
-    background-repeat: no-repeat;
-}
-
-/* Minimal nav on mobile for translation page - only keep notification bell */
-@media (max-width: 767px) {
-    /* Hide logo and FAQ link */
-    body.translation-page nav a[href*="main.index"],
-    body.translation-page nav a[href*="faq"] {
-        display: none;
-    }
-    /* Hide user dropdown (3rd child in the gap-4 container) */
-    body.translation-page nav .flex.items-center.gap-4 > :nth-child(3) {
-        display: none;
-    }
-    body.translation-page nav {
-        padding: 0.5rem 1rem;
-        min-height: auto;
-    }
-    body.translation-page nav .flex.items-center.justify-between {
-        justify-content: flex-end;
-    }
-    body.translation-page main {
-        padding-top: 0 !important;
-    }
-}
-
-/* PERFORMANCE: Ultra-simple textarea optimizations */
-textarea {
-    will-change: auto; /* Remove will-change to reduce GPU overhead */
-    contain: none; /* Remove containment for now */
-    transform: none; /* Remove transform to reduce compositing */
-}
-
-/* PERFORMANCE: Disable expensive focus effects */
-textarea:focus {
-    outline: 1px solid #3b82f6; /* Simple outline instead of complex shadows */
-    box-shadow: none; /* Remove shadow for better performance */
-}
-
-/* PERFORMANCE: Disable animations during input */
-textarea.highlighted {
-    animation: none !important;
-    transition: none !important;
-}
-
-/* Simple collapsed sidebar */
-.sidebar-collapsed #sidebar-content {
-    display: none;
-}
-
-/* Smooth transitions for sidebar collapse */
-.translation-sidebar {
-    transition: width 0.3s ease-in-out;
-}
-
-/* Ensure text workspace fills remaining space */
-#text-workspace {
-    flex: 1;
-    transition: margin-left 0.3s ease-in-out;
 }
 
  

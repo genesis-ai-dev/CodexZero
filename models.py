@@ -457,6 +457,32 @@ class FlagMention(db.Model):
         return f'<FlagMention {self.comment_id}:{self.mentioned_user_id}>'
 
 
+class FlagResolution(db.Model):
+    __tablename__ = 'flag_resolutions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    flag_id = db.Column(db.Integer, db.ForeignKey('verse_flags.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    # Resolution status - 'resolved', 'unresolved', 'not_relevant'
+    status = db.Column(db.Enum('resolved', 'unresolved', 'not_relevant'), nullable=False, default='unresolved')
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    flag = db.relationship('VerseFlag', backref=db.backref('resolutions', lazy='dynamic'))
+    user = db.relationship('User', backref='flag_resolutions')
+    
+    __table_args__ = (
+        db.UniqueConstraint('flag_id', 'user_id', name='unique_flag_user_resolution'),
+        db.Index('idx_flag_resolutions', 'flag_id', 'user_id'),
+    )
+    
+    def __repr__(self):
+        return f'<FlagResolution {self.flag_id}:{self.user_id} ({self.status})>'
+
+
 class UserNotification(db.Model):
     __tablename__ = 'user_notifications'
     

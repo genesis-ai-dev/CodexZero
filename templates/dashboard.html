@@ -18,13 +18,7 @@
     background-repeat: no-repeat;
 }
 
-/* Mobile-first responsive design */
-@media (max-width: 768px) {
-    .mentions-sidebar {
-        max-height: 300px;
-        overflow-y: auto;
-    }
-}
+
 </style>
 {% endblock %}
 
@@ -48,30 +42,8 @@
             </a>
         </div>
         
-        <!-- Main Layout: Sidebar + Content -->
-        <div class="flex flex-col lg:flex-row gap-6 lg:gap-8">
-            <!-- Mentions Sidebar -->
-            <div class="w-full lg:w-80 lg:flex-shrink-0 order-2 lg:order-1">
-                <div class="bg-white rounded-2xl border border-neutral-200 shadow-lg h-fit lg:sticky lg:top-6">
-                    <div class="p-4 lg:p-6">
-                        <div class="flex items-center justify-between mb-4 lg:mb-6">
-                            <h2 class="text-lg lg:text-2xl font-bold text-neutral-900">Recent Mentions</h2>
-                            <span id="mentions-loading" class="text-sm text-neutral-500">Loading...</span>
-                        </div>
-                        <div id="mentions-content" class="mentions-sidebar">
-                            <!-- Mentions will be loaded here -->
-                        </div>
-                        <div id="mentions-pagination" class="hidden mt-4 lg:mt-6 flex items-center justify-center">
-                            <button id="load-more-mentions" class="px-4 lg:px-6 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition-all duration-200 font-medium text-sm">
-                                Load More
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Projects Section -->
-            <div class="flex-1 order-1 lg:order-2">
+        <!-- Projects Section -->
+        <div>
                 {% if projects %}
                     <div class="grid gap-6 lg:gap-8 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
                         {% for project in projects %}
@@ -168,185 +140,8 @@
                         </div>
                     </div>
                 {% endif %}
-            </div>
         </div>
     </div>
 </section>
 
-{% block scripts %}
-<script>
-class DashboardMentions {
-    constructor() {
-        this.content = document.getElementById('mentions-content');
-        this.loading = document.getElementById('mentions-loading');
-        this.pagination = document.getElementById('mentions-pagination');
-        this.loadMoreBtn = document.getElementById('load-more-mentions');
-        
-        this.currentPage = 1;
-        this.hasMore = true;
-        this.isLoading = false;
-        
-        this.init();
-    }
-    
-    init() {
-        if (!this.content) return;
-        
-        // Load initial mentions
-        this.loadMentions();
-        
-        // Load more button
-        if (this.loadMoreBtn) {
-            this.loadMoreBtn.addEventListener('click', () => {
-                this.loadMentions(this.currentPage + 1);
-            });
-        }
-    }
-    
-    async loadMentions(page = 1) {
-        if (this.isLoading) return;
-        
-        this.isLoading = true;
-        this.showLoading();
-        
-        try {
-            const response = await fetch(`/api/dashboard/mentions?page=${page}`);
-            if (!response.ok) throw new Error('Failed to load mentions');
-            
-            const data = await response.json();
-            
-            if (page === 1) {
-                this.renderMentions(data.mentions);
-            } else {
-                this.appendMentions(data.mentions);
-            }
-            
-            this.currentPage = page;
-            this.hasMore = data.has_more;
-            this.updatePagination();
-            
-        } catch (error) {
-            console.error('Error loading mentions:', error);
-            this.showError();
-        } finally {
-            this.isLoading = false;
-            this.hideLoading();
-        }
-    }
-    
-    renderMentions(mentions) {
-        if (mentions.length === 0) {
-            this.content.innerHTML = `
-                <div class="text-center py-8 lg:py-12 text-neutral-500">
-                    <i class="fas fa-at text-2xl lg:text-3xl mb-3 lg:mb-4"></i>
-                    <p class="text-base lg:text-lg font-medium mb-2">No mentions yet</p>
-                    <p class="text-xs lg:text-sm">You'll see mentions from flag comments here</p>
-                </div>
-            `;
-            return;
-        }
-        
-        this.content.innerHTML = this.generateMentionsHTML(mentions);
-    }
-    
-    appendMentions(mentions) {
-        if (mentions.length === 0) return;
-        
-        const mentionsHTML = this.generateMentionsHTML(mentions);
-        this.content.insertAdjacentHTML('beforeend', mentionsHTML);
-    }
-    
-    generateMentionsHTML(mentions) {
-        return mentions.map(mention => {
-            const timeAgo = this.formatTimeAgo(mention.created_at);
-            const isUnread = !mention.is_read;
-            
-            return `
-                <div class="mention-item border-b border-neutral-100 last:border-b-0 ${isUnread ? 'bg-blue-50' : ''}" data-id="${mention.id}">
-                    <a href="${mention.deep_link_url}" class="block p-3 lg:p-4 hover:bg-neutral-50 transition-colors">
-                        <div class="flex items-start gap-3">
-                            <div class="flex-shrink-0 mt-1">
-                                <div class="w-8 lg:w-10 h-8 lg:h-10 bg-blue-100 border border-blue-200 rounded-lg flex items-center justify-center">
-                                    <i class="fas fa-at text-blue-600 text-sm lg:text-base"></i>
-                                </div>
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2 mb-1 lg:mb-2">
-                                    <h3 class="text-xs lg:text-sm font-semibold text-neutral-900 ${isUnread ? 'font-bold' : ''} truncate">${mention.title}</h3>
-                                    ${isUnread ? '<div class="w-1.5 lg:w-2 h-1.5 lg:h-2 bg-blue-500 rounded-full flex-shrink-0"></div>' : ''}
-                                </div>
-                                <p class="text-xs lg:text-sm text-neutral-600 mb-1 lg:mb-2 line-clamp-2">${mention.message}</p>
-                                <div class="flex items-center gap-2 lg:gap-4 text-xs text-neutral-500">
-                                    <span class="truncate"><i class="fas fa-project-diagram mr-1"></i>${mention.project_name}</span>
-                                    <span class="whitespace-nowrap"><i class="fas fa-clock mr-1"></i>${timeAgo}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </a>
-                </div>
-            `;
-        }).join('');
-    }
-    
-    formatTimeAgo(dateString) {
-        const date = new Date(dateString);
-        const now = new Date();
-        const diff = now - date;
-        
-        const minutes = Math.floor(diff / 60000);
-        const hours = Math.floor(diff / 3600000);
-        const days = Math.floor(diff / 86400000);
-        
-        if (minutes < 1) return 'Just now';
-        if (minutes < 60) return `${minutes}m ago`;
-        if (hours < 24) return `${hours}h ago`;
-        if (days < 7) return `${days}d ago`;
-        return date.toLocaleDateString();
-    }
-    
-    showLoading() {
-        if (this.loading) {
-            this.loading.textContent = 'Loading...';
-            this.loading.classList.remove('hidden');
-        }
-    }
-    
-    hideLoading() {
-        if (this.loading) {
-            this.loading.classList.add('hidden');
-        }
-    }
-    
-    showError() {
-        if (this.content) {
-            this.content.innerHTML = `
-                <div class="text-center py-6 lg:py-8 text-neutral-500">
-                    <i class="fas fa-exclamation-triangle text-lg lg:text-2xl mb-2"></i>
-                    <p class="text-xs lg:text-sm">Failed to load mentions</p>
-                </div>
-            `;
-        }
-    }
-    
-    updatePagination() {
-        if (!this.pagination) return;
-        
-        if (this.hasMore) {
-            this.pagination.classList.remove('hidden');
-            if (this.loadMoreBtn) {
-                this.loadMoreBtn.disabled = this.isLoading;
-                this.loadMoreBtn.textContent = this.isLoading ? 'Loading...' : 'Load More';
-            }
-        } else {
-            this.pagination.classList.add('hidden');
-        }
-    }
-}
-
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    new DashboardMentions();
-});
-</script>
-{% endblock %}
 {% endblock %} 

@@ -172,6 +172,21 @@ def create_app():
             except Exception as e:
                 print(f"Notifications migration warning: {e}")
                 
+            # 4. Ensure flag_resolutions table exists
+            try:
+                from sqlalchemy import text
+                # Check if flag_resolutions table exists
+                result = db.session.execute(text("SHOW TABLES LIKE 'flag_resolutions'"))
+                if not result.fetchone():
+                    # Create the table - db.create_all() should handle this
+                    db.create_all()
+                    print("✓ Created flag_resolutions table")
+                else:
+                    print("✓ flag_resolutions table already exists")
+                    
+            except Exception as e:
+                print(f"Flag resolutions migration warning: {e}")
+                
             print("Migrations completed!")
             
         except Exception as e:

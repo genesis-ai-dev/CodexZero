@@ -1,10 +1,10 @@
 import re
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, render_template
 from flask_login import login_required, current_user
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import joinedload
 
-from models import db, Project, VerseFlag, VerseFlagAssociation, FlagComment, FlagMention, User
+from models import db, Project, VerseFlag, VerseFlagAssociation, FlagComment, FlagMention, User, FlagResolution, ProjectMember, VerseEditHistory
 from utils.project_access import require_project_access, ProjectAccess
 from utils import validate_and_sanitize_request, error_response, success_response
 from routes.notifications import create_mention_notifications, create_flag_created_notifications
@@ -49,6 +49,18 @@ def get_verse_flags(project_id, text_id, verse_index):
             associations_by_flag[assoc.flag_id] = []
         associations_by_flag[assoc.flag_id].append(assoc)
     
+    # Bulk load resolutions for all flags
+    all_resolutions = FlagResolution.query.options(
+        joinedload(FlagResolution.user)
+    ).filter(
+        FlagResolution.flag_id.in_(flag_ids_list)
+    ).all()
+    resolutions_by_flag = {}
+    for res in all_resolutions:
+        if res.flag_id not in resolutions_by_flag:
+            resolutions_by_flag[res.flag_id] = []
+        resolutions_by_flag[res.flag_id].append(res)
+    
     flags_data = []
     for flag in flag_list:
         # Use the dynamic relationship to get comments
@@ -56,6 +68,25 @@ def get_verse_flags(project_id, text_id, verse_index):
         
         # Get associations for this flag
         flag_associations = associations_by_flag.get(flag.id, [])
+        
+        # Get resolutions for this flag
+        flag_resolutions = resolutions_by_flag.get(flag.id, [])
+        resolution_data = [
+            {
+                'user_id': res.user.id,
+                'user_name': res.user.name,
+                'user_email': res.user.email,
+                'status': res.status,
+                'resolved_at': res.resolved_at.isoformat() if res.resolved_at else None
+            }
+            for res in flag_resolutions
+        ]
+        
+        # Check current user's resolution
+        current_user_resolution = next(
+            (res for res in flag_resolutions if res.user_id == current_user.id),
+            None
+        )
         
         flags_data.append({
             'id': flag.id,
@@ -72,7 +103,12 @@ def get_verse_flags(project_id, text_id, verse_index):
             'verses': [
                 {'text_id': assoc.text_id, 'verse_index': assoc.verse_index}
                 for assoc in flag_associations
-            ]
+            ],
+            'resolutions': resolution_data,
+            'current_user_resolution': {
+                'status': current_user_resolution.status,
+                'resolved_at': current_user_resolution.resolved_at.isoformat() if current_user_resolution and current_user_resolution.resolved_at else None
+            } if current_user_resolution else None
         })
     
     return jsonify({'flags': flags_data})
@@ -168,7 +204,12 @@ def get_flag_details(project_id, flag_id):
             mentions_by_comment[mention.comment_id] = []
         mentions_by_comment[mention.comment_id].append(mention)
     
-    comments_data = []
+    # Get verse edits for all associated verses
+    associations = VerseFlagAssociation.query.filter_by(flag_id=flag_id).all()
+    
+    timeline_items = []
+    
+    # Add comments to timeline
     for comment in comments:
         comment_mentions = mentions_by_comment.get(comment.id, [])
         mentions = [
@@ -180,7 +221,8 @@ def get_flag_details(project_id, flag_id):
             for mention in comment_mentions
         ]
         
-        comments_data.append({
+        timeline_items.append({
+            'type': 'comment',
             'id': comment.id,
             'user': {
                 'id': comment.user.id,
@@ -188,17 +230,94 @@ def get_flag_details(project_id, flag_id):
                 'email': comment.user.email
             },
             'text': comment.comment_text,
-            'created_at': comment.created_at.isoformat(),
-            'edited_at': comment.edited_at.isoformat() if comment.edited_at else None,
+            'created_at': comment.created_at,
+            'edited_at': comment.edited_at,
             'mentions': mentions
         })
     
+    # Get verse edits for the primary verse (first association)
+    if associations:
+        primary_assoc = associations[0]
+        
+        # Get text_id from the association's text_id field
+        # Need to extract numeric ID if it's in format like "text_123"
+        text_id_str = primary_assoc.text_id
+        numeric_text_id = None
+        
+        try:
+            if text_id_str.startswith('text_'):
+                numeric_text_id = int(text_id_str.replace('text_', ''))
+            else:
+                # Try to parse as integer directly for legacy compatibility
+                numeric_text_id = int(text_id_str)
+        except (ValueError, AttributeError):
+            # If we can't parse the text_id, skip verse edits
+            numeric_text_id = None
+        
+        if numeric_text_id is not None:
+            # Get verse edits within the flag's lifecycle
+            edits = VerseEditHistory.query.options(
+                joinedload(VerseEditHistory.editor)
+            ).filter(
+                VerseEditHistory.text_id == numeric_text_id,
+                VerseEditHistory.verse_index == primary_assoc.verse_index,
+                VerseEditHistory.edited_at >= flag.created_at
+            ).all()
+            
+            # Add edits to timeline
+            for edit in edits:
+                timeline_items.append({
+                    'type': 'verse_edit',
+                    'id': edit.id,
+                    'user': {
+                        'id': edit.editor.id,
+                        'name': edit.editor.name,
+                        'email': edit.editor.email
+                    },
+                    'previous_text': edit.previous_text,
+                    'new_text': edit.new_text,
+                    'created_at': edit.edited_at,
+                    'edit_type': edit.edit_type,
+                    'edit_source': edit.edit_source,
+                    'edit_comment': edit.edit_comment
+                })
+    
+    # Sort timeline by created_at
+    timeline_items.sort(key=lambda x: x['created_at'])
+    
+    # Convert datetime objects to ISO format strings
+    for item in timeline_items:
+        item['created_at'] = item['created_at'].isoformat()
+        if item.get('edited_at'):
+            item['edited_at'] = item['edited_at'].isoformat() if item['edited_at'] else None
+    
     # Get associations in a separate query to avoid N+1
-    associations = VerseFlagAssociation.query.filter_by(flag_id=flag_id).all()
     verses = [
         {'text_id': assoc.text_id, 'verse_index': assoc.verse_index}
         for assoc in associations
     ]
+    
+    # Get resolution status for current user and all involved users
+    resolutions = FlagResolution.query.options(
+        joinedload(FlagResolution.user)
+    ).filter_by(flag_id=flag_id).all()
+    
+    resolution_data = [
+        {
+            'user_id': res.user.id,
+            'user_name': res.user.name,
+            'user_email': res.user.email,
+            'status': res.status,
+            'resolved_at': res.resolved_at.isoformat() if res.resolved_at else None
+        }
+        for res in resolutions
+    ]
+    
+    # Check if current user has a resolution
+    current_user_resolution = next(
+        (res for res in resolutions if res.user_id == current_user.id), 
+        None
+    )
     
     return jsonify({
         'id': flag.id,
@@ -211,7 +330,12 @@ def get_flag_details(project_id, flag_id):
         'created_at': flag.created_at.isoformat(),
         'closed_at': flag.closed_at.isoformat() if flag.closed_at else None,
         'verses': verses,
-        'comments': comments_data
+        'timeline': timeline_items,
+        'resolutions': resolution_data,
+        'current_user_resolution': {
+            'status': current_user_resolution.status,
+            'resolved_at': current_user_resolution.resolved_at.isoformat() if current_user_resolution and current_user_resolution.resolved_at else None
+        } if current_user_resolution else None
     })
 
 
@@ -361,6 +485,148 @@ def get_project_members_for_mentions(project_id):
     return jsonify({'members': members})
 
 
+@flags.route('/project/<int:project_id>/flags/all')
+@login_required
+def get_project_flags(project_id):
+    """Get all flags for a project with filtering and sorting options"""
+    require_project_access(project_id, "viewer")
+    
+    # Get query parameters
+    status_filter = request.args.get('status', 'all')  # all, open, closed
+    sort_by = request.args.get('sort', 'newest')  # newest, oldest, most-comments
+    page = request.args.get('page', 1, type=int)
+    per_page = min(request.args.get('per_page', 20, type=int), 50)  # Cap at 50
+    
+    # Start with base query
+    flags_query = VerseFlag.query.options(
+        joinedload(VerseFlag.creator),
+        joinedload(VerseFlag.closer)
+    ).filter(VerseFlag.project_id == project_id)
+    
+    # Apply status filter
+    if status_filter == 'open':
+        flags_query = flags_query.filter(VerseFlag.status == 'open')
+    elif status_filter == 'closed':
+        flags_query = flags_query.filter(VerseFlag.status == 'closed')
+    
+    # Apply sorting
+    if sort_by == 'oldest':
+        flags_query = flags_query.order_by(VerseFlag.created_at.asc())
+    elif sort_by == 'most-comments':
+        # Join with comments to count them
+        from sqlalchemy import func
+        flags_query = flags_query.outerjoin(FlagComment).group_by(VerseFlag.id).order_by(
+            func.count(FlagComment.id).desc(), VerseFlag.created_at.desc()
+        )
+    else:  # newest (default)
+        flags_query = flags_query.order_by(VerseFlag.created_at.desc())
+    
+    # Get paginated results
+    flags_pagination = flags_query.paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    flags_list = flags_pagination.items
+    
+    # Get flag IDs for bulk loading
+    flag_ids = [flag.id for flag in flags_list]
+    
+    # Bulk load associations
+    all_associations = VerseFlagAssociation.query.filter(
+        VerseFlagAssociation.flag_id.in_(flag_ids)
+    ).all() if flag_ids else []
+    associations_by_flag = {}
+    for assoc in all_associations:
+        if assoc.flag_id not in associations_by_flag:
+            associations_by_flag[assoc.flag_id] = []
+        associations_by_flag[assoc.flag_id].append(assoc)
+    
+    # Bulk load comment counts
+    from sqlalchemy import func
+    comment_counts = dict(
+        db.session.query(FlagComment.flag_id, func.count(FlagComment.id))
+        .filter(FlagComment.flag_id.in_(flag_ids))
+        .group_by(FlagComment.flag_id)
+        .all()
+    ) if flag_ids else {}
+    
+    # Bulk load resolutions for current user
+    user_resolutions = {}
+    if flag_ids:
+        resolutions = FlagResolution.query.filter(
+            FlagResolution.flag_id.in_(flag_ids),
+            FlagResolution.user_id == current_user.id
+        ).all()
+        user_resolutions = {res.flag_id: res for res in resolutions}
+    
+    # Format flags data
+    flags_data = []
+    for flag in flags_list:
+        # Get first comment for preview
+        first_comment = flag.comments.order_by(FlagComment.created_at.asc()).first()
+        
+        # Get verse associations
+        flag_associations = associations_by_flag.get(flag.id, [])
+        
+        # Get user's resolution status
+        user_resolution = user_resolutions.get(flag.id)
+        
+        # Get verse reference string for display
+        verse_refs = []
+        for assoc in flag_associations:
+            try:
+                # Try to get a readable verse reference
+                from utils.translation_manager import VerseReferenceManager
+                verse_ref_manager = VerseReferenceManager()
+                verse_ref = verse_ref_manager.get_verse_reference(assoc.verse_index)
+                if verse_ref:
+                    verse_refs.append(verse_ref)
+                else:
+                    verse_refs.append(f"Verse {assoc.verse_index + 1}")
+            except:
+                verse_refs.append(f"Verse {assoc.verse_index + 1}")
+        
+        flag_data = {
+            'id': flag.id,
+            'status': flag.status,
+            'created_by': {
+                'id': flag.creator.id,
+                'name': flag.creator.name,
+                'email': flag.creator.email
+            },
+            'created_at': flag.created_at.isoformat(),
+            'closed_at': flag.closed_at.isoformat() if flag.closed_at else None,
+            'closed_by': {
+                'id': flag.closer.id,
+                'name': flag.closer.name,
+                'email': flag.closer.email
+            } if flag.closer else None,
+            'comment_count': comment_counts.get(flag.id, 0),
+            'first_comment': first_comment.comment_text[:150] + '...' if first_comment and len(first_comment.comment_text) > 150 else (first_comment.comment_text if first_comment else ''),
+            'verse_references': verse_refs,
+            'verses': [
+                {'text_id': assoc.text_id, 'verse_index': assoc.verse_index}
+                for assoc in flag_associations
+            ],
+            'user_resolution': {
+                'status': user_resolution.status,
+                'resolved_at': user_resolution.resolved_at.isoformat() if user_resolution and user_resolution.resolved_at else None
+            } if user_resolution else None
+        }
+        flags_data.append(flag_data)
+    
+    return jsonify({
+        'flags': flags_data,
+        'pagination': {
+            'page': page,
+            'per_page': per_page,
+            'total': flags_pagination.total,
+            'pages': flags_pagination.pages,
+            'has_next': flags_pagination.has_next,
+            'has_prev': flags_pagination.has_prev
+        }
+    })
+
+
 def extract_mentions(text):
     # Only match @email addresses
     pattern = r'@([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'
@@ -397,4 +663,103 @@ def add_mentions(comment_id, mentions, project_id):
                 db.session.add(mention_record)
                 mentioned_users.append(user)
     
-    return mentioned_users 
+    return mentioned_users
+
+
+@flags.route('/project/<int:project_id>/flags/<int:flag_id>/resolve', methods=['POST'])
+@login_required
+def update_flag_resolution(project_id, flag_id):
+    """Update user's resolution status for a flag"""
+    require_project_access(project_id, "viewer")
+    
+    flag = VerseFlag.query.filter_by(id=flag_id, project_id=project_id).first_or_404()
+    
+    is_valid, data, error_msg = validate_and_sanitize_request({
+        'status': {'choices': ['resolved', 'unresolved', 'not_relevant'], 'required': True}
+    })
+    
+    if not is_valid:
+        return error_response(error_msg)
+    
+    # Find or create resolution record for current user
+    resolution = FlagResolution.query.filter_by(
+        flag_id=flag_id,
+        user_id=current_user.id
+    ).first()
+    
+    if not resolution:
+        resolution = FlagResolution(
+            flag_id=flag_id,
+            user_id=current_user.id
+        )
+        db.session.add(resolution)
+    
+    # Update status
+    resolution.status = data['status']
+    resolution.resolved_at = db.func.now() if data['status'] == 'resolved' else None
+    
+    # Check if flag should be auto-closed
+    # Flag auto-closes when all mentioned users OR the project owner mark it as resolved
+    if data['status'] == 'resolved':
+        # Get all mentioned users in this flag
+        mentioned_user_ids = set()
+        comments = flag.comments.all()
+        for comment in comments:
+            mentions = comment.mentions.all()
+            for mention in mentions:
+                mentioned_user_ids.add(mention.mentioned_user_id)
+        
+        # Add flag creator and project owner
+        mentioned_user_ids.add(flag.created_by)
+        project = Project.query.get(project_id)
+        
+        # Get owner from ProjectMember table
+        owner_member = ProjectMember.query.filter_by(
+            project_id=project_id,
+            role='owner'
+        ).first()
+        if owner_member:
+            mentioned_user_ids.add(owner_member.user_id)
+        
+        # Check if all relevant users have resolved
+        all_resolved = True
+        for user_id in mentioned_user_ids:
+            user_resolution = FlagResolution.query.filter_by(
+                flag_id=flag_id,
+                user_id=user_id
+            ).first()
+            if not user_resolution or user_resolution.status != 'resolved':
+                all_resolved = False
+                break
+        
+        # Auto-close flag if all resolved
+        if all_resolved and flag.status == 'open':
+            flag.status = 'closed'
+            flag.closed_at = db.func.now()
+            flag.closed_by = current_user.id
+    
+    db.session.commit()
+    
+    # Return updated resolution data
+    resolutions = FlagResolution.query.options(
+        joinedload(FlagResolution.user)
+    ).filter_by(flag_id=flag_id).all()
+    
+    resolution_data = [
+        {
+            'user_id': res.user.id,
+            'user_name': res.user.name,
+            'user_email': res.user.email,
+            'status': res.status,
+            'resolved_at': res.resolved_at.isoformat() if res.resolved_at else None
+        }
+        for res in resolutions
+    ]
+    
+    return success_response('Resolution updated', {
+        'resolutions': resolution_data,
+        'flag_status': flag.status
+    })
+
+
+ 

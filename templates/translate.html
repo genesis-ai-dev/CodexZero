@@ -66,7 +66,7 @@ document.body.classList.add('translation-page');
             
             <!-- Primary Text Area (Now on Right) -->
             <div id="primary-text-area" class="order-2 w-full md:w-1/2 p-2 md:p-6 flex flex-col bg-white/90 backdrop-blur-sm md:border-l-0 border-t border-neutral-200 md:border-t-0 active rounded-tr-xl shadow-sm">
-                <div id="primary-text-container" class="flex-1 overflow-y-auto drop-zone-primary">
+                <div id="primary-text-container" class="flex-1 drop-zone-primary">
                     <div class="text-neutral-500 text-center py-20 flex flex-col items-center">
                         <button id="add-primary-text-btn" class="mb-4 px-8 py-4 bg-green-50 text-green-600 border-2 border-dashed border-green-300 rounded-2xl flex items-center gap-3 font-semibold shadow-sm">
                             <i class="fas fa-plus"></i>
@@ -196,6 +196,7 @@ class TranslationEditor {
             
             // Handle deep linking after editor is fully loaded
             setTimeout(() => {
+                console.log('Starting deep linking process...');
                 this.handleDeepLinking();
             }, 500);
         }
@@ -1047,63 +1048,83 @@ class TranslationEditor {
         const verse = urlParams.get('verse');
         const flagId = urlParams.get('flag');
         
-        // Override navigation state if URL parameters are present
-        if (book && chapter) {
-            this.currentBook = book;
-            this.currentChapter = parseInt(chapter);
-            
-            // Store the deep link parameters for use after initialization
+        console.log('URL parameters found:', { book, chapter, verse, flagId });
+        
+        // Store deep link parameters if any exist
+        if (book || chapter || verse || flagId) {
             this.deepLinkParams = {
                 book: book,
-                chapter: parseInt(chapter),
+                chapter: chapter ? parseInt(chapter) : null,
                 verse: verse ? parseInt(verse) : null,
                 flagId: flagId ? parseInt(flagId) : null
             };
             
-            console.log('Deep link detected:', this.deepLinkParams);
+            console.log('Deep link params set:', this.deepLinkParams);
+            
+            // Override navigation state if URL parameters are present
+            if (book && chapter) {
+                this.currentBook = book;
+                this.currentChapter = parseInt(chapter);
+            }
         }
     }
     
     async handleDeepLinking() {
         // This method is called after the editor is fully initialized
-        if (!this.deepLinkParams) return;
+        if (!this.deepLinkParams) {
+            console.log('No deep link parameters found');
+            return;
+        }
         
         const { book, chapter, verse, flagId } = this.deepLinkParams;
+        console.log('Processing deep link:', this.deepLinkParams);
         
         try {
-            console.log(`Deep linking to ${book} ${chapter}${verse ? `:${verse}` : ''}`);
-            
-            // Navigate to the specified book/chapter
-            if (this.virtualScrollManager) {
-                await this.virtualScrollManager.scrollToBookChapter(book, chapter);
-            } else {
-                // Fallback navigation
-                this.currentBook = book;
-                this.currentChapter = chapter;
-                this.refreshAllTexts();
-            }
-            
-            // If a specific verse is provided, scroll to it
-            if (verse !== null && this.virtualScrollManager) {
-                // Wait a bit for the chapter to load
-                setTimeout(async () => {
-                    try {
-                        await this.virtualScrollManager.scrollToVerseIndex('primary', verse);
-                    } catch (error) {
-                        console.error('Error scrolling to verse:', error);
-                    }
-                }, 1000);
+            // If we have book/chapter, navigate there first
+            if (book && chapter) {
+                console.log(`Deep linking to ${book} ${chapter}${verse ? `:${verse}` : ''}`);
+                
+                // Navigate to the specified book/chapter
+                if (this.virtualScrollManager) {
+                    await this.virtualScrollManager.scrollToBookChapter(book, chapter);
+                } else {
+                    // Fallback navigation
+                    this.currentBook = book;
+                    this.currentChapter = chapter;
+                    this.refreshAllTexts();
+                }
+                
+                // If a specific verse is provided, scroll to it
+                if (verse !== null && this.virtualScrollManager) {
+                    // Wait a bit for the chapter to load
+                    setTimeout(async () => {
+                        try {
+                            await this.virtualScrollManager.scrollToVerseIndex('primary', verse);
+                        } catch (error) {
+                            console.error('Error scrolling to verse:', error);
+                        }
+                    }, 1000);
+                }
             }
             
             // If a flag ID is provided, open the flag modal
             if (flagId) {
+                console.log('Deep linking to flag:', flagId);
+                const delay = (book && chapter) ? 1500 : 500; // Wait longer if we navigated first
                 setTimeout(() => {
+                    console.log('Attempting to open flag modal for flag:', flagId);
                     this.openFlagModal(flagId, verse);
-                }, 1500); // Wait for scrolling to complete
+                }, delay);
             }
             
-            // Clean the URL without refreshing the page
-            const cleanUrl = window.location.pathname;
+            // Clean the URL without refreshing the page (but preserve other params)
+            const url = new URL(window.location);
+            url.searchParams.delete('book');
+            url.searchParams.delete('chapter');
+            url.searchParams.delete('verse');
+            url.searchParams.delete('flag');
+            
+            const cleanUrl = url.search ? url.pathname + url.search : url.pathname;
             window.history.replaceState({}, document.title, cleanUrl);
             
         } catch (error) {
@@ -1116,10 +1137,21 @@ class TranslationEditor {
     
     openFlagModal(flagId, verseIndex = null) {
         // Open the flag modal for the specified flag
+        console.log('Opening flag modal for flag:', flagId, 'verse:', verseIndex);
+        console.log('FlagManager available:', !!window.FlagManager);
+        console.log('FlagManagerModule available:', !!window.FlagManagerModule);
+        
         if (window.FlagManager) {
+            console.log('Using window.FlagManager.openFlagDetails');
             window.FlagManager.openFlagDetails(flagId);
+        } else if (window.FlagManagerModule) {
+            console.log('Using window.FlagManagerModule.openFlagDetails');
+            window.FlagManagerModule.openFlagDetails(flagId);
+        } else if (typeof openFlagDetails === 'function') {
+            console.log('Using global openFlagDetails function');
+            openFlagDetails(flagId);
         } else {
-            console.error('Flag manager not available');
+            console.error('Flag manager not available - available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('flag')));
         }
     }
 
@@ -1185,32 +1217,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.translationEditor = editor;
     
     // Add debug commands for console
-    window.debugVirtualScroll = () => editor.showVirtualScrollStats();
-    window.getVirtualScrollMetrics = () => {
-        if (editor.virtualScrollManager) {
-            const metrics = editor.virtualScrollManager.getPerformanceMetrics();
-            console.log('Virtual Scroll Performance Metrics:', metrics);
-            return metrics;
-        }
-    };
-    window.clearVirtualScrollCache = () => {
-        if (editor.virtualScrollManager) {
-            editor.virtualScrollManager.clearCache();
-            console.log('Virtual scroll cache cleared');
-        }
-    };
-    window.emergencyResetVirtualScroll = () => {
-        if (editor.virtualScrollManager) {
-            editor.virtualScrollManager.emergencyReset();
-            console.log('Virtual scroll emergency reset complete');
-        }
-    };
-    window.forceReloadChapter = (book, chapter) => {
-        if (editor.virtualScrollManager) {
-            editor.virtualScrollManager.scrollToBookChapter(book || editor.currentBook, chapter || editor.currentChapter);
-            console.log(`Force reloading ${book || editor.currentBook} ${chapter || editor.currentChapter}`);
-        }
-    };
+
     
     // Set up close button listeners for text windows
     document.addEventListener('click', (e) => {
@@ -1236,15 +1243,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Performance monitoring (for development)
-    if (window.location.hostname === 'localhost' || window.location.hostname.includes('dev')) {
-        console.log('🚀 Translation Editor with Simplified Infinite Scroll initialized');
-        console.log('📊 Use debugVirtualScroll() to see detailed debug info');
-        console.log('📈 Use getVirtualScrollMetrics() to see performance metrics');
-        console.log('🧹 Use clearVirtualScrollCache() to clear memory cache');
-        console.log('🚨 Use emergencyResetVirtualScroll() if navigation gets stuck');
-        console.log('🔄 Use forceReloadChapter("GEN", 1) to force reload a specific chapter');
-    }
+
 });
 </script>
 

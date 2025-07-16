@@ -51,6 +51,9 @@ class TextManager:
         if verse_index < 0 or verse_index >= 41899:
             return False
         
+        # Normalize text consistently with routes
+        text = ' '.join(text.split()) if text else ''
+        
         try:
             verse = Verse.query.filter_by(
                 text_id=self.text_id,
@@ -58,12 +61,12 @@ class TextManager:
             ).first()
             
             if verse:
-                verse.verse_text = text.strip()
+                verse.verse_text = text or ' '  # MySQL doesn't allow empty TEXT
             else:
                 verse = Verse(
                     text_id=self.text_id,
                     verse_index=verse_index,
-                    verse_text=text.strip() or ' '  # MySQL doesn't allow empty TEXT
+                    verse_text=text or ' '  # MySQL doesn't allow empty TEXT
                 )
                 db.session.add(verse)
             
@@ -100,13 +103,16 @@ class TextManager:
                 if verse_index < 0 or verse_index >= 41899:
                     continue
                 
+                # Normalize text consistently
+                normalized_text = ' '.join(text.split()) if text else ''
+                
                 if verse_index in existing_verses:
-                    existing_verses[verse_index].verse_text = text.strip() or ' '
+                    existing_verses[verse_index].verse_text = normalized_text or ' '
                 else:
                     verse_inserts.append({
                         'text_id': self.text_id,
                         'verse_index': verse_index,
-                        'verse_text': text.strip() or ' '  # MySQL doesn't allow empty TEXT
+                        'verse_text': normalized_text or ' '  # MySQL doesn't allow empty TEXT
                     })
             
             # Bulk insert new verses

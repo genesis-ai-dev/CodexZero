@@ -272,7 +272,7 @@ def get_chapter_verses(project_id, target_id, book, chapter):
 @translation.route('/project/<int:project_id>/translation/<target_id>/verse/<int:verse_index>', methods=['POST'])
 @login_required
 def save_verse(project_id, target_id, verse_index):
-    """Save a single verse"""
+    """Save a single verse with edit history tracking"""
     require_project_access(project_id, "editor")
     project = Project.query.get_or_404(project_id)
     
@@ -281,16 +281,75 @@ def save_verse(project_id, target_id, verse_index):
         return jsonify({'error': 'Verse text is required'}), 400
     
     verse_text = data['text']
-    verse_text = ' '.join(verse_text.split())  # Clean whitespace
+    edit_comment = data.get('comment')
+    edit_source = data.get('source', 'manual')
     
-    text_id = int(target_id.replace('text_', ''))
+    # Clean whitespace consistently
+    verse_text = ' '.join(verse_text.split())
     
-    # Save verse
-    success = TextManager.save_verse(text_id, verse_index, verse_text)
-    
-    if success:
-        return jsonify({'success': True, 'message': 'Verse saved successfully'})
-    else:
+    try:
+        if target_id.startswith('text_'):
+            text_id = int(target_id.replace('text_', ''))
+            target_text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
+            
+            # Get current verse for history tracking
+            current_verse = Verse.query.filter_by(
+                text_id=text_id,
+                verse_index=verse_index
+            ).first()
+            
+            previous_text = current_verse.verse_text if current_verse else ''
+            
+            # Save verse and record history in single transaction
+            from utils.verse_history_service import VerseEditHistoryService
+            
+            try:
+                # Update/create verse
+                if current_verse:
+                    current_verse.verse_text = verse_text
+                else:
+                    verse = Verse(
+                        text_id=text_id,
+                        verse_index=verse_index,
+                        verse_text=verse_text
+                    )
+                    db.session.add(verse)
+                
+                # Record edit history (will skip if no change)
+                VerseEditHistoryService.record_edit(
+                    text_id=text_id,
+                    verse_index=verse_index,
+                    previous_text=previous_text,
+                    new_text=verse_text,
+                    user_id=current_user.id,
+                    edit_source=edit_source,
+                    comment=edit_comment
+                )
+                
+                # Single commit for both operations
+                db.session.commit()
+                
+                # Update progress after successful save
+                text_manager = TextManager(text_id)
+                text_manager._update_progress()
+                
+            except Exception as e:
+                db.session.rollback()
+                print(f"Error saving verse with history: {e}")
+                return jsonify({'error': 'Failed to save verse'}), 500
+            
+            return jsonify({
+                'success': True,
+                'edit_recorded': True,
+                'editor': current_user.name
+            })
+            
+        else:
+            return jsonify({'error': 'Invalid target_id format - only text_ IDs supported'}), 400
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error saving verse: {e}")
         return jsonify({'error': 'Failed to save verse'}), 500
 
 @translation.route('/project/<int:project_id>/translations/<int:translation_id>/download')

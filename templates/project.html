@@ -126,6 +126,11 @@
                         <i class="fas fa-file-alt mr-2"></i>
                         Files
                     </button>
+                    <button class="tab-button flex-1 sm:flex-none py-3 px-2 sm:px-4 border-b-2 border-transparent font-semibold text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 transition-all duration-200 text-center ml-4 sm:ml-8" data-tab="flags">
+                        <i class="fas fa-flag mr-2"></i>
+                        <span class="hidden sm:inline">Flags</span>
+                        <span class="sm:hidden">Flags</span>
+                    </button>
                     <button class="tab-button flex-1 sm:flex-none py-3 px-2 sm:px-4 border-b-2 border-transparent font-semibold text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 transition-all duration-200 text-center ml-4 sm:ml-8" data-tab="fine-tuning">
                         <i class="fas fa-brain mr-2"></i>
                         <span class="hidden sm:inline">Fine-Tuning</span>
@@ -297,6 +302,58 @@
                     </div>
                 </div>
                 {% endif %}
+            </div>
+
+            <!-- Flags Tab -->
+            <div id="flags-tab" class="tab-content hidden">
+                <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-4 sm:p-8 mb-6 sm:mb-8">
+                    <div class="mb-6">
+                        <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 mb-2">Project Flags</h2>
+                        <p class="text-neutral-600 font-medium">View and manage discussion threads and flags for this project.</p>
+                    </div>
+                    
+                    <!-- Flag Filters -->
+                    <div class="flex flex-col sm:flex-row gap-4 mb-6">
+                        <div class="flex gap-2">
+                            <button id="filter-all-flags" class="flag-filter-btn active px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-blue-100 text-blue-700 border border-blue-200">
+                                All Flags
+                            </button>
+                            <button id="filter-open-flags" class="flag-filter-btn px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-300">
+                                Open
+                            </button>
+                            <button id="filter-closed-flags" class="flag-filter-btn px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-300">
+                                Closed
+                            </button>
+                        </div>
+                        <div class="flex gap-2 ml-auto">
+                            <select id="sort-flags" class="px-3 py-2 border border-neutral-300 rounded-lg text-sm">
+                                <option value="newest">Newest First</option>
+                                <option value="oldest">Oldest First</option>
+                                <option value="most-comments">Most Comments</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Flags List -->
+                    <div id="project-flags-container">
+                        <div id="flags-loading" class="text-center py-12">
+                            <i class="fas fa-spinner fa-spin text-2xl text-neutral-400 mb-4"></i>
+                            <p class="text-neutral-500">Loading flags...</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Empty State -->
+                    <div id="flags-empty-state" class="hidden text-center py-12">
+                        <i class="fas fa-flag text-4xl text-neutral-300 mb-4"></i>
+                        <h3 class="text-lg font-semibold text-neutral-700 mb-2">No flags yet</h3>
+                        <p class="text-neutral-500 mb-6">Flags will appear here when team members create discussions about verses.</p>
+                        <a href="{{ url_for('translation.translate_page', project_id=project.id) }}" 
+                           class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                            <i class="fas fa-language mr-2"></i>
+                            Go to Translation Editor
+                        </a>
+                    </div>
+                </div>
             </div>
 
             <!-- Fine-Tuning Tab -->

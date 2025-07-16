@@ -27,6 +27,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (targetContent) {
                 targetContent.classList.remove('hidden');
             }
+            
+            // Initialize flags tab if it's being opened for the first time
+            if (targetTab === 'flags' && !window.flagsInitialized) {
+                window.flagsInitialized = true;
+                window.projectFlagsManager = new ProjectFlagsManager();
+            }
         });
     });
     
@@ -1939,6 +1945,221 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(() => alert('Failed to rename text'));
+        }
+    };
+    
+    // Project Flags Manager
+    window.ProjectFlagsManager = class {
+        constructor() {
+            this.projectId = parseInt(window.location.pathname.split('/')[2]);
+            this.currentFilter = 'all';
+            this.currentSort = 'newest';
+            this.currentPage = 1;
+            this.isLoading = false;
+            
+            this.initializeElements();
+            this.setupEventListeners();
+            this.loadFlags();
+        }
+        
+        initializeElements() {
+            this.container = document.getElementById('project-flags-container');
+            this.loadingEl = document.getElementById('flags-loading');
+            this.emptyStateEl = document.getElementById('flags-empty-state');
+            
+            // Filter buttons
+            this.filterButtons = {
+                all: document.getElementById('filter-all-flags'),
+                open: document.getElementById('filter-open-flags'),
+                closed: document.getElementById('filter-closed-flags')
+            };
+            
+            this.sortSelect = document.getElementById('sort-flags');
+        }
+        
+        setupEventListeners() {
+            // Filter buttons
+            Object.entries(this.filterButtons).forEach(([filter, button]) => {
+                if (button) {
+                    button.addEventListener('click', () => this.setFilter(filter));
+                }
+            });
+            
+            // Sort select
+            if (this.sortSelect) {
+                this.sortSelect.addEventListener('change', (e) => {
+                    this.currentSort = e.target.value;
+                    this.currentPage = 1;
+                    this.loadFlags();
+                });
+            }
+        }
+        
+        setFilter(filter) {
+            this.currentFilter = filter;
+            this.currentPage = 1;
+            
+            // Update button states
+            Object.entries(this.filterButtons).forEach(([key, button]) => {
+                                 if (button) {
+                     if (key === filter) {
+                         button.classList.add('active', 'bg-blue-100', 'text-blue-700', 'border-blue-200');
+                         button.classList.remove('bg-neutral-100', 'text-neutral-600', 'hover:bg-neutral-200', 'border-neutral-300');
+                     } else {
+                         button.classList.remove('active', 'bg-blue-100', 'text-blue-700', 'border-blue-200');
+                         button.classList.add('bg-neutral-100', 'text-neutral-600', 'hover:bg-neutral-200', 'border-neutral-300');
+                     }
+                 }
+            });
+            
+            this.loadFlags();
+        }
+        
+        async loadFlags() {
+            if (this.isLoading) return;
+            
+            this.isLoading = true;
+            this.showLoading();
+            
+            try {
+                const params = new URLSearchParams({
+                    status: this.currentFilter,
+                    sort: this.currentSort,
+                    page: this.currentPage,
+                    per_page: 20
+                });
+                
+                const response = await fetch(`/project/${this.projectId}/flags/all?${params}`);
+                if (!response.ok) throw new Error('Failed to load flags');
+                
+                const data = await response.json();
+                this.renderFlags(data.flags);
+                
+            } catch (error) {
+                console.error('Error loading flags:', error);
+                this.showError();
+            } finally {
+                this.isLoading = false;
+                this.hideLoading();
+            }
+        }
+        
+        showLoading() {
+            if (this.loadingEl) this.loadingEl.classList.remove('hidden');
+            if (this.emptyStateEl) this.emptyStateEl.classList.add('hidden');
+        }
+        
+        hideLoading() {
+            if (this.loadingEl) this.loadingEl.classList.add('hidden');
+        }
+        
+        showError() {
+            if (this.container) {
+                this.container.innerHTML = `
+                    <div class="text-center py-12">
+                        <i class="fas fa-exclamation-triangle text-2xl text-red-400 mb-4"></i>
+                        <p class="text-neutral-500">Failed to load flags</p>
+                        <button onclick="window.projectFlagsManager.loadFlags()" 
+                                class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                            Try Again
+                        </button>
+                    </div>
+                `;
+            }
+        }
+        
+        renderFlags(flags) {
+            if (!this.container) return;
+            
+            if (flags.length === 0) {
+                this.container.innerHTML = '';
+                if (this.emptyStateEl) this.emptyStateEl.classList.remove('hidden');
+                return;
+            }
+            
+            if (this.emptyStateEl) this.emptyStateEl.classList.add('hidden');
+            
+            const flagsHTML = flags.map(flag => this.renderFlagCard(flag)).join('');
+            this.container.innerHTML = flagsHTML;
+        }
+        
+        renderFlagCard(flag) {
+            const statusClass = flag.status === 'open' ? 'bg-green-100 text-green-700' : 'bg-neutral-100 text-neutral-600';
+            const timeAgo = this.formatTimeAgo(flag.created_at);
+            const verseRefsText = flag.verse_references.join(', ') || 'Unknown verses';
+            
+            // User resolution indicator
+            let resolutionIcon = '';
+            if (flag.user_resolution) {
+                switch (flag.user_resolution.status) {
+                    case 'resolved':
+                        resolutionIcon = '<i class="fas fa-check-circle text-green-500 ml-2" title="You marked as resolved"></i>';
+                        break;
+                    case 'not_relevant':
+                        resolutionIcon = '<i class="fas fa-minus-circle text-gray-500 ml-2" title="You marked as not relevant"></i>';
+                        break;
+                    case 'unresolved':
+                        resolutionIcon = '<i class="fas fa-exclamation-circle text-orange-500 ml-2" title="You marked as unresolved"></i>';
+                        break;
+                }
+            }
+            
+            return `
+                <div class="border border-neutral-200 rounded-xl p-4 sm:p-6 mb-4 bg-white hover:shadow-md transition-shadow cursor-pointer" 
+                     onclick="this.querySelector('a').click()">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex items-center gap-3">
+                            <span class="px-3 py-1 rounded-full text-sm font-medium ${statusClass}">
+                                ${flag.status}
+                            </span>
+                            ${resolutionIcon}
+                        </div>
+                        <span class="text-sm text-neutral-500">${timeAgo}</span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h3 class="font-semibold text-neutral-900 mb-1">
+                            ${verseRefsText}
+                        </h3>
+                        <p class="text-neutral-600 text-sm line-clamp-2">
+                            ${flag.first_comment || 'No content'}
+                        </p>
+                    </div>
+                    
+                    <div class="flex items-center justify-between text-sm text-neutral-500">
+                        <div class="flex items-center gap-4">
+                            <span>
+                                <i class="fas fa-user mr-1"></i>
+                                ${flag.created_by.name}
+                            </span>
+                            <span>
+                                <i class="fas fa-comments mr-1"></i>
+                                ${flag.comment_count} comment${flag.comment_count !== 1 ? 's' : ''}
+                            </span>
+                        </div>
+                        <a href="/project/${this.projectId}/translate?flag=${flag.id}" 
+                           class="text-blue-600 hover:text-blue-800 font-medium">
+                            View Details →
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+        
+        formatTimeAgo(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = now - date;
+            
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(diff / 3600000);
+            const days = Math.floor(diff / 86400000);
+            
+            if (minutes < 1) return 'Just now';
+            if (minutes < 60) return `${minutes}m ago`;
+            if (hours < 24) return `${hours}h ago`;
+            if (days < 7) return `${days}d ago`;
+            return date.toLocaleDateString();
         }
     };
 }); 

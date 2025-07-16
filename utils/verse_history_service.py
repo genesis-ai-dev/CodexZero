@@ -19,12 +19,13 @@ class VerseEditHistoryService:
     ) -> VerseEditHistory:
         """Record a verse edit in history - simplified version"""
         
-        # Normalize empty text handling
-        previous_text = previous_text.strip() if previous_text else ''
-        new_text = new_text.strip() if new_text else ''
+        # Normalize text consistently with save routes - join split to clean whitespace
+        previous_text = ' '.join(previous_text.split()) if previous_text else ''
+        new_text = ' '.join(new_text.split()) if new_text else ''
         
-        # Skip recording if no actual change
+        # Skip recording if no actual change (more robust comparison)
         if previous_text == new_text and edit_type == 'update':
+            print(f"Skipping duplicate revision - no text change for verse {verse_index}")
             return None
         
         # Create history record
