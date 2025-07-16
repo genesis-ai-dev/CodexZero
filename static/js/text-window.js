@@ -60,6 +60,7 @@ class TextWindow {
         const downloadButton = this.createDownloadButton();
         const plusButton = this.createPlusButton();
         const playAllButton = this.createPlayAllButton();
+        const syncToggle = this.createSyncToggle();
         const closeButton = `<button class="text-red-600 rounded p-1 close-text-btn" 
                        data-text-id="${this.id}" 
                        title="Remove this text">
@@ -79,6 +80,11 @@ class TextWindow {
         const rightContainer = header.querySelector('div:last-child');
         rightContainer.insertBefore(downloadButton, rightContainer.firstChild);
         rightContainer.insertBefore(plusButton, rightContainer.firstChild);
+        
+        // Only add sync toggle for non-primary windows
+        if (this.type !== 'primary') {
+            rightContainer.insertBefore(syncToggle, rightContainer.firstChild);
+        }
         
         // Only add play all button for primary windows with audio capability
         if (this.type === 'primary' && window.translationEditor?.canEdit) {
@@ -207,6 +213,49 @@ class TextWindow {
         });
 
         return plusButton;
+    }
+
+    createSyncToggle() {
+        const syncToggle = document.createElement('button');
+        syncToggle.className = 'text-gray-600 rounded p-1 sync-toggle-btn';
+        syncToggle.title = 'Catch up to primary translation when clicked';
+        
+        // Initialize sync state (default to true for better UX for reference windows)
+        if (this.syncEnabled === undefined) {
+            this.syncEnabled = localStorage.getItem(`sync-${this.id}`) !== 'false';
+        }
+        
+        const updateSyncButton = () => {
+            if (this.syncEnabled) {
+                syncToggle.innerHTML = '<i class="fas fa-link text-xs text-blue-600"></i>';
+                syncToggle.classList.add('text-blue-600');
+                syncToggle.classList.remove('text-gray-600');
+                syncToggle.title = 'Catch up enabled - Will follow primary when clicked';
+            } else {
+                syncToggle.innerHTML = '<i class="fas fa-unlink text-xs"></i>';
+                syncToggle.classList.remove('text-blue-600');
+                syncToggle.classList.add('text-gray-600');
+                syncToggle.title = 'Catch up disabled - Will not follow primary';
+            }
+        };
+        
+        updateSyncButton();
+
+        syncToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.syncEnabled = !this.syncEnabled;
+            localStorage.setItem(`sync-${this.id}`, this.syncEnabled.toString());
+            updateSyncButton();
+            
+            // Show brief feedback
+            const originalTitle = syncToggle.title;
+            syncToggle.title = this.syncEnabled ? 'Catch up enabled!' : 'Catch up disabled!';
+            setTimeout(() => {
+                syncToggle.title = originalTitle;
+            }, 1000);
+        });
+
+        return syncToggle;
     }
 
     openTextSelectionModal() {
@@ -618,33 +667,122 @@ class TextWindow {
     }
     
     setupScrollSync(container) {
-        // PERFORMANCE: Simple scroll sync without expensive calculations
-        let syncTimeout;
+        // Simplified: No automatic scroll syncing - only manual catch-up when clicking verse cells
+        // This method now does nothing but is kept for compatibility
+    }
+    
+    syncOtherWindowsToThis(sourceContainer) {
+        // Enhanced sync: Find the currently visible verse and sync to that exact verse
+        const currentVisibleVerse = this.getCurrentVisibleVerse(sourceContainer);
         
-        container.addEventListener('scroll', () => {
-            // PERFORMANCE: Debounce scroll sync to avoid excessive calculations
-            if (syncTimeout) clearTimeout(syncTimeout);
-            syncTimeout = setTimeout(() => {
-                // PERFORMANCE: Use simple percentage-based sync
-                const scrollPercent = container.scrollTop / Math.max(1, container.scrollHeight - container.clientHeight);
-                
-                // PERFORMANCE: Cache container query and sync only visible containers
-                const otherContainers = document.querySelectorAll('[data-window-content]');
-                otherContainers.forEach(otherContainer => {
-                    if (otherContainer !== container && otherContainer.offsetParent) {
-                        const maxScroll = otherContainer.scrollHeight - otherContainer.clientHeight;
-                        if (maxScroll > 0) {
-                            const targetScroll = scrollPercent * maxScroll;
-                            // PERFORMANCE: Use smooth scrolling for better UX
-                            otherContainer.scrollTo({
-                                top: targetScroll,
-                                behavior: 'smooth'
-                            });
-                        }
-                    }
-                });
-            }, 100); // Increased debounce delay for better performance
-        }, { passive: true });
+        if (!currentVisibleVerse) {
+            // Fallback to percentage-based sync if no verse found
+            this.syncByScrollPercentage(sourceContainer);
+            return;
+        }
+        
+        const targetVerseNumber = currentVisibleVerse.dataset.verse;
+        console.log(`Syncing reference windows to verse ${targetVerseNumber}`);
+        
+        // Find all other text windows and sync those with sync enabled
+        window.translationEditor?.textWindows?.forEach((textWindow, windowId) => {
+            if (textWindow.id !== this.id && textWindow.syncEnabled !== false) {
+                const otherContainer = textWindow.element?.querySelector('[data-window-content]');
+                if (otherContainer && otherContainer.offsetParent) {
+                    this.syncToVerse(otherContainer, targetVerseNumber, textWindow.id);
+                }
+            }
+        });
+    }
+    
+    getCurrentVisibleVerse(container) {
+        const scrollTop = container.scrollTop;
+        const containerHeight = container.clientHeight;
+        const viewportCenter = scrollTop + (containerHeight / 2);
+        
+        // Get all verse elements
+        const verseElements = container.querySelectorAll('[data-verse-cell]');
+        
+        let closestElement = null;
+        let closestDistance = Infinity;
+        
+        verseElements.forEach(element => {
+            const elementTop = element.offsetTop;
+            const elementHeight = element.offsetHeight;
+            const elementCenter = elementTop + (elementHeight / 2);
+            
+            // Distance from viewport center to element center
+            const distance = Math.abs(viewportCenter - elementCenter);
+            
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestElement = element;
+            }
+        });
+        
+        return closestElement;
+    }
+    
+    syncToVerse(container, verseNumber, windowId) {
+        // Try to find the target verse in the reference window
+        const targetVerse = container.querySelector(`[data-verse="${verseNumber}"]`);
+        
+        if (targetVerse) {
+            // Jump directly to the verse
+            const targetTop = targetVerse.offsetTop - 50; // Small offset for better visibility
+            container.scrollTop = Math.max(0, targetTop);
+        } else {
+            // Verse not found - might need to load content
+            console.log(`Verse ${verseNumber} not found in ${windowId}, triggering content load`);
+            
+            // Fallback to percentage sync and trigger loading
+            this.syncByScrollPercentageForWindow(container, windowId);
+            
+            // Try to find and scroll to the verse after a brief delay
+            setTimeout(() => {
+                const delayedTarget = container.querySelector(`[data-verse="${verseNumber}"]`);
+                if (delayedTarget) {
+                    const targetTop = delayedTarget.offsetTop - 50;
+                    container.scrollTop = Math.max(0, targetTop);
+                }
+            }, 200);
+        }
+    }
+    
+    syncByScrollPercentage(sourceContainer) {
+        // Original percentage-based sync as fallback
+        const scrollPercent = sourceContainer.scrollTop / Math.max(1, sourceContainer.scrollHeight - sourceContainer.clientHeight);
+        
+        window.translationEditor?.textWindows?.forEach((textWindow, windowId) => {
+            if (textWindow.id !== this.id && textWindow.syncEnabled !== false) {
+                const otherContainer = textWindow.element?.querySelector('[data-window-content]');
+                if (otherContainer && otherContainer.offsetParent) {
+                    this.syncByScrollPercentageForWindow(otherContainer, textWindow.id, scrollPercent);
+                }
+            }
+        });
+    }
+    
+    syncByScrollPercentageForWindow(container, windowId, scrollPercent = null) {
+        if (scrollPercent === null) {
+            // Calculate from source if not provided
+            const sourceContainer = this.element?.querySelector('[data-window-content]');
+            if (!sourceContainer) return;
+            scrollPercent = sourceContainer.scrollTop / Math.max(1, sourceContainer.scrollHeight - sourceContainer.clientHeight);
+        }
+        
+        const maxScroll = container.scrollHeight - container.clientHeight;
+        if (maxScroll > 0) {
+            const targetScroll = scrollPercent * maxScroll;
+            container.scrollTop = targetScroll;
+            
+            // Trigger content loading check
+            if (window.translationEditor?.virtualScrollManager) {
+                setTimeout(() => {
+                    window.translationEditor.virtualScrollManager.checkAndLoadVerses(windowId, container);
+                }, 50);
+            }
+        }
     }
     
     createPurposeSection() {
@@ -688,6 +826,9 @@ class TextWindow {
         const virtualScrollManager = window.translationEditor.virtualScrollManager;
         virtualScrollManager.registerContainer(this.id, container);
         
+        // Set up sync functionality for virtual scrolling
+        this.setupVirtualScrollSync(container);
+        
         // Load initial verses based on current navigation
         const editor = window.translationEditor;
         const currentBook = editor.currentBook;
@@ -702,6 +843,11 @@ class TextWindow {
         }
         
         console.log(`TextWindow: Setup virtual scrolling for ${this.id}`);
+    }
+    
+    setupVirtualScrollSync(container) {
+        // Simplified: No automatic scroll syncing for virtual scrolling either
+        // This method now does nothing but is kept for compatibility
     }
     
     renderAllVerses(container) {
@@ -836,6 +982,23 @@ class TextWindow {
             currentValue = textarea.value || '';
             hasChanges = false;
         }, { passive: true });
+        
+        // SIMPLIFIED SYNC: If this is in the primary window, add click handler to sync reference windows
+        if (this.type === 'primary') {
+            textarea.addEventListener('click', () => {
+                this.triggerSyncFromPrimary();
+            }, { passive: true });
+        }
+    }
+    
+    triggerSyncFromPrimary() {
+        // Only trigger sync if this is the primary window
+        if (this.type !== 'primary') return;
+        
+        const container = this.element?.querySelector('[data-window-content]');
+        if (container) {
+            this.syncOtherWindowsToThis(container);
+        }
     }
     
     // PERFORMANCE: Resize functions removed - textareas are proper size from start
@@ -989,6 +1152,8 @@ class TextWindow {
     // Removed - using optimized drag handlers now
     
     // Removed - using optimized sparkle handler now
+    
+
     
 
     

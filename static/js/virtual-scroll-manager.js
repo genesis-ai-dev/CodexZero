@@ -97,13 +97,28 @@ class VirtualScrollManager {
         const distanceFromTop = scrollTop;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
         
+        // For sync jumps, we need to be more aggressive about loading content
+        // Use a larger threshold to handle big jumps
+        const syncThreshold = this.LOAD_THRESHOLD * 2;
+        
         // Check if we need to load more verses
-        if (distanceFromBottom < this.LOAD_THRESHOLD && distanceFromBottom >= 0) {
-            console.log(`VirtualScrollManager: Near bottom for ${windowId} (${distanceFromBottom}px from bottom)`);
+        if (distanceFromBottom < syncThreshold && distanceFromBottom >= 0) {
+            console.log(`VirtualScrollManager: Near bottom for ${windowId} (${distanceFromBottom}px from bottom) - loading forward`);
             this.loadMoreVerses(windowId, 'forward');
-        } else if (distanceFromTop < this.LOAD_THRESHOLD && scrollTop > 0) {
-            console.log(`VirtualScrollManager: Near top for ${windowId} (${distanceFromTop}px from top)`);
+        } 
+        
+        if (distanceFromTop < syncThreshold && scrollTop > 0) {
+            console.log(`VirtualScrollManager: Near top for ${windowId} (${distanceFromTop}px from top) - loading backward`);
             this.loadMoreVerses(windowId, 'backward');
+        }
+        
+        // Additional check: if we're in the middle but have very little content loaded,
+        // try to load in both directions
+        const loadedVerses = this.loadedVerses.get(windowId);
+        if (loadedVerses && loadedVerses.size < this.VERSES_PER_LOAD) {
+            console.log(`VirtualScrollManager: Low content for ${windowId} (${loadedVerses.size} verses) - loading both directions`);
+            setTimeout(() => this.loadMoreVerses(windowId, 'forward'), 100);
+            setTimeout(() => this.loadMoreVerses(windowId, 'backward'), 200);
         }
     }
     
