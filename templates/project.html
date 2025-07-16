@@ -153,17 +153,20 @@
                             <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 mb-2">Texts</h2>
                             <p class="text-neutral-600 font-medium">All text files in this project</p>
                         </div>
+                        {% if not admin_view %}
+                        <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                            <button id="create-new-translation-btn" class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white hover:from-green-700 hover:to-green-800 rounded-xl font-semibold transition-all duration-200 shadow-lg">
+                                <i class="fas fa-plus mr-2"></i>
+                                New Translation
+                            </button>
+                            <a href="{{ url_for('files.usfm_import', project_id=project.id) }}" 
+                               class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 rounded-xl font-semibold transition-all duration-200 shadow-lg">
+                                <i class="fas fa-upload mr-2"></i>
+                                Import Files
+                            </a>
+                        </div>
+                        {% endif %}
                     </div>
-                
-                                    <!-- Add Texts Button -->
-                <div class="text-center">
-                    <a href="{{ url_for('files.usfm_import', project_id=project.id) }}" 
-                       class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 rounded-xl font-semibold transition-all duration-200 shadow-lg">
-                        <i class="fas fa-plus mr-2"></i>
-                        Add Bible Texts
-                    </a>
-                    <p class="text-sm text-neutral-600 mt-3 font-medium">Import USFM files or create new translations</p>
-                </div>
             </div>
                 
                 <div class="space-y-4 sm:space-y-6">
@@ -222,12 +225,20 @@
                     <div class="text-center">
                         <i class="fas fa-plus-circle text-4xl sm:text-6xl text-neutral-400 mb-4 sm:mb-6"></i>
                         <h3 class="text-xl sm:text-2xl font-bold text-neutral-900 mb-3">No Texts Yet</h3>
-                        <p class="text-neutral-600 mb-6 font-medium">Upload or create a text to start working</p>
-                        <a href="{{ url_for('translation.translate_page', project_id=project.id) }}" 
-                           class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white hover:from-green-700 hover:to-green-800 rounded-xl font-semibold transition-all duration-200 shadow-lg">
-                            <i class="fas fa-plus mr-2"></i>
-                            Create Text
-                        </a>
+                        <p class="text-neutral-600 mb-6 font-medium">Create a new translation or import existing files to start working</p>
+                        {% if not admin_view %}
+                        <div class="flex flex-col sm:flex-row gap-3 justify-center">
+                            <button id="create-new-translation-btn-empty" class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white hover:from-green-700 hover:to-green-800 rounded-xl font-semibold transition-all duration-200 shadow-lg">
+                                <i class="fas fa-plus mr-2"></i>
+                                Create New Translation
+                            </button>
+                            <a href="{{ url_for('files.usfm_import', project_id=project.id) }}" 
+                               class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 rounded-xl font-semibold transition-all duration-200 shadow-lg">
+                                <i class="fas fa-upload mr-2"></i>
+                                Import Files
+                            </a>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 {% endif %}
@@ -604,6 +615,54 @@
                 Delete
             </button>
         </div>
+    </div>
+</div>
+
+<!-- New Translation Modal -->
+<div id="new-translation-modal-project" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white border border-neutral-200 rounded-2xl shadow-xl p-8 w-full max-w-md mx-4">
+        <h3 class="text-2xl font-bold text-neutral-900 mb-6 tracking-tight">Create New Translation</h3>
+        <form id="new-translation-form-project" class="space-y-6">
+            <div>
+                <label for="translation-name-project" class="block text-sm font-medium text-neutral-700 mb-3">
+                    Translation Name <span class="text-red-500">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    id="translation-name-project" 
+                    class="w-full p-4 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 font-medium"
+                    placeholder="e.g., Draft 1, Source ESV, Back Translation, etc."
+                    required
+                >
+            </div>
+            
+            <div>
+                <label for="translation-purpose-project" class="block text-sm font-medium text-neutral-700 mb-3">
+                    Translation Purpose <span class="text-red-500">*</span>
+                </label>
+                <textarea 
+                    id="translation-purpose-project" 
+                    rows="4"
+                    class="w-full p-4 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 font-medium resize-none"
+                    placeholder="Describe this translation's role in your project (e.g., 'Primary draft translation for youth audience', 'Source text for comparison', etc.)"
+                    maxlength="1000"
+                    required
+                ></textarea>
+                <div class="flex justify-between items-center mt-2">
+                    <p class="text-xs text-neutral-600">Help AI understand how to use this translation</p>
+                    <span class="text-xs text-neutral-500 purpose-char-counter">0/1,000</span>
+                </div>
+            </div>
+            
+            <div class="flex justify-end space-x-3 pt-4">
+                <button type="button" id="cancel-new-translation-project" class="px-6 py-3 border border-neutral-200 rounded-xl text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition-all duration-200 font-medium">
+                    Cancel
+                </button>
+                <button type="submit" class="px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105">
+                    Create Translation
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 

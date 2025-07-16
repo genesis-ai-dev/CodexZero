@@ -12,7 +12,7 @@ from typing import Tuple, List, Dict, Any, Optional
 
 from models import Project, Text, Verse, db
 from ai.bot import Chatbot, extract_translation_from_xml
-from ai.contextquery import ContextQuery, MemoryContextQuery, DatabaseContextQuery
+from ai.contextquery import DatabaseContextQuery
 from utils.text_manager import TextManager
 from utils.project_access import require_project_access
 from utils.translation_manager import VerseReferenceManager
@@ -783,12 +783,19 @@ def create_translation(project_id):
     
     data = request.get_json()
     name = data.get('name', '').strip()
+    purpose = data.get('purpose', '').strip()
     
     if not name:
         return jsonify({'error': 'Translation name is required'}), 400
     
+    if not purpose:
+        return jsonify({'error': 'Translation purpose is required'}), 400
+    
     if len(name) > 255:
         return jsonify({'error': 'Translation name too long'}), 400
+    
+    if len(purpose) > 1000:
+        return jsonify({'error': 'Translation purpose too long (max 1,000 characters)'}), 400
     
     # Check if name already exists
     existing_text = Text.query.filter_by(project_id=project_id, name=name).first()
@@ -802,7 +809,7 @@ def create_translation(project_id):
         text_id = TextManager.create_text(
             project_id=project_id,
             name=name,
-            description=f'Translation workspace created by {current_user.name}'
+            description=purpose
         )
         
         text = Text.query.get(text_id)

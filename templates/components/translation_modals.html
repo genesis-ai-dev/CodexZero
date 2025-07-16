@@ -8,7 +8,7 @@
         <form id="new-translation-form" class="space-y-6">
             <div>
                 <label for="translation-name" class="block text-sm font-medium text-neutral-700 mb-3">
-                    Translation Name
+                    Translation Name <span class="text-red-500">*</span>
                 </label>
                 <input 
                     type="text" 
@@ -17,6 +17,24 @@
                     placeholder="e.g., Draft 1, Source ESV, Back Translation, etc."
                     required
                 >
+            </div>
+            
+            <div>
+                <label for="translation-purpose" class="block text-sm font-medium text-neutral-700 mb-3">
+                    Translation Purpose <span class="text-red-500">*</span>
+                </label>
+                <textarea 
+                    id="translation-purpose" 
+                    rows="4"
+                    class="w-full p-4 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 font-medium resize-none"
+                    placeholder="Describe this translation's role in your project (e.g., 'Primary draft translation for youth audience', 'Source text for comparison', etc.)"
+                    maxlength="1000"
+                    required
+                ></textarea>
+                <div class="flex justify-between items-center mt-2">
+                    <p class="text-xs text-neutral-600">Help AI understand how to use this translation</p>
+                    <span class="text-xs text-neutral-500 purpose-char-counter">0/1,000</span>
+                </div>
             </div>
             
             <div class="flex justify-end space-x-3 pt-4">
@@ -173,6 +191,22 @@ window.populateTextDropdown = function(texts) {
 // Initialize when modal is shown
 document.addEventListener('DOMContentLoaded', () => {
     initializeTextSelectionDropdown();
+    
+    // Character counter for purpose field
+    const purposeField = document.getElementById('translation-purpose');
+    const purposeCounter = document.querySelector('#new-translation-modal .purpose-char-counter');
+    
+    if (purposeField && purposeCounter) {
+        purposeField.addEventListener('input', () => {
+            const length = purposeField.value.length;
+            purposeCounter.textContent = `${length}/1,000`;
+            if (length > 900) {
+                purposeCounter.classList.add('text-red-500');
+            } else {
+                purposeCounter.classList.remove('text-red-500');
+            }
+        });
+    }
 });
 </script>
 {% endmacro %} 

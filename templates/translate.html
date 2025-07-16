@@ -606,7 +606,9 @@ class TranslationEditor {
     
     async createNewTranslation() {
         const name = document.getElementById('translation-name').value.trim();
-        if (!name) return;
+        const purpose = document.getElementById('translation-purpose').value.trim();
+        
+        if (!name || !purpose) return;
         
         try {
             const response = await fetch(`/project/${this.projectId}/translations`, {
@@ -614,7 +616,7 @@ class TranslationEditor {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ name: name })
+                body: JSON.stringify({ name: name, purpose: purpose })
             });
             
             const data = await response.json();

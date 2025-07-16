@@ -48,6 +48,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeDeleteTranslationModalBtn = document.getElementById('close-delete-translation-modal-btn');
     const cancelDeleteTranslationBtn = document.getElementById('cancel-delete-translation-btn');
     const confirmDeleteTranslationBtn = document.getElementById('confirm-delete-translation-btn');
+    
+    // New translation modal elements
+    const newTranslationModal = document.getElementById('new-translation-modal-project');
+    const newTranslationForm = document.getElementById('new-translation-form-project');
+    const cancelNewTranslationBtn = document.getElementById('cancel-new-translation-project');
+    const createNewTranslationBtns = document.querySelectorAll('#create-new-translation-btn, #create-new-translation-btn-empty');
+    
+    // Character counter for purpose field
+    const purposeField = document.getElementById('translation-purpose-project');
+    const purposeCounter = document.querySelector('.purpose-char-counter');
+    
+    if (purposeField && purposeCounter) {
+        purposeField.addEventListener('input', () => {
+            const length = purposeField.value.length;
+            purposeCounter.textContent = `${length}/1,000`;
+            if (length > 900) {
+                purposeCounter.classList.add('text-red-500');
+            } else {
+                purposeCounter.classList.remove('text-red-500');
+            }
+        });
+    }
 
     // Note: Import modal replaced with drag and drop interface
     
@@ -165,6 +187,41 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (confirmDeleteTranslationBtn) {
         confirmDeleteTranslationBtn.addEventListener('click', deleteTranslation);
+    }
+    
+    // New translation modal event listeners
+    createNewTranslationBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (newTranslationModal) {
+                newTranslationModal.classList.remove('hidden');
+                // Focus on name input
+                const nameInput = document.getElementById('translation-name-project');
+                if (nameInput) {
+                    setTimeout(() => nameInput.focus(), 100);
+                }
+            }
+        });
+    });
+    
+    if (cancelNewTranslationBtn) {
+        cancelNewTranslationBtn.addEventListener('click', () => {
+            closeNewTranslationModal();
+        });
+    }
+    
+    if (newTranslationModal) {
+        newTranslationModal.addEventListener('click', (e) => {
+            if (e.target === newTranslationModal) {
+                closeNewTranslationModal();
+            }
+        });
+    }
+    
+    if (newTranslationForm) {
+        newTranslationForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await createNewTranslation();
+        });
     }
 
     // Initialize drag and drop file upload
@@ -397,6 +454,58 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error:', error);
             alert('Error deleting translation');
         });
+    }
+    
+    function closeNewTranslationModal() {
+        if (newTranslationModal) {
+            newTranslationModal.classList.add('hidden');
+        }
+        if (newTranslationForm) {
+            newTranslationForm.reset();
+        }
+        // Reset character counter
+        if (purposeCounter) {
+            purposeCounter.textContent = '0/1,000';
+            purposeCounter.classList.remove('text-red-500');
+        }
+    }
+    
+    async function createNewTranslation() {
+        const nameInput = document.getElementById('translation-name-project');
+        const purposeInput = document.getElementById('translation-purpose-project');
+        
+        if (!nameInput || !purposeInput) return;
+        
+        const name = nameInput.value.trim();
+        const purpose = purposeInput.value.trim();
+        
+        if (!name || !purpose) {
+            alert('Please fill in both translation name and purpose');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/project/${projectId}/translations`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name: name, purpose: purpose })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                closeNewTranslationModal();
+                // Reload the page to show the new translation
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Failed to create translation'));
+            }
+        } catch (error) {
+            console.error('Error creating translation:', error);
+            alert('Failed to create translation');
+        }
     }
     
     function openImportModal() {
