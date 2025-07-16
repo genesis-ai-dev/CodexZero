@@ -1967,14 +1967,15 @@ document.addEventListener('DOMContentLoaded', function() {
             this.loadingEl = document.getElementById('flags-loading');
             this.emptyStateEl = document.getElementById('flags-empty-state');
             
-            // Filter buttons
+            // Filter buttons  
             this.filterButtons = {
                 all: document.getElementById('filter-all-flags'),
-                open: document.getElementById('filter-open-flags'),
+                pending: document.getElementById('filter-pending'),
+                'my-unresolved': document.getElementById('filter-my-unresolved'),
                 closed: document.getElementById('filter-closed-flags')
             };
             
-            this.sortSelect = document.getElementById('sort-flags');
+            this.flagsCountDisplay = document.getElementById('flags-count-display');
         }
         
         setupEventListeners() {
@@ -1984,15 +1985,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     button.addEventListener('click', () => this.setFilter(filter));
                 }
             });
-            
-            // Sort select
-            if (this.sortSelect) {
-                this.sortSelect.addEventListener('change', (e) => {
-                    this.currentSort = e.target.value;
-                    this.currentPage = 1;
-                    this.loadFlags();
-                });
-            }
         }
         
         setFilter(filter) {
@@ -2001,15 +1993,15 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Update button states
             Object.entries(this.filterButtons).forEach(([key, button]) => {
-                                 if (button) {
-                     if (key === filter) {
-                         button.classList.add('active', 'bg-blue-100', 'text-blue-700', 'border-blue-200');
-                         button.classList.remove('bg-neutral-100', 'text-neutral-600', 'hover:bg-neutral-200', 'border-neutral-300');
-                     } else {
-                         button.classList.remove('active', 'bg-blue-100', 'text-blue-700', 'border-blue-200');
-                         button.classList.add('bg-neutral-100', 'text-neutral-600', 'hover:bg-neutral-200', 'border-neutral-300');
-                     }
-                 }
+                if (button) {
+                    if (key === filter) {
+                        button.classList.add('active', 'bg-blue-600', 'text-white', 'hover:bg-blue-700');
+                        button.classList.remove('bg-white', 'text-neutral-700', 'hover:bg-neutral-50', 'border', 'border-neutral-200');
+                    } else {
+                        button.classList.remove('active', 'bg-blue-600', 'text-white', 'hover:bg-blue-700');
+                        button.classList.add('bg-white', 'text-neutral-700', 'hover:bg-neutral-50', 'border', 'border-neutral-200');
+                    }
+                }
             });
             
             this.loadFlags();
@@ -2022,18 +2014,28 @@ document.addEventListener('DOMContentLoaded', function() {
             this.showLoading();
             
             try {
+                // Map our filters to backend status filters
+                let backendStatus = 'all';
+                if (this.currentFilter === 'closed') {
+                    backendStatus = 'closed';
+                } else if (this.currentFilter !== 'all') {
+                    backendStatus = 'open'; // Load all open flags for user resolution filtering
+                }
+                
                 const params = new URLSearchParams({
-                    status: this.currentFilter,
+                    status: backendStatus,
                     sort: this.currentSort,
                     page: this.currentPage,
-                    per_page: 20
+                    per_page: 50 // Load more since we're filtering client-side
                 });
                 
                 const response = await fetch(`/project/${this.projectId}/flags/all?${params}`);
                 if (!response.ok) throw new Error('Failed to load flags');
                 
                 const data = await response.json();
-                this.renderFlags(data.flags);
+                let filteredFlags = this.filterFlagsByResolution(data.flags);
+                this.renderFlags(filteredFlags);
+                this.updateFlagsCount(filteredFlags.length);
                 
             } catch (error) {
                 console.error('Error loading flags:', error);
@@ -2042,6 +2044,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.isLoading = false;
                 this.hideLoading();
             }
+        }
+        
+        filterFlagsByResolution(flags) {
+            if (this.currentFilter === 'all' || this.currentFilter === 'closed') {
+                return flags; // These are handled by backend filtering
+            }
+            
+            return flags.filter(flag => {
+                const userResolution = flag.user_resolution?.status;
+                
+                switch (this.currentFilter) {
+                    case 'my-unresolved':
+                        return userResolution === 'unresolved';
+                    case 'pending':
+                        return !userResolution; // No resolution yet
+                    default:
+                        return true;
+                }
+            });
         }
         
         showLoading() {
@@ -2068,6 +2089,23 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
+        updateFlagsCount(count) {
+            if (this.flagsCountDisplay) {
+                const filterName = this.getFilterDisplayName(this.currentFilter, count);
+                this.flagsCountDisplay.textContent = `${count} ${filterName}`;
+            }
+        }
+        
+        getFilterDisplayName(filter, count) {
+            switch (filter) {
+                case 'all': return count === 1 ? 'flag' : 'flags';
+                case 'pending': return count === 1 ? 'flag needs review' : 'flags need review';
+                case 'my-unresolved': return count === 1 ? 'unresolved flag' : 'unresolved flags';
+                case 'closed': return count === 1 ? 'closed flag' : 'closed flags';
+                default: return count === 1 ? 'flag' : 'flags';
+            }
+        }
+        
         renderFlags(flags) {
             if (!this.container) return;
             
@@ -2084,35 +2122,49 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         renderFlagCard(flag) {
-            const statusClass = flag.status === 'open' ? 'bg-green-100 text-green-700' : 'bg-neutral-100 text-neutral-600';
             const timeAgo = this.formatTimeAgo(flag.created_at);
             const verseRefsText = flag.verse_references.join(', ') || 'Unknown verses';
             
-            // User resolution indicator
-            let resolutionIcon = '';
-            if (flag.user_resolution) {
+            // Primary status based on user resolution, fallback to flag status
+            let statusBadge = '';
+            let statusClass = '';
+            let statusText = '';
+            
+            if (flag.status === 'closed') {
+                // Closed flags always show as closed regardless of user resolution
+                statusClass = 'bg-neutral-100 text-neutral-600';
+                statusText = 'Closed';
+            } else if (flag.user_resolution) {
+                // Open flag with user resolution
                 switch (flag.user_resolution.status) {
                     case 'resolved':
-                        resolutionIcon = '<i class="fas fa-check-circle text-green-500 ml-2" title="You marked as resolved"></i>';
-                        break;
-                    case 'not_relevant':
-                        resolutionIcon = '<i class="fas fa-minus-circle text-gray-500 ml-2" title="You marked as not relevant"></i>';
+                        statusClass = 'bg-green-100 text-green-700';
+                        statusText = 'I Resolved';
                         break;
                     case 'unresolved':
-                        resolutionIcon = '<i class="fas fa-exclamation-circle text-orange-500 ml-2" title="You marked as unresolved"></i>';
+                        statusClass = 'bg-orange-100 text-orange-700';
+                        statusText = 'I Marked Unresolved';
+                        break;
+                    default:
+                        // Handle any legacy 'not_relevant' as resolved
+                        statusClass = 'bg-green-100 text-green-700';
+                        statusText = 'I Resolved';
                         break;
                 }
+            } else {
+                // Open flag without user resolution yet
+                statusClass = 'bg-blue-100 text-blue-700';
+                statusText = 'Need My Review';
             }
+            
+            statusBadge = `<span class="px-3 py-1 rounded-full text-sm font-medium ${statusClass}">${statusText}</span>`;
             
             return `
                 <div class="border border-neutral-200 rounded-xl p-4 sm:p-6 mb-4 bg-white hover:shadow-md transition-shadow cursor-pointer" 
                      onclick="this.querySelector('a').click()">
                     <div class="flex items-start justify-between mb-3">
                         <div class="flex items-center gap-3">
-                            <span class="px-3 py-1 rounded-full text-sm font-medium ${statusClass}">
-                                ${flag.status}
-                            </span>
-                            ${resolutionIcon}
+                            ${statusBadge}
                         </div>
                         <span class="text-sm text-neutral-500">${timeAgo}</span>
                     </div>

@@ -45,7 +45,9 @@ class FlagManager {
             flagDetailsView: document.getElementById('flag-details-view'),
             newThreadBtn: document.getElementById('new-thread-btn'),
             backToListBtn: document.getElementById('back-to-list-btn'),
-            flagVerseCellContainer: document.getElementById('flag-verse-cell-container')
+            flagVerseCellContainer: document.getElementById('flag-verse-cell-container'),
+            resolutionResolved: document.getElementById('resolution-resolved'),
+            resolutionUnresolved: document.getElementById('resolution-unresolved')
         };
         
         this.setupCommentCharCounter();
@@ -122,7 +124,7 @@ class FlagManager {
             <div class="bg-white border border-slate-200 rounded-xl p-5 hover:shadow-lg hover:border-slate-300 transition-all cursor-pointer group" onclick="openFlagDetails(${flag.id})">
                 <div class="flex items-start justify-between mb-4">
                     <div class="flex items-center space-x-3">
-                        ${this.renderStatusBadge(flag.status)}
+                        ${this.renderStatusBadge(flag.status, flag.current_user_resolution?.status)}
                     </div>
                     <span class="text-sm text-slate-500 font-medium">${this.formatDate(flag.created_at)}</span>
                 </div>
@@ -150,9 +152,25 @@ class FlagManager {
         `).join('');
     }
     
-    renderStatusBadge(status) {
+    renderStatusBadge(status, userResolution = null) {
+        // If user has a resolution, show that prominently
+        if (userResolution) {
+            const resolutionClasses = {
+                'resolved': 'bg-green-100 text-green-800',
+                'unresolved': 'bg-orange-100 text-orange-800', 
+                'not_relevant': 'bg-gray-100 text-gray-700'
+            };
+            const resolutionText = {
+                'resolved': 'Resolved',
+                'unresolved': 'Unresolved',
+                'not_relevant': 'Not Relevant'
+            };
+            return `<span class="px-3 py-1.5 rounded-full text-sm font-semibold ${resolutionClasses[userResolution]}">${resolutionText[userResolution]}</span>`;
+        }
+        
+        // Fallback to flag status for users who haven't resolved
         const classes = status === 'open' 
-            ? 'bg-green-100 text-green-800' 
+            ? 'bg-blue-100 text-blue-800' 
             : 'bg-gray-100 text-gray-700';
         return `<span class="px-3 py-1.5 rounded-full text-sm font-semibold ${classes}">${status}</span>`;
     }
@@ -230,10 +248,20 @@ class FlagManager {
             this.elements.flagDetailsStatus.className = `px-3 py-1.5 rounded-full text-sm font-semibold ${this.getStatusClasses(flag.status)}`;
             this.elements.flagDetailsStatus.classList.remove('hidden');
             
-            this.elements.flagStatusToggle.textContent = flag.status === 'open' ? 'Close Flag' : 'Reopen Flag';
+            const flagStatusButton = this.elements.flagStatusToggle;
+            if (flagStatusButton) {
+                if (flag.status === 'open') {
+                    flagStatusButton.innerHTML = '<i class="fas fa-crown mr-1"></i>Admin Close';
+                    flagStatusButton.className = 'px-4 py-2 text-sm font-medium bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors';
+                } else {
+                    flagStatusButton.innerHTML = '<i class="fas fa-crown mr-1"></i>Admin Reopen';
+                    flagStatusButton.className = 'px-4 py-2 text-sm font-medium bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors';
+                }
+            }
             this.elements.flagStatusToggle.classList.remove('hidden');
             
             this.renderTimeline(flag.timeline);
+            this.updateResolutionButtons(flag.current_user_resolution);
             
             // Switch to details view
             this.showFlagModalView('details');
@@ -291,24 +319,24 @@ class FlagManager {
         const timestamp = this.formatDiscordTimestamp(comment.created_at);
         
         if (isGrouped) {
-            // Grouped message - no username, minimal spacing, timestamp on hover
+            // Grouped message - same indentation as main messages
             return `
-                <div class="flex group hover:bg-slate-100/50 px-1 py-0.5 -mx-1 rounded transition-colors">
-                    <!-- Timestamp space (shows on hover) -->
-                    <div class="flex-shrink-0 w-12 flex items-start justify-end pr-2">
-                        <span class="text-xs text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">${timestamp}</span>
-                    </div>
-                    
-                    <!-- Message Content -->
-                    <div class="flex-1 min-w-0">
-                        <!-- Message Body -->
-                        <div class="text-slate-800 leading-snug whitespace-pre-wrap break-words text-sm">
-                            ${commentText}
-                            ${comment.edited_at ? `
-                                <span class="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded ml-1" title="Edited ${this.formatDate(comment.edited_at)}">
-                                    edited
-                                </span>
-                            ` : ''}
+                <div class="hover:bg-slate-100/50 transition-colors py-0.5">
+                    <div class="flex">
+                        <!-- Avatar space (invisible to maintain alignment) -->
+                        <div class="w-8 h-8 mr-2"></div>
+                        
+                        <!-- Message Content -->
+                        <div class="flex-1">
+                            <div class="text-slate-800 leading-tight text-sm group">
+                                ${commentText}
+                                <span class="text-xs text-slate-400 opacity-0 group-hover:opacity-100 ml-2" title="${this.formatDiscordTimestamp(comment.created_at)}">${timestamp}</span>
+                                ${comment.edited_at ? `
+                                    <span class="text-xs text-slate-400 bg-slate-100 px-1 py-0.5 rounded ml-1" title="Edited ${this.formatDate(comment.edited_at)}">
+                                        edited
+                                    </span>
+                                ` : ''}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -316,30 +344,32 @@ class FlagManager {
         } else {
             // First message from user - show full header
             return `
-                <div class="flex group hover:bg-slate-100/50 px-1 py-1 -mx-1 rounded transition-colors">
-                    <!-- User Avatar -->
-                    <div class="flex-shrink-0 mr-2">
-                        <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-xs ${avatarColor}">
-                            ${userInitials}
-                        </div>
-                    </div>
-                    
-                    <!-- Message Content -->
-                    <div class="flex-1 min-w-0">
-                        <!-- Message Header -->
-                        <div class="flex items-baseline space-x-1 mb-0.5">
-                            <span class="font-semibold text-slate-900 hover:underline cursor-pointer text-sm">${this.escapeHtml(comment.user.name)}</span>
-                            <span class="text-xs text-slate-500 font-medium">${timestamp}</span>
-                            ${comment.edited_at ? `
-                                <span class="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded" title="Edited ${this.formatDate(comment.edited_at)}">
-                                    edited
-                                </span>
-                            ` : ''}
+                <div class="hover:bg-slate-100/50 transition-colors py-1">
+                    <div class="flex">
+                        <!-- User Avatar -->
+                        <div class="w-8 h-8 mr-2">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-xs ${avatarColor}">
+                                ${userInitials}
+                            </div>
                         </div>
                         
-                        <!-- Message Body -->
-                        <div class="text-slate-800 leading-snug whitespace-pre-wrap break-words text-sm">
-                            ${commentText}
+                        <!-- Message Content -->
+                        <div class="flex-1">
+                            <!-- Message Header -->
+                            <div class="flex items-baseline gap-1 mb-1">
+                                <span class="font-semibold text-slate-900 text-sm">${this.escapeHtml(comment.user.name)}</span>
+                                <span class="text-xs text-slate-500">${timestamp}</span>
+                                ${comment.edited_at ? `
+                                    <span class="text-xs text-slate-400 bg-slate-100 px-1 py-0.5 rounded" title="Edited ${this.formatDate(comment.edited_at)}">
+                                        edited
+                                    </span>
+                                ` : ''}
+                            </div>
+                            
+                            <!-- Message Body -->
+                            <div class="text-slate-800 leading-tight text-sm">
+                                ${commentText}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -987,7 +1017,73 @@ class FlagManager {
     }
     
     getStatusClasses(status) {
-        return status === 'open' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700';
+        return status === 'open' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700';
+    }
+    
+    updateResolutionButtons(userResolution) {
+        // Reset all buttons
+        [this.elements.resolutionResolved, this.elements.resolutionUnresolved].forEach(btn => {
+            if (btn) {
+                btn.classList.remove('bg-green-100', 'text-green-700', 'border-green-200');
+                btn.classList.remove('bg-orange-100', 'text-orange-700', 'border-orange-200');
+                btn.classList.add('bg-slate-100', 'text-slate-600');
+            }
+        });
+        
+        if (userResolution) {
+            let activeButton = null;
+            let activeClasses = [];
+            
+            switch (userResolution.status) {
+                case 'resolved':
+                    activeButton = this.elements.resolutionResolved;
+                    activeClasses = ['bg-green-100', 'text-green-700', 'border-green-200'];
+                    break;
+                case 'unresolved':
+                    activeButton = this.elements.resolutionUnresolved;
+                    activeClasses = ['bg-orange-100', 'text-orange-700', 'border-orange-200'];
+                    break;
+            }
+            
+            if (activeButton) {
+                activeButton.classList.remove('bg-slate-100', 'text-slate-600');
+                activeButton.classList.add(...activeClasses);
+            }
+        }
+    }
+    
+    async setResolution(status) {
+        if (!this.currentFlagId) return;
+        
+        try {
+            const response = await fetch(`/project/${this.projectId}/flags/${this.currentFlagId}/resolve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: status })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                // Update the resolution buttons
+                this.updateResolutionButtons({ status: status });
+                
+                // If flag was auto-closed, update the status
+                if (data.flag_status === 'closed') {
+                    this.elements.flagDetailsStatus.textContent = 'closed';
+                    this.elements.flagDetailsStatus.className = 'px-3 py-1.5 rounded-full text-sm font-semibold bg-gray-100 text-gray-700';
+                    
+                    const flagStatusButton = this.elements.flagStatusToggle;
+                    if (flagStatusButton) {
+                        flagStatusButton.innerHTML = '<i class="fas fa-crown mr-1"></i>Admin Reopen';
+                        flagStatusButton.className = 'px-4 py-2 text-sm font-medium bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors';
+                    }
+                }
+            } else {
+                ErrorHandler.show(data.error || 'Failed to update resolution status');
+            }
+        } catch (error) {
+            ErrorHandler.logAndShow('Failed to update resolution status', error);
+        }
     }
     
     formatDate(dateString) {
@@ -1083,6 +1179,7 @@ const FlagManagerModule = (() => {
         showNewThreadForm: () => getInstance().showNewThreadForm(),
         addComment: () => getInstance().addComment(),
         toggleFlagStatus: () => getInstance().toggleFlagStatus(),
+        setResolution: (status) => getInstance().setResolution(status),
         closeFlagModal: () => getInstance().closeFlagModal(),
         openFlagModal: (verseData, textId) => getInstance().openFlagModal(verseData, textId),
         showFlagModalView: (view) => getInstance().showFlagModalView(view)
@@ -1104,6 +1201,10 @@ function addComment() {
 
 function toggleFlagStatus() {
     FlagManagerModule.toggleFlagStatus();
+}
+
+function setResolution(status) {
+    FlagManagerModule.setResolution(status);
 }
 
 function closeFlagModal() {

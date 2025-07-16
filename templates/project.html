@@ -313,24 +313,23 @@
                     </div>
                     
                     <!-- Flag Filters -->
-                    <div class="flex flex-col sm:flex-row gap-4 mb-6">
-                        <div class="flex gap-2">
-                            <button id="filter-all-flags" class="flag-filter-btn active px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-blue-100 text-blue-700 border border-blue-200">
-                                All Flags
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                        <div class="flex flex-wrap gap-2">
+                            <button id="filter-all-flags" class="flag-filter-btn active px-4 py-2 rounded-xl font-semibold text-sm transition-all bg-blue-600 text-white hover:bg-blue-700 shadow-sm">
+                                All
                             </button>
-                            <button id="filter-open-flags" class="flag-filter-btn px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-300">
-                                Open
+                            <button id="filter-pending" class="flag-filter-btn px-4 py-2 rounded-xl font-semibold text-sm transition-all bg-white text-neutral-700 hover:bg-neutral-50 border border-neutral-200 shadow-sm">
+                                Need Review
                             </button>
-                            <button id="filter-closed-flags" class="flag-filter-btn px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-300">
+                            <button id="filter-my-unresolved" class="flag-filter-btn px-4 py-2 rounded-xl font-semibold text-sm transition-all bg-white text-neutral-700 hover:bg-neutral-50 border border-neutral-200 shadow-sm">
+                                My Unresolved
+                            </button>
+                            <button id="filter-closed-flags" class="flag-filter-btn px-4 py-2 rounded-xl font-semibold text-sm transition-all bg-white text-neutral-700 hover:bg-neutral-50 border border-neutral-200 shadow-sm">
                                 Closed
                             </button>
                         </div>
-                        <div class="flex gap-2 ml-auto">
-                            <select id="sort-flags" class="px-3 py-2 border border-neutral-300 rounded-lg text-sm">
-                                <option value="newest">Newest First</option>
-                                <option value="oldest">Oldest First</option>
-                                <option value="most-comments">Most Comments</option>
-                            </select>
+                        <div class="text-sm text-neutral-500 font-medium">
+                            <span id="flags-count-display">Loading...</span>
                         </div>
                     </div>
                     

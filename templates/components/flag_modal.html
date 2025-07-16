@@ -57,12 +57,26 @@
                                 <span id="flag-details-status" class="px-3 py-1 rounded-full text-sm font-semibold hidden"></span>
                             </div>
                         </div>
-                        <button id="flag-status-toggle" onclick="toggleFlagStatus()" class="px-4 py-2 text-sm font-medium bg-slate-100 border rounded-lg hover:bg-slate-200 transition-colors hidden">
-                        </button>
+                        <div class="flex items-center space-x-2">
+                            <!-- Resolution Controls -->
+                            <div class="flex items-center space-x-1">
+                                <span class="text-sm font-medium text-slate-600 mr-2">Your Status:</span>
+                                <button id="resolution-resolved" onclick="setResolution('resolved')" class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors bg-slate-100 text-slate-600 hover:bg-green-100 hover:text-green-700 border">
+                                    <i class="fas fa-check mr-1"></i>Resolved
+                                </button>
+                                <button id="resolution-unresolved" onclick="setResolution('unresolved')" class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors bg-slate-100 text-slate-600 hover:bg-orange-100 hover:text-orange-700 border">
+                                    <i class="fas fa-exclamation mr-1"></i>Unresolved
+                                </button>
+                            </div>
+                            <div class="border-l border-slate-300 mx-3 h-6"></div>
+                            <button id="flag-status-toggle" onclick="toggleFlagStatus()" class="px-4 py-2 text-sm font-medium bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors hidden">
+                                <i class="fas fa-crown mr-1"></i>Admin Close
+                            </button>
+                        </div>
                     </div>
                     
                     <!-- Messages Area -->
-                    <div id="flag-comments" class="flex-1 overflow-y-auto px-1 py-2 space-y-0.5 bg-slate-50"></div>
+                    <div id="flag-comments" class="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 space-y-2 bg-slate-50"></div>
                     
                     <!-- Message Input Area -->
                     <div class="p-4 bg-white border-t border-slate-200">
@@ -79,14 +93,6 @@
                                     <div class="flex items-center justify-between px-4 pb-2">
                                         <div class="text-xs text-slate-400 font-medium">
                                             <span id="comment-char-count">0</span>/5000
-                                        </div>
-                                        <div class="flex items-center space-x-2">
-                                            <button class="w-8 h-8 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-200 transition-colors flex items-center justify-center" title="Add emoji">
-                                                <i class="fas fa-smile"></i>
-                                            </button>
-                                            <button class="w-8 h-8 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-200 transition-colors flex items-center justify-center" title="Attach file">
-                                                <i class="fas fa-paperclip"></i>
-                                            </button>
                                         </div>
                                     </div>
                                 </div>
