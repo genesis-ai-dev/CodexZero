@@ -672,24 +672,31 @@ class TextWindow {
     }
     
     syncOtherWindowsToThis(sourceContainer) {
-        // Enhanced sync: Find the currently visible verse and sync to that exact verse
+        // Enhanced sync: Find the currently visible verse and sync to that exact verse across chapters/books
         const currentVisibleVerse = this.getCurrentVisibleVerse(sourceContainer);
         
         if (!currentVisibleVerse) {
-            // Fallback to percentage-based sync if no verse found
-            this.syncByScrollPercentage(sourceContainer);
+            console.log('No visible verse found for syncing');
             return;
         }
         
+        const targetVerseIndex = parseInt(currentVisibleVerse.dataset.verseIndex);
         const targetVerseNumber = currentVisibleVerse.dataset.verse;
-        console.log(`Syncing reference windows to verse ${targetVerseNumber}`);
+        const targetReference = currentVisibleVerse.dataset.reference || `Verse ${targetVerseNumber}`;
+        
+        if (isNaN(targetVerseIndex)) {
+            console.log('Invalid verse index for syncing');
+            return;
+        }
+        
+        console.log(`Syncing reference windows to verse index ${targetVerseIndex} (${targetReference})`);
         
         // Find all other text windows and sync those with sync enabled
         window.translationEditor?.textWindows?.forEach((textWindow, windowId) => {
             if (textWindow.id !== this.id && textWindow.syncEnabled !== false) {
                 const otherContainer = textWindow.element?.querySelector('[data-window-content]');
                 if (otherContainer && otherContainer.offsetParent) {
-                    this.syncToVerse(otherContainer, targetVerseNumber, textWindow.id);
+                    this.syncToVerseIndex(otherContainer, targetVerseIndex, targetReference, textWindow.id);
                 }
             }
         });
@@ -700,8 +707,8 @@ class TextWindow {
         const containerHeight = container.clientHeight;
         const viewportCenter = scrollTop + (containerHeight / 2);
         
-        // Get all verse elements
-        const verseElements = container.querySelectorAll('[data-verse-cell]');
+        // Get all verse elements with verse-index data
+        const verseElements = container.querySelectorAll('[data-verse-index]');
         
         let closestElement = null;
         let closestDistance = Infinity;
@@ -723,65 +730,82 @@ class TextWindow {
         return closestElement;
     }
     
-    syncToVerse(container, verseNumber, windowId) {
-        // Try to find the target verse in the reference window
-        const targetVerse = container.querySelector(`[data-verse="${verseNumber}"]`);
+    async syncToVerseIndex(container, verseIndex, reference, windowId) {
+        // Try to find the target verse by index in the reference window
+        const targetVerse = container.querySelector(`[data-verse-index="${verseIndex}"]`);
         
         if (targetVerse) {
-            // Jump directly to the verse
+            // Verse found - jump directly to it
             const targetTop = targetVerse.offsetTop - 50; // Small offset for better visibility
             container.scrollTop = Math.max(0, targetTop);
+            console.log(`Synced ${windowId} to verse index ${verseIndex} (found locally)`);
         } else {
-            // Verse not found - might need to load content
-            console.log(`Verse ${verseNumber} not found in ${windowId}, triggering content load`);
+            // Verse not found - need to load the correct chapter/book content
+            console.log(`Verse index ${verseIndex} not found in ${windowId}, loading appropriate content`);
             
-            // Fallback to percentage sync and trigger loading
-            this.syncByScrollPercentageForWindow(container, windowId);
-            
-            // Try to find and scroll to the verse after a brief delay
-            setTimeout(() => {
-                const delayedTarget = container.querySelector(`[data-verse="${verseNumber}"]`);
-                if (delayedTarget) {
-                    const targetTop = delayedTarget.offsetTop - 50;
-                    container.scrollTop = Math.max(0, targetTop);
-                }
-            }, 200);
+            await this.loadContentForVerseIndex(container, verseIndex, reference, windowId);
         }
     }
     
-    syncByScrollPercentage(sourceContainer) {
-        // Original percentage-based sync as fallback
-        const scrollPercent = sourceContainer.scrollTop / Math.max(1, sourceContainer.scrollHeight - sourceContainer.clientHeight);
-        
-        window.translationEditor?.textWindows?.forEach((textWindow, windowId) => {
-            if (textWindow.id !== this.id && textWindow.syncEnabled !== false) {
-                const otherContainer = textWindow.element?.querySelector('[data-window-content]');
-                if (otherContainer && otherContainer.offsetParent) {
-                    this.syncByScrollPercentageForWindow(otherContainer, textWindow.id, scrollPercent);
-                }
+    async loadContentForVerseIndex(container, verseIndex, reference, windowId) {
+        try {
+            // First, get the book/chapter info for this verse index
+            const verseInfo = await this.getVerseInfo(verseIndex);
+            
+            if (!verseInfo || !verseInfo.book || !verseInfo.chapter) {
+                console.error(`Could not get book/chapter info for verse index ${verseIndex}`);
+                return;
             }
-        });
-    }
-    
-    syncByScrollPercentageForWindow(container, windowId, scrollPercent = null) {
-        if (scrollPercent === null) {
-            // Calculate from source if not provided
-            const sourceContainer = this.element?.querySelector('[data-window-content]');
-            if (!sourceContainer) return;
-            scrollPercent = sourceContainer.scrollTop / Math.max(1, sourceContainer.scrollHeight - sourceContainer.clientHeight);
-        }
-        
-        const maxScroll = container.scrollHeight - container.clientHeight;
-        if (maxScroll > 0) {
-            const targetScroll = scrollPercent * maxScroll;
-            container.scrollTop = targetScroll;
             
-            // Trigger content loading check
+            console.log(`Loading ${verseInfo.book} ${verseInfo.chapter} for ${windowId} to reach verse index ${verseIndex}`);
+            
+            // Use virtual scroll manager to load the correct chapter
             if (window.translationEditor?.virtualScrollManager) {
+                // Clear current content first
+                container.innerHTML = '<div class="p-4 text-gray-500">Loading...</div>';
+                
+                // Load the chapter containing this verse
+                await window.translationEditor.virtualScrollManager.loadChapterWithContext(windowId, verseInfo.book, verseInfo.chapter);
+                
+                // After loading, try to scroll to the specific verse
                 setTimeout(() => {
-                    window.translationEditor.virtualScrollManager.checkAndLoadVerses(windowId, container);
-                }, 50);
+                    const targetVerse = container.querySelector(`[data-verse-index="${verseIndex}"]`);
+                    if (targetVerse) {
+                        const targetTop = targetVerse.offsetTop - 50;
+                        container.scrollTop = Math.max(0, targetTop);
+                        console.log(`Successfully synced ${windowId} to verse index ${verseIndex} after loading`);
+                    } else {
+                        console.log(`Verse index ${verseIndex} still not found after loading ${verseInfo.book} ${verseInfo.chapter}`);
+                    }
+                }, 200);
+            } else {
+                console.error('Virtual scroll manager not available for content loading');
             }
+            
+        } catch (error) {
+            console.error(`Error loading content for verse index ${verseIndex}:`, error);
+        }
+    }
+    
+    async getVerseInfo(verseIndex) {
+        try {
+            const projectId = window.translationEditor?.projectId;
+            if (!projectId) {
+                console.error('Project ID not available');
+                return null;
+            }
+            
+            const response = await fetch(`/project/${projectId}/verse-info/${verseIndex}`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            return data;
+            
+        } catch (error) {
+            console.error(`Error fetching verse info for index ${verseIndex}:`, error);
+            return null;
         }
     }
     
