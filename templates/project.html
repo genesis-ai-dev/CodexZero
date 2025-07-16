@@ -232,47 +232,7 @@
                 </div>
                 {% endif %}
                 
-                <!-- Add More Texts -->
-                {% if texts %}
-                <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-4 sm:p-8 mb-6 sm:mb-8">
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-                        <div>
-                            <h3 class="text-lg font-bold text-neutral-900 mb-2">Add More Texts</h3>
-                            <p class="text-neutral-600 font-medium">Import additional USFM files or create new translations</p>
-                        </div>
-                    </div>
-                
-                    <div class="text-center">
-                        <a href="{{ url_for('files.usfm_import', project_id=project.id) }}" 
-                           class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 rounded-xl font-semibold transition-all duration-200 shadow-lg">
-                            <i class="fas fa-plus mr-2"></i>
-                            Import More Texts
-                        </a>
-                    </div>
-                </div>
-                {% else %}
-                <!-- Empty State -->
-                <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 sm:p-12">
-                    <div class="text-center">
-                        <i class="fas fa-plus-circle text-4xl sm:text-6xl text-neutral-400 mb-4 sm:mb-6"></i>
-                        <h3 class="text-xl sm:text-2xl font-bold text-neutral-900 mb-3">Start Your Translation Project</h3>
-                        <p class="text-neutral-600 mb-6 font-medium">Import USFM files or create new translations to get started</p>
-                        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-                            <a href="{{ url_for('files.usfm_import', project_id=project.id) }}" 
-                               class="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 rounded-xl font-semibold transition-all duration-200 shadow-lg">
-                                <i class="fas fa-file-import mr-2"></i>
-                                Import USFM Files
-                            </a>
-                            <span class="text-neutral-500 font-medium">or</span>
-                            <a href="{{ url_for('translation.translate_page', project_id=project.id) }}" 
-                               class="w-full sm:w-auto px-6 py-3 bg-white text-neutral-700 border border-neutral-300 rounded-xl font-semibold hover:bg-neutral-50 transition-all duration-200 shadow-md text-center">
-                                <i class="fas fa-plus mr-2"></i>
-                                Create Translation
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
+               
             </div>
 
             <!-- Flags Tab -->
@@ -340,7 +300,8 @@
                         <!-- Configuration Panel -->
                         <div class="xl:col-span-2 space-y-6">
                             <!-- Fine-tuning Configuration -->
-                            <div class="bg-neutral-50/80 border border-neutral-200 rounded-xl p-4 sm:p-6">
+                            <div class="bg-neuAdd More Texts
+                            tral-50/80 border border-neutral-200 rounded-xl p-4 sm:p-6">
                                 <h3 class="font-bold text-neutral-900 mb-4">Configuration</h3>
                                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     <div>
