@@ -1955,6 +1955,9 @@ document.addEventListener('DOMContentLoaded', function() {
             this.currentFilter = 'all';
             this.currentSort = 'newest';
             this.currentPage = 1;
+            this.totalPages = 1;
+            this.totalFlags = 0;
+            this.flagsPerPage = 5; // Lower for testing pagination
             this.isLoading = false;
             
             this.initializeElements();
@@ -1971,11 +1974,17 @@ document.addEventListener('DOMContentLoaded', function() {
             this.filterButtons = {
                 all: document.getElementById('filter-all-flags'),
                 pending: document.getElementById('filter-pending'),
-                'my-unresolved': document.getElementById('filter-my-unresolved'),
                 closed: document.getElementById('filter-closed-flags')
             };
             
             this.flagsCountDisplay = document.getElementById('flags-count-display');
+            
+            // Pagination elements
+            this.paginationEl = document.getElementById('flags-pagination');
+            this.paginationInfo = document.getElementById('pagination-info');
+            this.prevPageBtn = document.getElementById('prev-page-btn');
+            this.nextPageBtn = document.getElementById('next-page-btn');
+            this.pageNumbersEl = document.getElementById('page-numbers');
         }
         
         setupEventListeners() {
@@ -1985,6 +1994,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     button.addEventListener('click', () => this.setFilter(filter));
                 }
             });
+            
+            // Pagination buttons
+            if (this.prevPageBtn) {
+                this.prevPageBtn.addEventListener('click', () => this.goToPage(this.currentPage - 1));
+            }
+            if (this.nextPageBtn) {
+                this.nextPageBtn.addEventListener('click', () => this.goToPage(this.currentPage + 1));
+            }
         }
         
         setFilter(filter) {
@@ -2026,16 +2043,32 @@ document.addEventListener('DOMContentLoaded', function() {
                     status: backendStatus,
                     sort: this.currentSort,
                     page: this.currentPage,
-                    per_page: 50 // Load more since we're filtering client-side
+                    per_page: this.flagsPerPage
                 });
                 
                 const response = await fetch(`/project/${this.projectId}/flags/all?${params}`);
                 if (!response.ok) throw new Error('Failed to load flags');
                 
                 const data = await response.json();
-                let filteredFlags = this.filterFlagsByResolution(data.flags);
-                this.renderFlags(filteredFlags);
-                this.updateFlagsCount(filteredFlags.length);
+                
+                // For client-side filtering, we need to handle pagination differently
+                if (this.currentFilter === 'all' || this.currentFilter === 'closed') {
+                    // Backend filtering - use server pagination
+                    this.totalFlags = data.pagination.total;
+                    this.totalPages = data.pagination.pages;
+                    this.renderFlags(data.flags);
+                    this.updatePagination();
+                } else {
+                    // Client-side filtering - need to fetch more data
+                    let filteredFlags = this.filterFlagsByResolution(data.flags);
+                    this.renderFlags(filteredFlags);
+                    // For client-side filtering, show total flags but disable pagination controls
+                    this.totalFlags = filteredFlags.length;
+                    this.totalPages = 1;
+                    this.hidePagination();
+                }
+                
+                this.updateFlagsCount();
                 
             } catch (error) {
                 console.error('Error loading flags:', error);
@@ -2055,8 +2088,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const userResolution = flag.user_resolution?.status;
                 
                 switch (this.currentFilter) {
-                    case 'my-unresolved':
-                        return userResolution === 'unresolved';
                     case 'pending':
                         return !userResolution; // No resolution yet
                     default:
@@ -2089,10 +2120,90 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        updateFlagsCount(count) {
+        updateFlagsCount() {
             if (this.flagsCountDisplay) {
-                const filterName = this.getFilterDisplayName(this.currentFilter, count);
-                this.flagsCountDisplay.textContent = `${count} ${filterName}`;
+                const displayCount = this.currentFilter === 'all' || this.currentFilter === 'closed' 
+                    ? this.totalFlags 
+                    : this.container?.children?.length || 0;
+                const filterName = this.getFilterDisplayName(this.currentFilter, displayCount);
+                this.flagsCountDisplay.textContent = `${displayCount} ${filterName}`;
+            }
+        }
+        
+        goToPage(page) {
+            if (page < 1 || page > this.totalPages || page === this.currentPage) return;
+            this.currentPage = page;
+            this.loadFlags();
+        }
+        
+        updatePagination() {
+            if (!this.paginationEl) {
+                console.log('Pagination element not found');
+                return;
+            }
+            
+            console.log(`Pagination check: ${this.totalFlags} flags, ${this.totalPages} pages`);
+            
+            if (this.totalPages <= 1) {
+                console.log('Hiding pagination - only 1 page');
+                this.hidePagination();
+                return;
+            }
+            
+            console.log('Showing pagination');
+            this.paginationEl.classList.remove('hidden');
+            
+            // Update pagination info
+            const startItem = (this.currentPage - 1) * this.flagsPerPage + 1;
+            const endItem = Math.min(this.currentPage * this.flagsPerPage, this.totalFlags);
+            if (this.paginationInfo) {
+                this.paginationInfo.textContent = `Showing ${startItem}-${endItem} of ${this.totalFlags} flags`;
+            }
+            
+            // Update navigation buttons
+            if (this.prevPageBtn) {
+                this.prevPageBtn.disabled = this.currentPage <= 1;
+            }
+            if (this.nextPageBtn) {
+                this.nextPageBtn.disabled = this.currentPage >= this.totalPages;
+            }
+            
+            // Update page numbers
+            this.renderPageNumbers();
+        }
+        
+        hidePagination() {
+            if (this.paginationEl) {
+                this.paginationEl.classList.add('hidden');
+            }
+        }
+        
+        renderPageNumbers() {
+            if (!this.pageNumbersEl) return;
+            
+            this.pageNumbersEl.innerHTML = '';
+            
+            // Show max 5 page numbers with current page in center when possible
+            let startPage = Math.max(1, this.currentPage - 2);
+            let endPage = Math.min(this.totalPages, startPage + 4);
+            
+            // Adjust start if we're near the end
+            if (endPage - startPage < 4) {
+                startPage = Math.max(1, endPage - 4);
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.textContent = i;
+                pageBtn.className = i === this.currentPage 
+                    ? 'px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg'
+                    : 'px-3 py-2 text-sm font-medium text-neutral-500 hover:text-neutral-700 hover:bg-neutral-50 rounded-lg';
+                
+                if (i !== this.currentPage) {
+                    pageBtn.addEventListener('click', () => this.goToPage(i));
+                }
+                
+                this.pageNumbersEl.appendChild(pageBtn);
             }
         }
         
@@ -2100,7 +2211,6 @@ document.addEventListener('DOMContentLoaded', function() {
             switch (filter) {
                 case 'all': return count === 1 ? 'flag' : 'flags';
                 case 'pending': return count === 1 ? 'flag needs review' : 'flags need review';
-                case 'my-unresolved': return count === 1 ? 'unresolved flag' : 'unresolved flags';
                 case 'closed': return count === 1 ? 'closed flag' : 'closed flags';
                 default: return count === 1 ? 'flag' : 'flags';
             }

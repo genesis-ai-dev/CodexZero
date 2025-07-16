@@ -252,9 +252,6 @@
                             <button id="filter-pending" class="flag-filter-btn px-4 py-2 rounded-xl font-semibold text-sm transition-all bg-white text-neutral-700 hover:bg-neutral-50 border border-neutral-200 shadow-sm">
                                 Need Review
                             </button>
-                            <button id="filter-my-unresolved" class="flag-filter-btn px-4 py-2 rounded-xl font-semibold text-sm transition-all bg-white text-neutral-700 hover:bg-neutral-50 border border-neutral-200 shadow-sm">
-                                My Unresolved
-                            </button>
                             <button id="filter-closed-flags" class="flag-filter-btn px-4 py-2 rounded-xl font-semibold text-sm transition-all bg-white text-neutral-700 hover:bg-neutral-50 border border-neutral-200 shadow-sm">
                                 Closed
                             </button>
@@ -269,6 +266,26 @@
                         <div id="flags-loading" class="text-center py-12">
                             <i class="fas fa-spinner fa-spin text-2xl text-neutral-400 mb-4"></i>
                             <p class="text-neutral-500">Loading flags...</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Pagination Controls -->
+                    <div id="flags-pagination" class="hidden flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-neutral-200">
+                        <div class="text-sm text-neutral-600 font-medium">
+                            <span id="pagination-info">Showing 1-20 of 100 flags</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button id="prev-page-btn" class="px-3 py-2 text-sm font-medium text-neutral-500 hover:text-neutral-700 hover:bg-neutral-50 rounded-lg border border-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                <i class="fas fa-chevron-left mr-1"></i>
+                                Previous
+                            </button>
+                            <div id="page-numbers" class="flex items-center gap-1">
+                                <!-- Page numbers will be inserted here -->
+                            </div>
+                            <button id="next-page-btn" class="px-3 py-2 text-sm font-medium text-neutral-500 hover:text-neutral-700 hover:bg-neutral-50 rounded-lg border border-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                                Next
+                                <i class="fas fa-chevron-right ml-1"></i>
+                            </button>
                         </div>
                     </div>
                     
