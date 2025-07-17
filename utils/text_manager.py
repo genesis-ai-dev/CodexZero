@@ -187,6 +187,8 @@ class TextManager:
             return False
 
 
+
+
 def get_text_manager(text_id: int) -> TextManager:
     """Factory function to get TextManager instance"""
     return TextManager(text_id) 

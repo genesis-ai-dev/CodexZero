@@ -210,37 +210,22 @@ def usfm_import(project_id):
     project = Project.query.get_or_404(project_id)
     return render_template('usfm_import.html', project=project)
 
+
+
+
+
 @files.route('/project/<int:project_id>/usfm-status')
 @login_required
 def usfm_status(project_id):
-    """Get USFM import status and progress stats"""
+    """Get USFM import status and progress stats - only count verses from selected translation"""
     require_project_access(project_id, 'viewer')
     project = Project.query.get_or_404(project_id)
     
-    total_verses = 0
-    filled_verses = 0
-    
-    # Count from unified Text records (USFM uploads use this)
-    from models import Text, Verse
-    
-    all_texts = Text.query.filter_by(
-        project_id=project_id
-    ).all()
-    
-    for text in all_texts:
-        # Count all verses for this text
-        verses = Verse.query.filter_by(text_id=text.id).all()
-        total_verses += len(verses)
-        # Count filled verses (non-empty text)
-        filled_verses += sum(1 for v in verses if v.verse_text and v.verse_text.strip())
-    
-    # Calculate completion percentage based on Protestant canon
-    completion_percentage = (filled_verses / 31170) * 100 if filled_verses > 0 else 0.0
-    
+    # Return 0 by default - let the frontend choose which translation to track
     stats = {
-        'total_verses': total_verses,
-        'filled_verses': filled_verses,
-        'completion_percentage': completion_percentage
+        'total_verses': 0,
+        'filled_verses': 0,
+        'completion_percentage': 0.0
     }
     
     return jsonify({
@@ -261,6 +246,8 @@ def usfm_upload(project_id):
     files = request.files.getlist('usfm_files')
     if not files:
         return error_response('No files selected')
+
+
     
     # Process all files as USFM content
     all_verses = {}
@@ -315,7 +302,7 @@ def usfm_upload(project_id):
             error_msg += f' Errors: {"; ".join(processing_errors)}'
         return jsonify({'error': error_msg}), 400
     
-    # Create eBible format from all verses
+    # Always create new translation from USFM files
     vref_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'vref.txt')
     builder = EBibleBuilder(vref_path)
     ebible_lines = builder.create_ebible_from_usfm_verses(all_verses)
@@ -330,22 +317,25 @@ def usfm_upload(project_id):
     
     # Store directly in database using save_project_file
     project_file = save_project_file(project_id, ebible_content, project_filename, 'ebible', 'text/plain')
+    project_file_id = project_file.id
     db.session.commit()
     
 
     
     # Calculate stats for response
-    from utils.usfm_parser import EBibleBuilder
-    vref_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'vref.txt')
-    builder = EBibleBuilder(vref_path)
-    stats = builder.get_completion_stats(ebible_lines)
+    stats = {
+        'verses_added': len(all_verses),
+        'total_verses': 0,
+        'filled_verses': 0,
+        'completion_percentage': 0.0
+    }
     
     result = {
         'success': True,
         'message': f'Processed {len([f for f in uploaded_file_info if f["status"] == "success"])} USFM file(s), stored {len(all_verses)} verses in database',
         'uploaded_files': uploaded_file_info,
         'verses_added': len(all_verses),
-        'file_id': project_file.id,
+        'file_id': project_file_id,
         'filename': project_filename,
         'stats': stats  # Include completion stats
     }
