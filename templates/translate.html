@@ -244,9 +244,15 @@ class TranslationEditor {
         const layoutState = this.storage.getSavedLayoutState();
         
         if (layoutState.textIds.length === 0) {
-            // No saved layout, show empty state
-            this.renderPrimaryText();
-            this.renderReferenceTexts();
+            // No saved layout, try to auto-load ULB as reference text
+            console.log('No saved layout state found. Attempting to auto-load ULB translation...');
+            const ulbLoaded = await this.tryAutoLoadULB();
+            if (!ulbLoaded) {
+                // No ULB found, show empty state
+                console.log('No ULB found or failed to load. Showing empty state.');
+                this.renderPrimaryText();
+                this.renderReferenceTexts();
+            }
             return;
         }
         
@@ -284,6 +290,47 @@ class TranslationEditor {
         }
     }
     
+    hasULBAvailable() {
+        for (const [textId, metadata] of this.textMetadata) {
+            if (metadata.name && metadata.name.includes('ULB')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    async tryAutoLoadULB() {
+        // Look for ULB text in the project
+        let ulbTextId = null;
+        for (const [textId, metadata] of this.textMetadata) {
+            if (metadata.name && metadata.name.includes('ULB')) {
+                ulbTextId = textId;
+                break;
+            }
+        }
+        
+        if (!ulbTextId) {
+            console.log('No ULB text found for auto-loading');
+            return false;
+        }
+        
+        try {
+            console.log(`Auto-loading ULB text: ${ulbTextId}`);
+            const result = await this.loadTextData(ulbTextId, false); // Load as reference text
+            if (result) {
+                this.textWindows.set(ulbTextId, result.textWindow);
+                this.renderReferenceTexts();
+                this.saveLayoutState();
+                console.log('ULB text auto-loaded successfully');
+                return true;
+            }
+        } catch (error) {
+            console.error('Error auto-loading ULB:', error);
+        }
+        
+        return false;
+    }
+
     async loadTextData(textId, isPrimary = false) {
         if (!textId) return null;
         
@@ -842,10 +889,12 @@ class TranslationEditor {
         // Add event listener with debouncing
         this.setupButtonListener('add-reference-text-btn', () => this.showTextSelectionModal(false));
         
-        // Auto-open the modal immediately when empty state is rendered
-        requestAnimationFrame(() => {
-            this.showTextSelectionModal(false);
-        });
+        // Only auto-open the modal if no ULB is available for auto-loading
+        if (!this.hasULBAvailable()) {
+            requestAnimationFrame(() => {
+                this.showTextSelectionModal(false);
+            });
+        }
     }
     
     setupButtonListener(buttonId, handler) {
