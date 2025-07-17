@@ -1065,6 +1065,43 @@ def get_verse_history(project_id, text_id, verse_index):
     return jsonify({'history': history})
 
 
+@translation.route('/project/<int:project_id>/verse/<text_id>/<int:verse_index>/content')
+@login_required
+def get_verse_content(project_id, text_id, verse_index):
+    """Get current content for a specific verse"""
+    require_project_access(project_id, "viewer")
+    
+    if verse_index < 0 or verse_index >= 41899:
+        return jsonify({'error': 'Invalid verse index'}), 400
+    
+    try:
+        # Handle both text_42 and plain 42 formats
+        if text_id.startswith('text_'):
+            text_id_int = int(text_id.replace('text_', ''))
+        else:
+            text_id_int = int(text_id)
+        
+        # Verify text belongs to project
+        text = Text.query.filter_by(id=text_id_int, project_id=project_id).first_or_404()
+        
+        # Get verse content using TextManager
+        text_manager = TextManager(text_id_int)
+        verse_content = text_manager.get_verse(verse_index)
+        
+        return jsonify({
+            'verse_index': verse_index,
+            'text_id': text_id,
+            'content': verse_content,
+            'text_name': text.name
+        })
+        
+    except ValueError:
+        return jsonify({'error': 'Invalid text_id format'}), 400
+    except Exception as e:
+        print(f"Error getting verse content: {e}")
+        return jsonify({'error': 'Failed to get verse content'}), 500
+
+
 @translation.route('/project/<int:project_id>/verse/<int:text_id>/<int:verse_index>/revert', methods=['POST'])
 @login_required
 def revert_verse(project_id, text_id, verse_index):

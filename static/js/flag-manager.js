@@ -67,6 +67,9 @@ class FlagManager {
         // Create verse cell using proper verse cell structure
         await this.createVerseCell();
         
+        // Refresh verse content from database to ensure we have the latest version
+        await this.refreshVerseContent();
+        
         // Load flags for this verse
         await this.loadVerseFlags();
     }
@@ -701,12 +704,60 @@ class FlagManager {
         const minHeight = Math.max(80, lines * 24 + 32);
         textarea.style.height = minHeight + 'px';
         
+        // Disable editing for viewers
+        if (window.translationEditor && !window.translationEditor.canEdit) {
+            textarea.disabled = true;
+            textarea.style.backgroundColor = '#f9fafb';
+            textarea.style.cursor = 'not-allowed';
+            textarea.placeholder = 'Read-only mode - Editor access required to edit';
+            textarea.title = 'Editor access required to edit translations';
+        } else {
+            // Use the existing TextWindow save functionality
+            this.attachTextareaSaveListeners(textarea);
+        }
+        
         verseWrapper.appendChild(textarea);
         
         // Add the same controls as text-window.js
         this.setupVerseControls(controlsContainer, leftControlsContainer, textarea, verseWrapper);
         
         this.elements.flagVerseCellContainer.appendChild(verseWrapper);
+    }
+    
+    // Reuse the existing TextWindow save functionality
+    attachTextareaSaveListeners(textarea) {
+        // Find a TextWindow instance to borrow the listener method from
+        if (window.translationEditor && window.translationEditor.textWindows) {
+            // Get any TextWindow instance to call its method
+            const textWindow = Array.from(window.translationEditor.textWindows.values())[0];
+            if (textWindow && textWindow.attachOptimizedTextareaListeners) {
+                // Use the existing optimized listeners from TextWindow
+                textWindow.attachOptimizedTextareaListeners(textarea);
+                console.log('💾 Flag modal: Using existing TextWindow save functionality');
+                return;
+            }
+        }
+        
+        // Fallback: minimal save functionality if TextWindow not available
+        console.warn('TextWindow not found, using minimal save functionality');
+        let currentValue = textarea.value || '';
+        let hasChanges = false;
+        
+        textarea.addEventListener('input', (e) => {
+            const newValue = e.target.value;
+            hasChanges = (newValue !== currentValue);
+            currentValue = newValue;
+        }, { passive: true });
+        
+        textarea.addEventListener('blur', () => {
+            if (hasChanges && window.translationEditor?.saveSystem) {
+                const verseIndex = parseInt(textarea.dataset.verseIndex);
+                if (!isNaN(verseIndex)) {
+                    window.translationEditor.saveSystem.bufferVerseChange(verseIndex, currentValue);
+                    hasChanges = false;
+                }
+            }
+        }, { passive: true });
     }
     
     // Setup verse controls like in text-window.js
@@ -720,6 +771,14 @@ class FlagManager {
         historyButton.title = 'View edit history';
         historyButton.onclick = () => this.showVerseHistory();
         rightFragment.appendChild(historyButton);
+        
+        // Refresh button - fetch latest from database
+        const refreshButton = document.createElement('button');
+        refreshButton.className = 'w-6 h-6 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm hover:text-gray-600';
+        refreshButton.innerHTML = '<i class="fas fa-sync text-xs"></i>';
+        refreshButton.title = 'Refresh verse content from database';
+        refreshButton.onclick = () => this.refreshVerseContent();
+        rightFragment.appendChild(refreshButton);
         
         // Audio download button (same as text-window.js)
         const audioDownloadButton = document.createElement('button');
@@ -772,7 +831,23 @@ class FlagManager {
         if (!this.currentVerseData || !this.currentTextId) return;
         
         try {
-            // Try to find verse content from the translation editor
+            // PRIORITY 1: Fetch the most recent version from the database to avoid conflicts
+            const projectId = window.translationEditor?.projectId || window.location.pathname.split('/')[2];
+            
+            if (projectId) {
+                const response = await fetch(`/project/${projectId}/verse/${this.currentTextId}/${this.currentVerseData.index}/content`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    textarea.value = data.content || '';
+                    console.log(`📥 Flag modal: Loaded verse ${this.currentVerseData.index} from database`);
+                    return;
+                } else {
+                    console.warn('Failed to fetch verse from database, falling back to DOM search');
+                }
+            }
+            
+            // FALLBACK 1: Try to find verse content from the translation editor
             if (window.translationEditor) {
                 const textWindow = window.translationEditor.textWindows.get(this.currentTextId);
                 if (textWindow && textWindow.element) {
@@ -780,6 +855,7 @@ class FlagManager {
                     const existingTextarea = textWindow.element.querySelector(`textarea[data-verse-index="${this.currentVerseData.index}"]`);
                     if (existingTextarea) {
                         textarea.value = existingTextarea.value || '';
+                        console.log(`📥 Flag modal: Loaded verse ${this.currentVerseData.index} from text window`);
                         return;
                     }
                     
@@ -787,24 +863,84 @@ class FlagManager {
                     const verseTextarea = textWindow.element.querySelector(`textarea[data-verse="${this.currentVerseData.verse}"]`);
                     if (verseTextarea) {
                         textarea.value = verseTextarea.value || '';
+                        console.log(`📥 Flag modal: Loaded verse ${this.currentVerseData.verse} from text window (by verse number)`);
                         return;
                     }
                 }
             }
             
-            // Fallback: try to find any existing textarea with this verse anywhere in the document
+            // FALLBACK 2: Try to find any existing textarea with this verse anywhere in the document
             const existingTextarea = document.querySelector(`textarea[data-verse-index="${this.currentVerseData.index}"]`);
             if (existingTextarea && existingTextarea !== textarea) {
                 textarea.value = existingTextarea.value || '';
+                console.log(`📥 Flag modal: Loaded verse ${this.currentVerseData.index} from DOM search`);
                 return;
             }
             
-            // Set empty if no content found
+            // FALLBACK 3: Set empty if no content found
             textarea.value = '';
+            console.log(`📥 Flag modal: No content found for verse ${this.currentVerseData.index}, setting empty`);
         } catch (error) {
             console.error('Error loading verse content:', error);
             textarea.value = '';
             textarea.placeholder = 'Error loading verse content';
+        }
+    }
+    
+    // Refresh verse content from database to get the most recent version
+    async refreshVerseContent() {
+        const textarea = this.elements.flagVerseCellContainer.querySelector('textarea');
+        const refreshButton = this.elements.flagVerseCellContainer.querySelector('button[title="Refresh verse content from database"]');
+        
+        if (textarea && this.currentVerseData && this.currentTextId) {
+            try {
+                // Show loading state
+                if (refreshButton) {
+                    refreshButton.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i>';
+                    refreshButton.disabled = true;
+                }
+                
+                const originalPlaceholder = textarea.placeholder;
+                textarea.placeholder = 'Refreshing from database...';
+                
+                // Fetch fresh content
+                await this.loadVerseContent(textarea);
+                
+                // Update textarea height after loading content
+                if (window.UIUtilities) {
+                    UIUtilities.autoResizeTextarea(textarea);
+                }
+                
+                // Show success feedback
+                textarea.style.borderColor = '#10b981';
+                setTimeout(() => {
+                    textarea.style.borderColor = '';
+                }, 1000);
+                
+                console.log(`🔄 Flag modal: Refreshed verse ${this.currentVerseData.index} from database`);
+                
+            } catch (error) {
+                console.error('Error refreshing verse content:', error);
+                
+                // Show error feedback
+                if (textarea) {
+                    textarea.style.borderColor = '#dc2626';
+                    setTimeout(() => {
+                        textarea.style.borderColor = '';
+                    }, 2000);
+                }
+            } finally {
+                // Reset button state
+                if (refreshButton) {
+                    refreshButton.innerHTML = '<i class="fas fa-sync text-xs"></i>';
+                    refreshButton.disabled = false;
+                }
+                
+                // Reset placeholder
+                if (textarea) {
+                    textarea.placeholder = `Edit verse ${this.currentVerseData.verse} or drop text here...`;
+                }
+            }
         }
     }
     
