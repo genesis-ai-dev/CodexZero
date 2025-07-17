@@ -26,15 +26,13 @@
                     <span id="translation-model-text" class="flex-1 truncate">Loading models...</span>
                     <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="translation-model-chevron"></i>
                 </button>
-                <div id="translation-model-dropdown" class="fixed z-[9999] bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
-                    <div class="p-2 text-sm text-neutral-500 text-center">Loading models...</div>
-                </div>
+                <div id="translation-model-dropdown" class="absolute z-[9999] bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto w-full top-full mt-1"></div>
             </div>
       
         </div>
         
         <!-- Navigation Section -->
-        <div class="p-6 flex-1 overflow-y-auto">
+        <div class="p-6 flex-1">
             <!-- Navigation Sync Indicator -->
             <div id="nav-sync-indicator" class="hidden mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <div class="flex items-center text-sm text-blue-700">
@@ -44,29 +42,21 @@
             </div>
             
             <!-- Book Selection -->
-            <div class="mb-4">
-                <div class="relative">
-                    <button id="goto-book-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
-                        <span id="goto-book-text" class="flex-1 truncate">Select Book...</span>
-                        <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="goto-book-chevron"></i>
-                    </button>
-                    <div id="goto-book-dropdown" class="fixed z-[9999] bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
-                        <div class="p-2 text-sm text-neutral-500 text-center">Select a book...</div>
-                    </div>
-                </div>
+            <div class="relative mb-4">
+                <button id="goto-book-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
+                    <span id="goto-book-text" class="flex-1 truncate">Select Book...</span>
+                    <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="goto-book-chevron"></i>
+                </button>
+                <div id="goto-book-dropdown" class="absolute z-[9999] bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto w-full top-full mt-1"></div>
             </div>
             
             <!-- Chapter Selection -->
-            <div class="mb-6">
-                <div class="relative">
-                    <button id="goto-chapter-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
-                        <span id="goto-chapter-text" class="flex-1 truncate">Select Chapter...</span>
-                        <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="goto-chapter-chevron"></i>
-                    </button>
-                    <div id="goto-chapter-dropdown" class="fixed z-[9999] bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
-                        <div class="p-2 text-sm text-neutral-500 text-center">Select a chapter...</div>
-                    </div>
-                </div>
+            <div class="relative mb-6">
+                <button id="goto-chapter-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
+                    <span id="goto-chapter-text" class="flex-1 truncate">Select Chapter...</span>
+                    <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="goto-chapter-chevron"></i>
+                </button>
+                <div id="goto-chapter-dropdown" class="absolute z-[9999] bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto w-full top-full mt-1"></div>
             </div>
             
         </div>
@@ -74,207 +64,81 @@
 </div>
 
 <script>
-// Custom dropdown functionality
-function initializeCustomDropdowns() {
-    // Model dropdown
-    const modelButton = document.getElementById('translation-model-button');
-    const modelDropdown = document.getElementById('translation-model-dropdown');
-    const modelChevron = document.getElementById('translation-model-chevron');
-    
-    // Book dropdown
-    const bookButton = document.getElementById('goto-book-button');
-    const bookDropdown = document.getElementById('goto-book-dropdown');
-    const bookChevron = document.getElementById('goto-book-chevron');
-    
-    // Chapter dropdown
-    const chapterButton = document.getElementById('goto-chapter-button');
-    const chapterDropdown = document.getElementById('goto-chapter-dropdown');
-    const chapterChevron = document.getElementById('goto-chapter-chevron');
-    
-    // Generic dropdown toggle function
-    function toggleDropdown(button, dropdown, chevron) {
-        const isOpen = !dropdown.classList.contains('hidden');
-        
-        // Close all dropdowns first
-        document.querySelectorAll('[id$="-dropdown"]').forEach(dd => {
-            dd.classList.add('hidden');
+// Simple dropdown system
+function initDropdowns() {
+    const dropdowns = [
+        { button: 'translation-model-button', dropdown: 'translation-model-dropdown', chevron: 'translation-model-chevron' },
+        { button: 'goto-book-button', dropdown: 'goto-book-dropdown', chevron: 'goto-book-chevron' },
+        { button: 'goto-chapter-button', dropdown: 'goto-chapter-dropdown', chevron: 'goto-chapter-chevron' }
+    ];
+
+    dropdowns.forEach(({ button, dropdown, chevron }) => {
+        const btn = document.getElementById(button);
+        const dd = document.getElementById(dropdown);
+        const chev = document.getElementById(chevron);
+
+        if (!btn || !dd || !chev) return;
+
+        btn.addEventListener('click', () => {
+            // Close all dropdowns first
+            dropdowns.forEach(({ dropdown: otherDd, chevron: otherChev }) => {
+                const otherDropdown = document.getElementById(otherDd);
+                const otherChevron = document.getElementById(otherChev);
+                if (otherDropdown && otherChevron) {
+                    otherDropdown.classList.add('hidden');
+                    otherChevron.style.transform = 'rotate(0deg)';
+                }
+            });
+
+            // Toggle this dropdown
+            const isHidden = dd.classList.contains('hidden');
+            if (isHidden) {
+                dd.classList.remove('hidden');
+                chev.style.transform = 'rotate(180deg)';
+            }
         });
-        document.querySelectorAll('[id$="-chevron"]').forEach(ch => {
-            ch.style.transform = 'rotate(0deg)';
-        });
-        
-        // Open this dropdown if it was closed
-        if (!isOpen) {
-            // Position the dropdown relative to the button
-            const buttonRect = button.getBoundingClientRect();
-            dropdown.style.left = buttonRect.left + 'px';
-            dropdown.style.top = (buttonRect.bottom + 4) + 'px';
-            dropdown.style.width = buttonRect.width + 'px';
-            
-            dropdown.classList.remove('hidden');
-            chevron.style.transform = 'rotate(180deg)';
-        }
-    }
-    
-    // Event listeners
-    modelButton?.addEventListener('click', () => toggleDropdown(modelButton, modelDropdown, modelChevron));
-    bookButton?.addEventListener('click', () => toggleDropdown(bookButton, bookDropdown, bookChevron));
-    chapterButton?.addEventListener('click', () => toggleDropdown(chapterButton, chapterDropdown, chapterChevron));
-    
-    // Close dropdowns when clicking outside
+    });
+
+    // Close on outside click
     document.addEventListener('click', (e) => {
         if (!e.target.closest('[id$="-button"]') && !e.target.closest('[id$="-dropdown"]')) {
-            document.querySelectorAll('[id$="-dropdown"]').forEach(dd => {
-                dd.classList.add('hidden');
-            });
-            document.querySelectorAll('[id$="-chevron"]').forEach(ch => {
-                ch.style.transform = 'rotate(0deg)';
+            dropdowns.forEach(({ dropdown, chevron }) => {
+                const dd = document.getElementById(dropdown);
+                const chev = document.getElementById(chevron);
+                if (dd && chev) {
+                    dd.classList.add('hidden');
+                    chev.style.transform = 'rotate(0deg)';
+                }
             });
         }
     });
 }
 
-// Initialize on DOM load
-document.addEventListener('DOMContentLoaded', () => {
-    // Initialize custom dropdowns
-    initializeCustomDropdowns();
-    
-    // Listen for navigation updates from scroll
-    document.addEventListener('navigationUpdated', (event) => {
-        showNavigationSyncFeedback(event.detail);
-    });
-});
+document.addEventListener('DOMContentLoaded', initDropdowns);
 
-// Show navigation sync feedback
-function showNavigationSyncFeedback(detail) {
+// Navigation sync feedback
+document.addEventListener('navigationUpdated', (event) => {
     const indicator = document.getElementById('nav-sync-indicator');
     if (indicator) {
         indicator.classList.remove('hidden');
-        
-        // Hide after a short delay
-        setTimeout(() => {
-            indicator.classList.add('hidden');
-        }, 1500);
+        setTimeout(() => indicator.classList.add('hidden'), 1500);
     }
-}
+});
 
-// Helper functions for dropdown management
-window.setModelDropdownOption = function(value, text, description = '', type = '') {
-    const button = document.getElementById('translation-model-button');
-    const textElement = document.getElementById('translation-model-text');
-    const dropdown = document.getElementById('translation-model-dropdown');
-    
-    if (textElement) {
-        textElement.textContent = text;
-    }
-    
-    // Store the value on the button for retrieval
-    button.dataset.value = value;
-    
-    // Remove model info update (description/type)
-    const modelInfo = document.getElementById('model-info');
-    if (modelInfo) modelInfo.classList.add('hidden');
-    
-    // Close dropdown
-    dropdown.classList.add('hidden');
-    document.getElementById('translation-model-chevron').style.transform = 'rotate(0deg)';
-};
-
-window.setBookDropdownOption = function(value, text, isFromScroll = false) {
-    const textElement = document.getElementById('goto-book-text');
-    const button = document.getElementById('goto-book-button');
-    const dropdown = document.getElementById('goto-book-dropdown');
-    
-    if (textElement) {
-        // Add visual feedback if updated from scroll
-        if (isFromScroll) {
-            textElement.style.transition = 'all 0.3s ease';
-            textElement.style.color = '#2563eb'; // Blue color for sync feedback
-            
-            setTimeout(() => {
-                textElement.style.color = '';
-            }, 1000);
-        }
-        
-        textElement.textContent = text;
-    }
-    
-    button.dataset.value = value;
-    dropdown.classList.add('hidden');
-    document.getElementById('goto-book-chevron').style.transform = 'rotate(0deg)';
-    
-    // Add subtle animation to indicate sync
-    if (isFromScroll && button) {
-        button.style.transition = 'all 0.3s ease';
-        button.style.transform = 'scale(1.02)';
-        button.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.15)';
-        
-        setTimeout(() => {
-            button.style.transform = '';
-            button.style.boxShadow = '';
-        }, 300);
-    }
-};
-
-window.setChapterDropdownOption = function(value, text, isFromScroll = false) {
-    const textElement = document.getElementById('goto-chapter-text');
-    const button = document.getElementById('goto-chapter-button');
-    const dropdown = document.getElementById('goto-chapter-dropdown');
-    
-    if (textElement) {
-        // Add visual feedback if updated from scroll
-        if (isFromScroll) {
-            textElement.style.transition = 'all 0.3s ease';
-            textElement.style.color = '#2563eb'; // Blue color for sync feedback
-            
-            setTimeout(() => {
-                textElement.style.color = '';
-            }, 1000);
-        }
-        
-        textElement.textContent = text;
-    }
-    
-    button.dataset.value = value;
-    dropdown.classList.add('hidden');
-    document.getElementById('goto-chapter-chevron').style.transform = 'rotate(0deg)';
-    
-    // Add subtle animation to indicate sync
-    if (isFromScroll && button) {
-        button.style.transition = 'all 0.3s ease';
-        button.style.transform = 'scale(1.02)';
-        button.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.15)';
-        
-        setTimeout(() => {
-            button.style.transform = '';
-            button.style.boxShadow = '';
-        }, 300);
-    }
-};
-
+// API functions
 window.populateModelDropdown = function(models) {
     const dropdown = document.getElementById('translation-model-dropdown');
     if (!dropdown) return;
     
     dropdown.innerHTML = '';
-    
     models.forEach(model => {
         const option = document.createElement('div');
-        option.className = 'dropdown-option px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 cursor-pointer border-b border-neutral-100 last:border-b-0 transition-all duration-200 flex items-center justify-between group';
-        option.innerHTML = `
-            <div class="flex-1">
-                <div class="font-medium text-neutral-900">${model.name}</div>
-                ${model.description ? `<div class="text-xs text-neutral-500 mt-1">${model.description}</div>` : ''}
-            </div>
-            <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <i class="fas fa-check text-neutral-400 text-xs"></i>
-            </div>
-        `;
+        option.className = 'px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 cursor-pointer border-b border-neutral-100 last:border-b-0';
+        option.textContent = model.name;
         option.addEventListener('click', () => {
-            setModelDropdownOption(model.value, model.name, model.description, model.type);
-            // Trigger change event for compatibility
-            const event = new CustomEvent('change', { detail: { value: model.value } });
-            document.getElementById('translation-model-button').dispatchEvent(event);
+            document.getElementById('translation-model-text').textContent = model.name;
+            dropdown.classList.add('hidden');
+            document.getElementById('translation-model-chevron').style.transform = 'rotate(0deg)';
         });
         dropdown.appendChild(option);
     });
@@ -285,21 +149,14 @@ window.populateBookDropdown = function(books) {
     if (!dropdown) return;
     
     dropdown.innerHTML = '';
-    
     books.forEach(book => {
         const option = document.createElement('div');
-        option.className = 'dropdown-option px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 cursor-pointer border-b border-neutral-100 last:border-b-0 transition-all duration-200 flex items-center justify-between group';
-        option.innerHTML = `
-            <div class="font-medium text-neutral-900">${book.name}</div>
-            <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <i class="fas fa-check text-neutral-400 text-xs"></i>
-            </div>
-        `;
+        option.className = 'px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 cursor-pointer border-b border-neutral-100 last:border-b-0';
+        option.textContent = book.name;
         option.addEventListener('click', () => {
-            setBookDropdownOption(book.value, book.name);
-            // Trigger change event for compatibility
-            const event = new CustomEvent('change', { detail: { value: book.value } });
-            document.getElementById('goto-book-button').dispatchEvent(event);
+            document.getElementById('goto-book-text').textContent = book.name;
+            dropdown.classList.add('hidden');
+            document.getElementById('goto-book-chevron').style.transform = 'rotate(0deg)';
         });
         dropdown.appendChild(option);
     });
@@ -310,24 +167,25 @@ window.populateChapterDropdown = function(chapters) {
     if (!dropdown) return;
     
     dropdown.innerHTML = '';
-    
     chapters.forEach(chapter => {
         const option = document.createElement('div');
-        option.className = 'dropdown-option px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 cursor-pointer border-b border-neutral-100 last:border-b-0 transition-all duration-200 flex items-center justify-between group';
-        option.innerHTML = `
-            <div class="font-medium text-neutral-900">${chapter.name}</div>
-            <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <i class="fas fa-check text-neutral-400 text-xs"></i>
-            </div>
-        `;
+        option.className = 'px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 cursor-pointer border-b border-neutral-100 last:border-b-0';
+        option.textContent = chapter.name;
         option.addEventListener('click', () => {
-            setChapterDropdownOption(chapter.value, chapter.name);
-            // Trigger change event for compatibility
-            const event = new CustomEvent('change', { detail: { value: chapter.value } });
-            document.getElementById('goto-chapter-button').dispatchEvent(event);
+            document.getElementById('goto-chapter-text').textContent = chapter.name;
+            dropdown.classList.add('hidden');
+            document.getElementById('goto-chapter-chevron').style.transform = 'rotate(0deg)';
         });
         dropdown.appendChild(option);
     });
+};
+
+window.setBookDropdownOption = function(value, text) {
+    document.getElementById('goto-book-text').textContent = text;
+};
+
+window.setChapterDropdownOption = function(value, text) {
+    document.getElementById('goto-chapter-text').textContent = text;
 };
 </script>
 {% endmacro %} 
