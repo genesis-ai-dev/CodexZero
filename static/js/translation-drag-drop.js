@@ -387,11 +387,12 @@ class TranslationDragDrop {
                     // CRITICAL: Never save test mode data - preserve ground truth
                     console.log('Test mode: preserving original content, not saving translation');
                 } else {
-                    // Regular translation display
+                    // Regular translation display - confidence UI will handle saving when accepted
                     this.editor.confidence.displayTranslationWithConfidence(
                         textarea, data.translation, data.confidence, verseIndex, this.editor
                     );
-                    this.editor.saveSystem.bufferVerseChange(verseIndex, data.translation);
+                    // Don't auto-save here - let user accept/reject the translation
+                    // The confidence component will handle saving with proper metadata
                 }
             } else {
                 // Error state

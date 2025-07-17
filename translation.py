@@ -967,6 +967,14 @@ def save_verse(project_id, target_id, verse_index):
     edit_source = data.get('source', 'manual')
     confidence_score = data.get('confidence')
     
+    # Add detailed logging to track API calls
+    import time
+    timestamp = time.time()
+    print(f"🔥 BACKEND: save_verse called at {timestamp}")
+    print(f"   📝 Project: {project_id}, Target: {target_id}, Verse: {verse_index}")
+    print(f"   📄 Text: '{verse_text[:50]}{'...' if len(verse_text) > 50 else ''}'")
+    print(f"   🏷️  Source: {edit_source}, Comment: {edit_comment}")
+    
     # Strip newlines to maintain line alignment for context queries
     verse_text = ' '.join(verse_text.split())
     

@@ -1,6 +1,7 @@
 // PERFORMANCE: Simplified Translation Save System
 class TranslationSave {
     constructor(translationEditor) {
+        console.log('🏗️  TranslationSave: Creating new instance');
         this.editor = translationEditor;
         
         // PERFORMANCE: Cache the save button element
@@ -8,6 +9,25 @@ class TranslationSave {
         
         // Track currently focused textarea for auto-save
         this.currentFocusedTextarea = null;
+        // Add deduplication tracking
+        this.recentSaves = new Map(); // verseIndex -> {text, timestamp}
+        this.saveDelay = 300; // Back to 300ms since we fixed the root cause
+        
+        // Cleanup old entries every 5 minutes to prevent memory leaks
+        setInterval(() => {
+            this.cleanupOldSaves();
+        }, 5 * 60 * 1000);
+    }
+    
+    cleanupOldSaves() {
+        const now = Date.now();
+        const cutoff = now - (this.saveDelay * 10); // Keep entries for 10x the delay time
+        
+        for (const [verseIndex, saveInfo] of this.recentSaves.entries()) {
+            if (saveInfo.timestamp < cutoff) {
+                this.recentSaves.delete(verseIndex);
+            }
+        }
     }
     
     bufferVerseChange(verseIndex, text) {
@@ -15,7 +35,17 @@ class TranslationSave {
         this.editor.unsavedChanges.set(verseIndex, text);
         this.editor.hasUnsavedChanges = true;
         
+        // Check for recent duplicate save
+        const recent = this.recentSaves.get(verseIndex);
+        const now = Date.now();
+        
+        if (recent && recent.text === text && (now - recent.timestamp) < this.saveDelay) {
+            console.log(`🚫 Skipping duplicate save for verse ${verseIndex} - same content saved ${now - recent.timestamp}ms ago`);
+            return;
+        }
      
+        console.log(`💾 Auto-saving verse ${verseIndex}: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+        
         // Auto-save immediately when user moves between cells
         this.autoSaveVerse(verseIndex, text);
     }
@@ -28,7 +58,7 @@ class TranslationSave {
             console.log('No target to save to for auto-save');
             return;
         }
-        
+
         try {
             // Find the textarea for this verse to determine correct target
             const textarea = document.querySelector(`textarea[data-verse-index="${verseIndex}"]`);
@@ -43,8 +73,14 @@ class TranslationSave {
                     }
                 }
             }
-            
+
             await this.saveVerse(verseIndex, text, correctTargetId);
+            
+            // Track this save to prevent duplicates
+            this.recentSaves.set(verseIndex, {
+                text: text,
+                timestamp: Date.now()
+            });
             
             // Remove from unsaved changes since it's now saved
             this.editor.unsavedChanges.delete(verseIndex);
@@ -60,7 +96,7 @@ class TranslationSave {
             }
             
         } catch (error) {
-            console.error(`Auto-save failed for verse ${verseIndex}:`, error);
+            console.error(`❌ Auto-save failed for verse ${verseIndex}:`, error);
             // Keep in unsaved changes on error
         }
     }
@@ -178,6 +214,8 @@ class TranslationSave {
             throw new Error('No target specified');
         }
         
+        console.log(`📡 API call: Saving verse ${verseIndex} to ${saveTargetId}`, metadata ? `(${metadata.source})` : '(manual)');
+
         try {
             const requestBody = {
                 text: text,
@@ -185,7 +223,7 @@ class TranslationSave {
                 confidence: metadata?.confidence || null,
                 comment: metadata?.comment || null
             };
-            
+
             const response = await fetch(`/project/${this.editor.projectId}/translation/${saveTargetId}/verse/${verseIndex}`, {
                 method: 'POST',
                 headers: {
@@ -193,19 +231,21 @@ class TranslationSave {
                 },
                 body: JSON.stringify(requestBody)
             });
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-            
+
             const data = await response.json();
             if (!data.success) {
                 throw new Error(data.error || 'Save failed');
             }
             
+            console.log(`✅ Successfully saved verse ${verseIndex}`);
+
             return data;
         } catch (error) {
-            console.error(`Failed to save verse ${verseIndex} to ${saveTargetId}:`, error);
+            console.error(`❌ Failed to save verse ${verseIndex} to ${saveTargetId}:`, error);
             throw error;
         }
     }

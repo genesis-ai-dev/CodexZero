@@ -116,10 +116,7 @@ class TranslationConfidence {
         const targetWindow = this.getTextWindowForTextarea(textarea, translationEditor);
         const targetId = targetWindow?.id;
         
-        // Buffer the change for save tracking
-        translationEditor.bufferVerseChange(verseIndex, translation);
-        
-        // Auto-save the translation when accepted with AI source tracking
+        // Save the translation directly with AI source tracking (no need to buffer first)
         try {
             const confidence = this.verseConfidenceData[verseIndex]?.confidence;
             const averageConfidence = this.calculateAverageConfidence(confidence);
@@ -129,6 +126,14 @@ class TranslationConfidence {
                 confidence: averageConfidence,
                 comment: 'AI translation accepted by user'
             });
+            
+            // Track this save to prevent duplicates in the save system
+            if (translationEditor.saveSystem) {
+                translationEditor.saveSystem.recentSaves.set(verseIndex, {
+                    text: translation,
+                    timestamp: Date.now()
+                });
+            }
             
             // Remove from unsaved changes since it's now saved
             translationEditor.unsavedChanges.delete(verseIndex);
@@ -156,7 +161,15 @@ class TranslationConfidence {
     rejectTranslation(confidenceDiv, textarea, originalContent, verseIndex, translationEditor) {
         this.cleanupConfidenceDisplay(confidenceDiv, textarea, verseIndex);
         textarea.value = originalContent; // Restore original content
-        translationEditor.bufferVerseChange(verseIndex, originalContent); // Track the restoration
+        
+        // Track this restoration in the save system to prevent duplicate saves
+        if (translationEditor.saveSystem) {
+            translationEditor.saveSystem.recentSaves.set(verseIndex, {
+                text: originalContent,
+                timestamp: Date.now()
+            });
+        }
+        
         textarea.focus();
     }
     

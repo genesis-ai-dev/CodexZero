@@ -967,6 +967,8 @@ class TextWindow {
         // PERFORMANCE: SIMPLEST POSSIBLE - just store the value
         let currentValue = textarea.value || '';
         let hasChanges = false;
+        let lastSaveTimestamp = 0; // Track when we last saved this textarea
+        const saveDelay = 500; // Minimum delay between saves in ms
         
         textarea.addEventListener('input', (e) => {
             const newValue = e.target.value;
@@ -977,30 +979,20 @@ class TextWindow {
         
         // AUTO-SAVE: Save when user moves to different cell or leaves the textarea
         textarea.addEventListener('blur', () => {
-            if (hasChanges && window.translationEditor?.saveSystem) {
+            const now = Date.now();
+            if (hasChanges && window.translationEditor?.saveSystem && (now - lastSaveTimestamp) > saveDelay) {
                 const verseIndex = parseInt(textarea.dataset.verseIndex);
                 if (!isNaN(verseIndex)) {
                     window.translationEditor.saveSystem.bufferVerseChange(verseIndex, currentValue);
                     hasChanges = false; // Reset change tracking
+                    lastSaveTimestamp = now;
                 }
             }
         }, { passive: true });
         
         // Track when user focuses on this textarea 
         textarea.addEventListener('focus', () => {
-            // Auto-save any previously focused textarea
-            if (window.translationEditor?.saveSystem?.currentFocusedTextarea && 
-                window.translationEditor.saveSystem.currentFocusedTextarea !== textarea) {
-                const prevTextarea = window.translationEditor.saveSystem.currentFocusedTextarea;
-                const prevVerseIndex = parseInt(prevTextarea.dataset.verseIndex);
-                const prevValue = prevTextarea.value || '';
-                
-                if (!isNaN(prevVerseIndex)) {
-                    window.translationEditor.saveSystem.bufferVerseChange(prevVerseIndex, prevValue);
-                }
-            }
-            
-            // Update focus tracking
+            // Just update focus tracking - no need to save here since blur already handles it
             if (window.translationEditor?.saveSystem) {
                 window.translationEditor.saveSystem.currentFocusedTextarea = textarea;
             }
@@ -1008,6 +1000,9 @@ class TextWindow {
             // Update current value for this textarea
             currentValue = textarea.value || '';
             hasChanges = false;
+            
+            // Store reference to last save timestamp on the textarea element
+            textarea._lastSaveTimestamp = lastSaveTimestamp;
         }, { passive: true });
         
         // SIMPLIFIED SYNC: If this is in the primary window, add click handler to sync reference windows

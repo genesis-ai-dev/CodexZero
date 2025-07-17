@@ -123,23 +123,9 @@ class VerseHistory {
                     </div>
                 ` : ''}
                 
-                <div class="space-y-3">
-                    ${edit.previous_text && edit.previous_text !== edit.new_text ? `
-                        <div>
-                            <div class="text-xs font-medium text-red-600 mb-1">Previous:</div>
-                            <div class="text-sm text-red-700 bg-red-50 p-3 rounded border-l-2 border-red-200">
-                                ${this.escapeHtml(edit.previous_text)}
-                            </div>
-                        </div>
-                    ` : ''}
-                    
-                    <div>
-                        <div class="text-xs font-medium text-green-600 mb-1">
-                            ${edit.edit_type === 'create' ? 'Created:' : 'Updated to:'}
-                        </div>
-                        <div class="text-sm text-green-700 bg-green-50 p-3 rounded border-l-2 border-green-200">
-                            ${this.escapeHtml(edit.new_text)}
-                        </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div class="text-sm text-slate-800 leading-relaxed">
+                        ${this.escapeHtml(edit.new_text)}
                     </div>
                 </div>
             </div>
