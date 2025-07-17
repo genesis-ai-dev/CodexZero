@@ -15,20 +15,27 @@ class TranslationStorage {
     
     // Save current layout state
     saveLayoutState(textWindows, primaryTextId) {
-        const openTexts = Array.from(textWindows.keys());
-        this.saveToLocalStorage('openTexts', JSON.stringify(openTexts));
-        this.saveToLocalStorage('primaryTextId', primaryTextId || '');
+        const textIds = Array.from(textWindows.keys());
+        const layoutState = {
+            textIds: textIds,
+            primaryTextId: primaryTextId || null,
+            timestamp: Date.now()
+        };
+        
+        this.saveToLocalStorage('layoutState', JSON.stringify(layoutState));
     }
     
     // Get saved layout state
     getSavedLayoutState() {
-        const savedTexts = this.getFromLocalStorage('openTexts');
-        const savedPrimary = this.getFromLocalStorage('primaryTextId');
-        
-        return {
-            textIds: savedTexts ? JSON.parse(savedTexts) : [],
-            primaryTextId: savedPrimary || null
-        };
+        const saved = this.getFromLocalStorage('layoutState');
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                console.error('Error parsing layout state:', e);
+            }
+        }
+        return { textIds: [], primaryTextId: null };
     }
     
     // Recent chapters management
@@ -77,6 +84,24 @@ class TranslationStorage {
     getSidebarState() {
         const saved = this.getFromLocalStorage('sidebarCollapsed');
         return saved === 'true';
+    }
+    
+    // Window resize layout persistence
+    setLayoutWidths(leftWidth, rightWidth) {
+        const widths = [leftWidth, rightWidth];
+        this.saveToLocalStorage('layoutWidths', JSON.stringify(widths));
+    }
+    
+    getLayoutWidths() {
+        const saved = this.getFromLocalStorage('layoutWidths');
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                console.error('Error parsing layout widths:', e);
+            }
+        }
+        return [50, 50]; // Default 50/50 split
     }
 }
 

@@ -405,5 +405,279 @@ class TranslationUI {
     }
 }
 
+// Simple Window Resizer for Translation Panes
+class WindowResizer {
+    constructor() {
+        this.isDragging = false;
+        this.startX = 0;
+        this.startLeftWidth = 50; // percentage
+        this.minWidth = 20; // minimum 20%
+        this.maxWidth = 80; // maximum 80%
+        
+        this.leftPane = null;
+        this.rightPane = null;
+        this.handle = null;
+        this.container = null;
+        
+        this.init();
+    }
+    
+    init() {
+        // Only initialize on desktop
+        if (window.innerWidth <= 767) return;
+        
+        // IMPORTANT: The container must be text-workspace, NOT main-content-wrapper
+        this.container = document.getElementById('text-workspace');
+        this.leftPane = document.getElementById('secondary-texts-area');
+        this.rightPane = document.getElementById('primary-text-area');
+        
+        if (!this.container || !this.leftPane || !this.rightPane) {
+            console.log('WindowResizer: Required elements not found', {
+                container: !!this.container,
+                leftPane: !!this.leftPane,
+                rightPane: !!this.rightPane
+            });
+            return;
+        }
+        
+        // Verify we have the right container
+        if (!this.container.contains(this.leftPane) || !this.container.contains(this.rightPane)) {
+            console.error('WindowResizer: Panes are not children of the container!');
+            return;
+        }
+        
+        // On desktop, both panes should be visible. If secondary is hidden, show it
+        if (window.innerWidth > 767) {
+            // Remove hidden class from secondary area on desktop
+            this.leftPane.classList.remove('hidden');
+            this.rightPane.classList.remove('hidden');
+            
+            // Also hide the mobile tabs on desktop
+            const mobileTabs = this.container.querySelector('.md\\:hidden');
+            if (mobileTabs) {
+                mobileTabs.style.display = 'none';
+            }
+        }
+        
+        console.log('WindowResizer: Ensured desktop visibility', {
+            leftClasses: this.leftPane.className,
+            rightClasses: this.rightPane.className,
+            flexDirection: getComputedStyle(this.container).flexDirection
+        });
+        
+        this.createResizeHandle();
+        this.setupEventListeners();
+        this.restoreLayout();
+        
+        console.log('WindowResizer: Initialized successfully');
+    }
+    
+    createResizeHandle() {
+        // Check if handle already exists in HTML
+        const existingHandle = this.container.querySelector('.resize-handle');
+        if (existingHandle) {
+            this.handle = existingHandle;
+            console.log('WindowResizer: Using existing resize handle', {
+                handle: this.handle,
+                display: getComputedStyle(this.handle).display,
+                width: getComputedStyle(this.handle).width,
+                height: getComputedStyle(this.handle).height,
+                classList: this.handle.classList.toString()
+            });
+            return;
+        }
+        
+        // Only create if not found
+        this.handle = document.createElement('div');
+        this.handle.className = 'resize-handle';
+        this.handle.setAttribute('data-resize-handle', 'true');
+        
+        // Simply insert before the primary (right) pane
+        // The flex order CSS will handle the visual positioning
+        this.container.insertBefore(this.handle, this.rightPane);
+        
+        console.log('WindowResizer: Handle created and inserted', {
+            container: this.container.id,
+            containerChildren: Array.from(this.container.children).map(c => c.id || c.className),
+            handleIndex: Array.from(this.container.children).indexOf(this.handle),
+            leftPaneIndex: Array.from(this.container.children).indexOf(this.leftPane),
+            rightPaneIndex: Array.from(this.container.children).indexOf(this.rightPane)
+        });
+    }
+    
+    setupEventListeners() {
+        if (!this.handle) {
+            console.error('WindowResizer: No handle element found, cannot setup event listeners');
+            return;
+        }
+        
+        // Mouse events
+        this.handle.addEventListener('mousedown', this.onMouseDown.bind(this));
+        document.addEventListener('mousemove', this.onMouseMove.bind(this));
+        document.addEventListener('mouseup', this.onMouseUp.bind(this));
+        
+        // Touch events for tablets
+        this.handle.addEventListener('touchstart', this.onTouchStart.bind(this));
+        document.addEventListener('touchmove', this.onTouchMove.bind(this));
+        document.addEventListener('touchend', this.onTouchEnd.bind(this));
+        
+        // Window resize
+        window.addEventListener('resize', this.onWindowResize.bind(this));
+        
+        console.log('WindowResizer: Event listeners attached');
+    }
+    
+    onMouseDown(e) {
+        e.preventDefault();
+        this.startResize(e.clientX);
+    }
+    
+    onTouchStart(e) {
+        e.preventDefault();
+        this.startResize(e.touches[0].clientX);
+    }
+    
+    startResize(clientX) {
+        this.isDragging = true;
+        this.startX = clientX;
+        this.startLeftWidth = this.getCurrentLeftWidth();
+        
+        this.handle.classList.add('dragging');
+        document.body.classList.add('resizing');
+    }
+    
+    onMouseMove(e) {
+        if (!this.isDragging) return;
+        this.updateLayout(e.clientX);
+    }
+    
+    onTouchMove(e) {
+        if (!this.isDragging) return;
+        e.preventDefault();
+        this.updateLayout(e.touches[0].clientX);
+    }
+    
+    updateLayout(clientX) {
+        const containerRect = this.container.getBoundingClientRect();
+        const deltaX = clientX - this.startX;
+        const deltaPercent = (deltaX / containerRect.width) * 100;
+        
+        let newLeftWidth = this.startLeftWidth + deltaPercent;
+        
+        // Apply constraints
+        newLeftWidth = Math.max(this.minWidth, Math.min(this.maxWidth, newLeftWidth));
+        
+        const newRightWidth = 100 - newLeftWidth;
+        
+        this.applyWidths(newLeftWidth, newRightWidth);
+    }
+    
+    onMouseUp() {
+        this.endResize();
+    }
+    
+    onTouchEnd() {
+        this.endResize();
+    }
+    
+    endResize() {
+        if (!this.isDragging) return;
+        
+        this.isDragging = false;
+        this.handle.classList.remove('dragging');
+        document.body.classList.remove('resizing');
+        
+        // Save the current layout
+        this.saveLayout();
+    }
+    
+    getCurrentLeftWidth() {
+        if (!this.leftPane) return 50;
+        const containerWidth = this.container.offsetWidth;
+        const leftWidth = this.leftPane.offsetWidth;
+        
+        // If we have a custom flex-basis, use that
+        const flexBasis = this.leftPane.style.flexBasis;
+        if (flexBasis && flexBasis.endsWith('%')) {
+            return parseFloat(flexBasis);
+        }
+        
+        // Otherwise calculate from actual width
+        return (leftWidth / containerWidth) * 100;
+    }
+    
+    applyWidths(leftPercent, rightPercent) {
+        // Remove Tailwind flex classes when applying custom widths
+        this.leftPane.classList.remove('md:flex-1');
+        this.rightPane.classList.remove('md:flex-1');
+        
+        // Apply dynamic widths using flex-basis for better flexbox compatibility
+        this.leftPane.style.flexBasis = `${leftPercent}%`;
+        this.leftPane.style.flexGrow = '0';
+        this.leftPane.style.flexShrink = '0';
+        
+        this.rightPane.style.flexBasis = `${rightPercent}%`;
+        this.rightPane.style.flexGrow = '0';
+        this.rightPane.style.flexShrink = '0';
+        
+        console.log(`WindowResizer: Applied widths - Left: ${leftPercent}%, Right: ${rightPercent}%`);
+    }
+    
+    saveLayout() {
+        const leftWidth = this.getCurrentLeftWidth();
+        const storage = window.translationEditor?.storage;
+        if (storage) {
+            storage.setLayoutWidths(leftWidth, 100 - leftWidth);
+        }
+    }
+    
+    restoreLayout() {
+        const storage = window.translationEditor?.storage;
+        if (storage) {
+            const [leftWidth, rightWidth] = storage.getLayoutWidths();
+            // Only apply custom widths if they're different from default
+            if (leftWidth !== 50 || rightWidth !== 50) {
+                this.applyWidths(leftWidth, rightWidth);
+            }
+        }
+    }
+    
+    onWindowResize() {
+        // Hide on mobile, show on desktop
+        if (window.innerWidth <= 767) {
+            if (this.handle) {
+                this.handle.style.display = 'none';
+            }
+            // Reset to default Tailwind classes on mobile and restore tab behavior
+            if (this.leftPane) {
+                this.leftPane.classList.add('md:w-1/2', 'w-full');
+                this.leftPane.style.width = '';
+                this.leftPane.style.flexShrink = '';
+                // Let the tab system control visibility on mobile
+            }
+            if (this.rightPane) {
+                this.rightPane.classList.add('md:w-1/2', 'w-full');
+                this.rightPane.style.width = '';
+                this.rightPane.style.flexShrink = '';
+            }
+        } else {
+            if (this.handle) {
+                this.handle.style.display = '';
+            }
+            // On desktop, both panes should be visible
+            this.leftPane.classList.remove('hidden');
+            this.rightPane.classList.remove('hidden');
+            // Restore custom widths on desktop
+            this.restoreLayout();
+        }
+    }
+    
+    destroy() {
+        if (this.handle && this.handle.parentNode) {
+            this.handle.parentNode.removeChild(this.handle);
+        }
+    }
+}
+
 // Make available globally
 window.TranslationUI = TranslationUI; 

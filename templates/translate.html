@@ -52,7 +52,7 @@ document.body.classList.add('translation-page');
             </div>
             
             <!-- Secondary Texts Area (Now on Left) -->
-            <div id="secondary-texts-area" class="order-1 hidden md:flex w-full md:w-1/2 p-2 md:p-6 border-t md:border-r md:border-t-0 border-neutral-200 flex flex-col bg-white/90 backdrop-blur-sm rounded-tl-xl shadow-sm">
+            <div id="secondary-texts-area" class="hidden md:flex w-full md:flex-1 p-2 md:p-6 border-t md:border-r md:border-t-0 border-neutral-200 flex-col bg-white/90 backdrop-blur-sm rounded-tl-xl shadow-sm">
                 <div id="secondary-texts-container" class="flex-1 flex flex-col gap-3">
                     <div class="text-neutral-500 text-center py-20 flex flex-col items-center">
                         <button id="add-reference-text-btn" class="mb-4 px-8 py-4 bg-blue-50 text-blue-600 border-2 border-dashed border-blue-300 rounded-2xl flex items-center gap-3 font-semibold shadow-sm">
@@ -64,8 +64,11 @@ document.body.classList.add('translation-page');
                 </div>
             </div>
             
+            <!-- Resize Handle (Only visible on desktop) -->
+            <div class="resize-handle hidden md:block" data-resize-handle="true"></div>
+            
             <!-- Primary Text Area (Now on Right) -->
-            <div id="primary-text-area" class="order-2 w-full md:w-1/2 p-2 md:p-6 flex flex-col bg-white/90 backdrop-blur-sm md:border-l-0 border-t border-neutral-200 md:border-t-0 active rounded-tr-xl shadow-sm">
+            <div id="primary-text-area" class="w-full md:flex-1 p-2 md:p-6 flex flex-col bg-white/90 backdrop-blur-sm md:border-l-0 border-t border-neutral-200 md:border-t-0 active rounded-tr-xl shadow-sm">
                 <div id="primary-text-container" class="flex-1 drop-zone-primary">
                     <div class="text-neutral-500 text-center py-20 flex flex-col items-center">
                         <button id="add-primary-text-btn" class="mb-4 px-8 py-4 bg-green-50 text-green-600 border-2 border-dashed border-green-300 rounded-2xl flex items-center gap-3 font-semibold shadow-sm">
@@ -118,6 +121,7 @@ class TranslationEditor {
         this.testResults = new TranslationTestResults(this);
         this.dragDrop = new TranslationDragDrop(this);
         this.virtualScrollManager = new VirtualScrollManager(this);
+        this.windowResizer = null; // Will be initialized after DOM is ready
         
         // Restore navigation state
         const navState = this.storage.getNavigationState();
@@ -716,6 +720,9 @@ class TranslationEditor {
         } else {
             this.renderEmptyPrimaryState(container);
         }
+        
+        // Initialize resizer after layout is rendered
+        this.initializeResizer();
     }
     
     renderReferenceTexts() {
@@ -733,6 +740,20 @@ class TranslationEditor {
             this.renderTextWindows(container, referenceWindows);
         } else {
             this.renderEmptyReferenceState(container);
+        }
+        
+        // Initialize resizer after layout is rendered
+        this.initializeResizer();
+    }
+    
+    initializeResizer() {
+        // Only initialize once and on desktop
+        if (this.windowResizer || window.innerWidth <= 767) return;
+        
+        if (typeof WindowResizer !== 'undefined') {
+            this.windowResizer = new WindowResizer();
+        } else {
+            console.error('WindowResizer class not found');
         }
     }
     

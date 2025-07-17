@@ -141,4 +141,74 @@ textarea:focus {
     overflow: hidden;
 }
 
+/* Resize Handle Styles */
+.resize-handle {
+    width: 8px; /* Increased from 4px for easier grabbing */
+    min-width: 8px; /* Ensure it maintains width in flexbox */
+    background: #e5e7eb; /* Slightly lighter gray for visibility */
+    cursor: col-resize;
+    position: relative;
+    transition: background-color 0.2s ease;
+    flex-shrink: 0;
+    flex-grow: 0;
+    z-index: 10;
+    /* Add hover area for easier grabbing */
+    margin: 0 -2px; /* Negative margin to not affect layout but increase hit area */
+    padding: 0 2px; /* Compensate with padding */
+}
+
+/* Desktop-specific positioning */
+@media (min-width: 768px) {
+    #text-workspace .resize-handle {
+        display: block;
+        height: 100%; /* Full height of container */
+    }
+    
+    /* Ensure proper flex layout on desktop */
+    #text-workspace {
+        flex-direction: row !important;
+    }
+    
+    /* Remove the border from secondary area when resize handle is present */
+    #secondary-texts-area {
+        border-right: none !important;
+    }
+}
+
+.resize-handle:hover {
+    background: #9ca3af; /* Darker gray on hover */
+}
+
+.resize-handle:active,
+.resize-handle.dragging {
+    background: #3b82f6;
+}
+
+/* Visual indicator */
+.resize-handle::after {
+    content: '⋮⋮';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #6b7280;
+    font-size: 14px;
+    line-height: 1;
+}
+
+/* Disable text selection during resize */
+.resizing {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+/* Hide resize handle on mobile */
+@media (max-width: 767px) {
+    .resize-handle {
+        display: none;
+    }
+}
+
  
