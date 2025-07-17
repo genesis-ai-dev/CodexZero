@@ -578,13 +578,7 @@ class TranslationEditor {
             }
         });
         
-        // Add close button listeners for text windows
-        document.addEventListener('click', (e) => {
-            if (e.target.matches('.close-text-btn')) {
-                const textId = e.target.dataset.textId;
-                this.closeText(textId);
-            }
-        });
+        // Close button handling moved to single global handler
         
         // Setup reference buttons
         const newReferenceBtn = document.getElementById('add-reference-text-btn');
@@ -806,6 +800,11 @@ class TranslationEditor {
         
         // Add event listener with debouncing
         this.setupButtonListener('add-primary-text-btn', () => this.showTextSelectionModal(true));
+        
+        // Auto-open the modal immediately when empty state is rendered
+        requestAnimationFrame(() => {
+            this.showTextSelectionModal(true);
+        });
     }
     
     renderEmptyReferenceState(container) {
@@ -821,6 +820,11 @@ class TranslationEditor {
         
         // Add event listener with debouncing
         this.setupButtonListener('add-reference-text-btn', () => this.showTextSelectionModal(false));
+        
+        // Auto-open the modal immediately when empty state is rendered
+        requestAnimationFrame(() => {
+            this.showTextSelectionModal(false);
+        });
     }
     
     setupButtonListener(buttonId, handler) {
@@ -1221,26 +1225,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add debug commands for console
 
     
-    // Set up close button listeners for text windows
+    // Set up single close button handler for text windows
     document.addEventListener('click', (e) => {
-        if (e.target.classList.contains('close-text-btn')) {
-            const textId = e.target.dataset.textId;
-            if (textId && editor.textWindows.has(textId)) {
-                const window = editor.textWindows.get(textId);
-                if (window.destroy) {
-                    window.destroy();
-                }
-                editor.textWindows.delete(textId);
-                
-                // If this was the primary text, clear it
-                if (editor.primaryTextId === textId) {
-                    editor.primaryTextId = null;
-                }
-                
-                // Re-render the UI
-                editor.renderPrimaryText();
-                editor.renderReferenceTexts();
-                editor.saveLayoutState();
+        if (e.target.closest('.close-text-btn')) {
+            const textId = e.target.closest('.close-text-btn').dataset.textId;
+            if (textId) {
+                editor.closeText(textId);
             }
         }
     });

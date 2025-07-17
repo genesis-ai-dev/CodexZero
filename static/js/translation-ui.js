@@ -196,12 +196,8 @@ class TranslationUI {
 
     
     addCloseButtonListeners() {
-        document.addEventListener('click', (e) => {
-            if (e.target.closest('.close-text-btn')) {
-                const textId = e.target.closest('.close-text-btn').dataset.textId;
-                this.editor.removeTextWindow(textId);
-            }
-        });
+        // Close button handling now done in main translate.html file
+        // to avoid conflicts with multiple event listeners
     }
     
     setupPrimaryDropZone() {
@@ -258,6 +254,22 @@ class TranslationUI {
         if (!modal || !button || !addBtn || !cancelBtn || !newTranslationBtn) return;
 
         modal.dataset.isPrimary = isPrimary.toString();
+        
+        // Update modal text based on whether it's primary (target) or reference (source)
+        const modalTitle = document.getElementById('text-selection-modal-title');
+        const modalSubtitle = document.getElementById('text-selection-modal-subtitle');
+        const modalLabel = document.getElementById('text-selection-modal-label');
+        
+        if (isPrimary) {
+            if (modalTitle) modalTitle.textContent = 'Load Target Translation';
+            if (modalSubtitle) modalSubtitle.textContent = 'Select or create the translation you want to work on';
+            if (modalLabel) modalLabel.textContent = 'Select Target Translation';
+        } else {
+            if (modalTitle) modalTitle.textContent = 'Load Reference Text';
+            if (modalSubtitle) modalSubtitle.textContent = 'Select a source text to translate from or compare against';
+            if (modalLabel) modalLabel.textContent = 'Select Reference/Source Text';
+        }
+        
         modal.classList.remove('hidden');
         
         // Reset dropdown and hide buttons
@@ -279,6 +291,9 @@ class TranslationUI {
         addBtn.parentNode.replaceChild(newAddBtn, addBtn);
         newTranslationBtn.parentNode.replaceChild(newNewTranslationBtn, newTranslationBtn);
         cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        
+        // Show New Translation button by default (no text selected initially)  
+        newNewTranslationBtn.classList.remove('hidden');
         
         // Populate the dropdown with available texts
         this.populateTextSelection(button);

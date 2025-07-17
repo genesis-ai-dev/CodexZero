@@ -759,12 +759,9 @@ class TextWindow {
             
             console.log(`Loading ${verseInfo.book} ${verseInfo.chapter} for ${windowId} to reach verse index ${verseIndex}`);
             
-            // Use virtual scroll manager to load the correct chapter
+            // Use virtual scroll manager to navigate this specific window
             if (window.translationEditor?.virtualScrollManager) {
-                // Clear current content first
-                container.innerHTML = '<div class="p-4 text-gray-500">Loading...</div>';
-                
-                // Load the chapter containing this verse
+                // Use the individual window loading method that preserves virtual scrolling
                 await window.translationEditor.virtualScrollManager.loadChapterWithContext(windowId, verseInfo.book, verseInfo.chapter);
                 
                 // After loading, try to scroll to the specific verse
@@ -776,6 +773,12 @@ class TextWindow {
                         console.log(`Successfully synced ${windowId} to verse index ${verseIndex} after loading`);
                     } else {
                         console.log(`Verse index ${verseIndex} still not found after loading ${verseInfo.book} ${verseInfo.chapter}`);
+                        // Try using the virtual scroll manager's direct verse scrolling
+                        setTimeout(() => {
+                            if (window.translationEditor.virtualScrollManager.scrollToVerseIndex) {
+                                window.translationEditor.virtualScrollManager.scrollToVerseIndex(windowId, verseIndex);
+                            }
+                        }, 500);
                     }
                 }, 200);
             } else {
