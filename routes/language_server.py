@@ -136,9 +136,43 @@ def add_to_dictionary(project_id):
     
     if word:
         ls = LanguageServerService(project_id)
-        ls.add_word_to_dictionary(word, current_user.id)
+        was_added = ls.add_word_to_dictionary(word, current_user.id)
+        return jsonify({'success': True, 'added': was_added})
         
-    return jsonify({'success': True})
+    return jsonify({'success': True, 'added': False})
+
+
+@language_server.route('/project/<int:project_id>/language-server/dictionary/bulk', methods=['POST'])
+@login_required
+def add_bulk_to_dictionary(project_id):
+    """Add multiple words to project dictionary"""
+    require_project_access(project_id, "editor")
+    
+    data = request.get_json()
+    words = data.get('words', [])
+    
+    if not words or not isinstance(words, list):
+        return jsonify({
+            'success': False,
+            'error': 'Words array is required'
+        }), 400
+    
+    ls = LanguageServerService(project_id)
+    
+    try:
+        added_count = ls.add_words_to_dictionary_bulk(words, current_user.id)
+    except Exception as e:
+        print(f"Error adding words in bulk: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to add words to dictionary'
+        }), 500
+    
+    return jsonify({
+        'success': True,
+        'added_count': added_count,
+        'total_words': len(words)
+    })
 
 
  

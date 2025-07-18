@@ -45,8 +45,8 @@ class LanguageServerService:
         
         return {"suggestions": suggestions}
 
-    def add_word_to_dictionary(self, word: str, user_id: int):
-        """Add word to project dictionary"""
+    def add_word_to_dictionary(self, word: str, user_id: int) -> bool:
+        """Add word to project dictionary, returns True if word was actually added"""
         # Check if already exists
         existing = ProjectDictionary.query.filter_by(
             project_id=self.project_id,
@@ -65,6 +65,50 @@ class LanguageServerService:
             # Update cache if loaded
             if self.approved_words is not None:
                 self.approved_words.add(word.lower())
+            
+            return True
+        
+        return False  # Word already existed
+
+    def add_words_to_dictionary_bulk(self, words: List[str], user_id: int) -> int:
+        """Add multiple words to project dictionary efficiently"""
+        if not words:
+            return 0
+        
+        # Get existing words to avoid duplicates
+        existing_words = set()
+        if words:
+            existing_entries = ProjectDictionary.query.filter(
+                ProjectDictionary.project_id == self.project_id,
+                ProjectDictionary.word.in_(words)
+            ).all()
+            existing_words = {entry.word for entry in existing_entries}
+        
+        # Create new entries for words that don't exist
+        new_entries = []
+        added_words = []
+        
+        for word in words:
+            word = word.strip()
+            if word and len(word) >= 3 and word not in existing_words:
+                new_entries.append(ProjectDictionary(
+                    project_id=self.project_id,
+                    word=word,
+                    added_by=user_id
+                ))
+                added_words.append(word)
+        
+        # Bulk insert new entries
+        if new_entries:
+            db.session.add_all(new_entries)
+            db.session.commit()
+            
+            # Update cache if loaded
+            if self.approved_words is not None:
+                for word in added_words:
+                    self.approved_words.add(word.lower())
+        
+        return len(added_words)
 
 
  

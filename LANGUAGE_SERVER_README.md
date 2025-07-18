@@ -43,7 +43,8 @@ The CodexZero language server provides real-time text analysis for Bible transla
 - `GET /project/<id>/language-server/analyze/<text_id>/<verse_index>` - Analyze verse from database
 - `POST /project/<id>/language-server/analyze/<text_id>/<verse_index>` - Analyze current text (not saved)
 - `POST /project/<id>/language-server/action` - Execute suggestion actions
-- `POST /project/<id>/language-server/dictionary` - Add words to dictionary
+- `POST /project/<id>/language-server/dictionary` - Add single word to dictionary
+- `POST /project/<id>/language-server/dictionary/bulk` - Add multiple words to dictionary
 
 ### Frontend (JavaScript)
 
@@ -80,6 +81,12 @@ The CodexZero language server provides real-time text analysis for Bible transla
 1. User clicks suggestion → Modal opens
 2. User clicks "Add to Dictionary" → **Highlighting disappears immediately**
 3. Server processes request → Success confirmation
+4. **Immediate re-analysis** → Updated suggestions appear
+
+### Add All Words to Dictionary
+1. User clicks suggestion → Modal opens
+2. User clicks "Add All Words to Dictionary" → **All verse highlighting disappears immediately**
+3. Server processes all unique words from verse → Success confirmation
 4. **Immediate re-analysis** → Updated suggestions appear
 
 ### Ignore Suggestion
@@ -136,6 +143,12 @@ Each suggestion can specify its own color:
 - **Immediate visual feedback**: Highlighting removed instantly
 - Automatically refreshes analysis on server
 - Permanent approval for the project
+
+### add_all_to_dictionary (bulk)
+- Adds all unique words (3+ characters) from current verse to dictionary
+- **Immediate visual feedback**: All highlighting removed instantly  
+- Uses efficient bulk database operations
+- Permanent approval for all words in the project
 
 ### ignore
 - Dismisses suggestion without adding to dictionary
@@ -239,7 +252,7 @@ suggestions.append({
 2. **Style Consistency**: Check translation style patterns  
 3. **Terminology Management**: Ensure consistent term usage
 4. **AI Integration**: Context-aware suggestions
-5. **Batch Operations**: Multi-word dictionary management
+5. **Batch Operations**: ✅ Multi-word dictionary management (completed)
 6. **User Preferences**: Customizable color schemes per user
 7. **Visual Highlighting Improvements**: Better overlay techniques for more complex highlighting
 8. **Persistent Ignore**: Save ignored words per user/project

@@ -595,12 +595,15 @@ class AdvancedLanguageServer {
                 <p style="margin: 0; color: #666; font-size: 14px;">${this.escapeHtml(suggestion.message)}</p>
             </div>
             
-            <div style="display: flex; gap: 8px; justify-content: flex-end;">
-                <button class="btn-secondary" style="padding: 8px 16px; border: 1px solid #ddd; border-radius: 4px; background: #f8f9fa; cursor: pointer;">
+            <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: stretch; flex-wrap: nowrap;">
+                <button class="btn-secondary" style="padding: 8px 16px; border: 1px solid #ddd; border-radius: 6px; background: #f8f9fa; color: #333; cursor: pointer; font-size: 14px; transition: all 0.2s ease; min-height: 36px; display: flex; align-items: center;">
                     Ignore
                 </button>
-                <button class="btn-primary" style="padding: 8px 16px; border: 1px solid ${color}; border-radius: 4px; background: ${color}; color: white; cursor: pointer;">
+                <button class="btn-primary" style="padding: 8px 16px; border: 1px solid ${color}; border-radius: 6px; background: ${color}; color: white; cursor: pointer; font-size: 14px; transition: all 0.2s ease; min-height: 36px; display: flex; align-items: center;">
                     Add to Dictionary
+                </button>
+                <button class="btn-add-all" style="padding: 8px 16px; border: 1px solid #10b981; border-radius: 6px; background: #10b981; color: white; cursor: pointer; font-size: 14px; transition: all 0.2s ease; min-height: 36px; display: flex; align-items: center;">
+                    Add All Words
                 </button>
             </div>
         `;
@@ -608,6 +611,35 @@ class AdvancedLanguageServer {
         // Add event handlers
         const ignoreBtn = modal.querySelector('.btn-secondary');
         const addBtn = modal.querySelector('.btn-primary');
+        const addAllBtn = modal.querySelector('.btn-add-all');
+        
+        // Add hover effects
+        ignoreBtn.addEventListener('mouseenter', () => {
+            ignoreBtn.style.background = '#e9ecef';
+            ignoreBtn.style.transform = 'translateY(-1px)';
+        });
+        ignoreBtn.addEventListener('mouseleave', () => {
+            ignoreBtn.style.background = '#f8f9fa';
+            ignoreBtn.style.transform = 'translateY(0)';
+        });
+        
+        addBtn.addEventListener('mouseenter', () => {
+            addBtn.style.transform = 'translateY(-1px)';
+            addBtn.style.boxShadow = `0 4px 8px ${color}40`;
+        });
+        addBtn.addEventListener('mouseleave', () => {
+            addBtn.style.transform = 'translateY(0)';
+            addBtn.style.boxShadow = 'none';
+        });
+        
+        addAllBtn.addEventListener('mouseenter', () => {
+            addAllBtn.style.transform = 'translateY(-1px)';
+            addAllBtn.style.boxShadow = '0 4px 8px #10b98140';
+        });
+        addAllBtn.addEventListener('mouseleave', () => {
+            addAllBtn.style.transform = 'translateY(0)';
+            addAllBtn.style.boxShadow = 'none';
+        });
         
         ignoreBtn.addEventListener('click', () => {
             this.removeSuggestionHighlighting(suggestion, verseIndex);
@@ -620,6 +652,11 @@ class AdvancedLanguageServer {
         addBtn.addEventListener('click', async () => {
             this.removeSuggestionHighlighting(suggestion, verseIndex);
             await this.addWordToDictionary(suggestion.substring, verseIndex);
+            backdrop.remove();
+        });
+        
+        addAllBtn.addEventListener('click', async () => {
+            await this.addAllWordsToDictionary(verseIndex);
             backdrop.remove();
         });
         
@@ -662,6 +699,114 @@ class AdvancedLanguageServer {
             console.error('Error adding word to dictionary:', error);
             this.showToast('Error adding word to dictionary', 'error');
         }
+    }
+
+    async addAllWordsToDictionary(verseIndex) {
+        try {
+            const verseText = this.getCurrentVerseText(verseIndex);
+            if (!verseText) {
+                console.error('No verse text found for bulk addition');
+                this.showToast('Could not find verse text', 'error');
+                return;
+            }
+
+            const words = this.extractUniqueWords(verseText);
+            if (words.length === 0) {
+                this.showToast('No words found to add', 'warning');
+                return;
+            }
+
+            const projectId = window.translationEditor?.projectId;
+            if (!projectId) {
+                console.error('No project ID available');
+                return;
+            }
+
+            console.log(`🔤 Adding ${words.length} words individually: ${words.join(', ')}`);
+            
+            // Use single word endpoint for each word (more reliable than bulk)
+            let addedCount = 0;
+            let skippedCount = 0;
+            let errorCount = 0;
+            
+            for (const word of words) {
+                try {
+                    const response = await fetch(`/project/${projectId}/language-server/dictionary`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ word: word })
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.added) {
+                            addedCount++;
+                            console.log(`✅ Added "${word}" to dictionary`);
+                        } else {
+                            skippedCount++;
+                            console.log(`⏭️ Skipped "${word}" (already in dictionary)`);
+                        }
+                    } else {
+                        errorCount++;
+                        console.error(`❌ Failed to add "${word}" to dictionary`);
+                    }
+                } catch (error) {
+                    errorCount++;
+                    console.error(`❌ Error adding "${word}" to dictionary:`, error);
+                }
+            }
+            
+            // Show results
+            if (addedCount > 0) {
+                this.showToast(`Added ${addedCount} new words to dictionary`, 'success');
+            }
+            if (skippedCount > 0 && addedCount === 0) {
+                this.showToast(`All ${skippedCount} words were already in dictionary`, 'info');
+            }
+            if (errorCount > 0) {
+                this.showToast(`Failed to add ${errorCount} words`, 'warning');
+            }
+            
+            // Clear all highlighting and re-analyze
+            this.clearEnhancement(verseIndex);
+            this.reanalyzeVerse(verseIndex);
+            
+        } catch (error) {
+            console.error('Error adding words to dictionary:', error);
+            this.showToast('Error adding words to dictionary', 'error');
+        }
+    }
+
+    getCurrentVerseText(verseIndex) {
+        // Try to get text from enhanced textarea first
+        for (const [key, enhancement] of this.enhancedTextareas.entries()) {
+            if (key.endsWith(`:${verseIndex}`)) {
+                if (enhancement.contentDiv) {
+                    return enhancement.contentDiv.textContent || enhancement.contentDiv.innerText || '';
+                }
+                if (enhancement.textarea) {
+                    return enhancement.textarea.value || '';
+                }
+            }
+        }
+        
+        // Fallback to finding regular textarea
+        const textarea = this.findTextarea(verseIndex);
+        if (textarea) {
+            return textarea.value || '';
+        }
+        
+        return '';
+    }
+
+    extractUniqueWords(text) {
+        // Extract all words (3+ letters, only alphabetic characters)
+        const wordMatches = text.match(/\b[a-zA-Z]{3,}\b/g);
+        if (!wordMatches) return [];
+        
+        // Return unique words, normalized to lowercase
+        const uniqueWords = [...new Set(wordMatches.map(word => word.toLowerCase()))];
+        return uniqueWords;
     }
 
     removeSuggestionHighlighting(suggestion, verseIndex) {
@@ -968,6 +1113,42 @@ document.addEventListener('verse-saved', (event) => {
         window.languageServer.handleAnalysis(event.detail.verseIndex, event.detail.analysis, event.detail.targetId);
     }
 });
+
+// Test function for bulk dictionary addition
+window.testBulkDictionaryAdd = async function(verseIndex = 1, testText = null) {
+    console.log('🔤 Testing bulk dictionary addition for verse', verseIndex);
+    
+    if (!window.languageServer) {
+        console.error('🔤 Language server not initialized');
+        return;
+    }
+    
+    // Get or set test text
+    let verseText = testText;
+    if (!verseText) {
+        verseText = window.languageServer.getCurrentVerseText(verseIndex);
+        if (!verseText) {
+            verseText = 'hello world test unknown word';
+            console.log('🔤 No verse text found, using test text:', verseText);
+        }
+    }
+    
+    console.log('🔤 Extracting words from text:', verseText);
+    const words = window.languageServer.extractUniqueWords(verseText);
+    console.log('🔤 Extracted words:', words);
+    
+    if (words.length === 0) {
+        console.log('🔤 No words to add');
+        return;
+    }
+    
+    try {
+        await window.languageServer.addAllWordsToDictionary(verseIndex);
+        console.log('🔤 Bulk addition test completed successfully');
+    } catch (error) {
+        console.error('🔤 Bulk addition test failed:', error);
+    }
+};
 
 // Process verses that come with analysis data from initial load
 window.processVerseWithAnalysis = (verseData) => {
