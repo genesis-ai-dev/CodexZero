@@ -267,17 +267,25 @@ class TranslationDragDrop {
         // Show loading state on all target verses first
         const targetTextareas = [];
         for (const verse of verses) {
-            let textarea = actualTargetWindow.element?.querySelector(`textarea[data-verse="${verse.verse}"]`);
+            let textarea;
             
-            // If verse is not currently rendered, try to scroll to it first
-            if (!textarea && window.translationEditor?.virtualScrollManager) {
-                // Try to find the verse index and ensure it's loaded
-                const verseIndex = this.findVerseIndex(verse.verse, actualTargetWindow.id);
-                if (verseIndex !== null) {
-                    await window.translationEditor.virtualScrollManager.scrollToVerseIndex(actualTargetWindow.id, verseIndex);
-                    // Wait a bit for rendering
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    textarea = actualTargetWindow.element?.querySelector(`textarea[data-verse="${verse.verse}"]`);
+            // If a specific textarea was provided, use it for the first verse
+            if (targetTextarea && verses.indexOf(verse) === 0) {
+                textarea = targetTextarea;
+            } else {
+                // For multiple verses or when no specific textarea provided, search for it
+                textarea = actualTargetWindow.element?.querySelector(`textarea[data-verse="${verse.verse}"]`);
+                
+                // If verse is not currently rendered, try to scroll to it first
+                if (!textarea && window.translationEditor?.virtualScrollManager) {
+                    // Try to find the verse index and ensure it's loaded
+                    const verseIndex = this.findVerseIndex(verse.verse, actualTargetWindow.id);
+                    if (verseIndex !== null) {
+                        await window.translationEditor.virtualScrollManager.scrollToVerseIndex(actualTargetWindow.id, verseIndex);
+                        // Wait a bit for rendering
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        textarea = actualTargetWindow.element?.querySelector(`textarea[data-verse="${verse.verse}"]`);
+                    }
                 }
             }
             

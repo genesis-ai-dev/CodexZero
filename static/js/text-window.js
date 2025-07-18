@@ -689,32 +689,40 @@ class TextWindow {
         // This method now does nothing but is kept for compatibility
     }
     
-    syncOtherWindowsToThis(sourceContainer) {
-        // Enhanced sync: Find the currently visible verse and sync to that exact verse across chapters/books
-        const currentVisibleVerse = this.getCurrentVisibleVerse(sourceContainer);
+    syncOtherWindowsToThis(sourceContainer, targetVerseIndex = null) {
+        // Enhanced sync: Sync to a specific verse index, or find the currently visible verse
+        let currentVisibleVerse = null;
+        let verseIndex = targetVerseIndex;
         
-        if (!currentVisibleVerse) {
-            console.log('No visible verse found for syncing');
-            return;
+        if (verseIndex === null) {
+            // Fallback to finding the currently visible verse
+            currentVisibleVerse = this.getCurrentVisibleVerse(sourceContainer);
+            if (!currentVisibleVerse) {
+                console.log('No visible verse found for syncing');
+                return;
+            }
+            verseIndex = parseInt(currentVisibleVerse.dataset.verseIndex);
+        } else {
+            // Find the verse element for the given index for reference info
+            currentVisibleVerse = sourceContainer.querySelector(`[data-verse-index="${verseIndex}"]`);
         }
         
-        const targetVerseIndex = parseInt(currentVisibleVerse.dataset.verseIndex);
-        const targetVerseNumber = currentVisibleVerse.dataset.verse;
-        const targetReference = currentVisibleVerse.dataset.reference || `Verse ${targetVerseNumber}`;
-        
-        if (isNaN(targetVerseIndex)) {
+        if (isNaN(verseIndex)) {
             console.log('Invalid verse index for syncing');
             return;
         }
         
-        console.log(`Syncing reference windows to verse index ${targetVerseIndex} (${targetReference})`);
+        const targetVerseNumber = currentVisibleVerse?.dataset.verse || verseIndex;
+        const targetReference = currentVisibleVerse?.dataset.reference || `Verse ${targetVerseNumber}`;
+        
+        console.log(`Syncing reference windows to verse index ${verseIndex} (${targetReference})`);
         
         // Find all other text windows and sync those with sync enabled
         window.translationEditor?.textWindows?.forEach((textWindow, windowId) => {
             if (textWindow.id !== this.id && textWindow.syncEnabled !== false) {
                 const otherContainer = textWindow.element?.querySelector('[data-window-content]');
                 if (otherContainer && otherContainer.offsetParent) {
-                    this.syncToVerseIndex(otherContainer, targetVerseIndex, targetReference, textWindow.id);
+                    this.syncToVerseIndex(otherContainer, verseIndex, targetReference, textWindow.id);
                 }
             }
         });
@@ -1048,18 +1056,34 @@ class TextWindow {
         
         // AUTOMATIC SYNC: Re-enabled for primary window textarea clicks
         if (this.type === 'primary') {
-            textarea.addEventListener('click', () => {
-                this.triggerSyncFromPrimary();
+            textarea.addEventListener('click', (e) => {
+                // Sync to the specific verse that was clicked, not the "currently visible" verse
+                const clickedVerseElement = e.target.closest('[data-verse-index]');
+                if (clickedVerseElement) {
+                    this.triggerSyncFromPrimary(clickedVerseElement);
+                } else {
+                    this.triggerSyncFromPrimary();
+                }
             }, { passive: true });
         }
     }
     
-    triggerSyncFromPrimary() {
+    triggerSyncFromPrimary(clickedVerseElement) {
         // Only trigger sync if this is the primary window
         if (this.type !== 'primary') return;
         
         const container = this.element?.querySelector('[data-window-content]');
         if (container) {
+            // If a specific verse element was clicked, sync to that verse
+            if (clickedVerseElement) {
+                const targetVerseIndex = parseInt(clickedVerseElement.dataset.verseIndex);
+                if (!isNaN(targetVerseIndex)) {
+                    this.syncOtherWindowsToThis(container, targetVerseIndex);
+                    return;
+                }
+            }
+            
+            // Fallback to the original behavior (sync to currently visible verse)
             this.syncOtherWindowsToThis(container);
         }
     }
@@ -1358,7 +1382,7 @@ class TextWindow {
         
         for (const [id, textWindow] of textWindows) {
             if (textWindow.id !== this.id) {
-                const sourceTextarea = textWindow.element?.querySelector(`textarea[data-verse="${verseData.verse}"]`);
+                const sourceTextarea = textWindow.element?.querySelector(`textarea[data-verse-index="${verseData.index}"]`);
                 if (sourceTextarea && sourceTextarea.value?.trim()) {
                     sourceText = sourceTextarea.value.trim();
                     sourceWindow = textWindow;
