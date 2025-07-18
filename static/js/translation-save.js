@@ -43,11 +43,26 @@ class TranslationSave {
             console.log(`🚫 Skipping duplicate save for verse ${verseIndex} - same content saved ${now - recent.timestamp}ms ago`);
             return;
         }
-     
+        
+        // DEBUGGING: Log which textarea this change is coming from
+        const focusedWindow = this.currentFocusedTextarea ? this.getWindowForTextarea(this.currentFocusedTextarea) : null;
         console.log(`💾 Auto-saving verse ${verseIndex}: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+        if (focusedWindow) {
+            console.log(`💾 Change from window: ${focusedWindow.title} (${focusedWindow.type})`);
+        }
         
         // Auto-save immediately when user moves between cells
         this.autoSaveVerse(verseIndex, text);
+    }
+    
+    // Helper method to get window for textarea
+    getWindowForTextarea(textarea) {
+        for (const [id, window] of this.editor.textWindows) {
+            if (window.element?.contains(textarea)) {
+                return window;
+            }
+        }
+        return null;
     }
     
     async autoSaveVerse(verseIndex, text) {
@@ -60,15 +75,33 @@ class TranslationSave {
         }
 
         try {
-            // Find the textarea for this verse to determine correct target
-            const textarea = document.querySelector(`textarea[data-verse-index="${verseIndex}"]`);
+            // CRITICAL FIX: Use the currently focused textarea to determine the correct target,
+            // not just any textarea with the same verse index
             let correctTargetId = targetId;
+            const focusedTextarea = this.currentFocusedTextarea;
             
-            if (textarea && !correctTargetId) {
-                // Find which window contains this textarea
+            if (focusedTextarea && parseInt(focusedTextarea.dataset.verseIndex) === verseIndex) {
+                // Find which window contains the focused textarea
                 for (const [id, window] of this.editor.textWindows) {
-                    if (window.element?.contains(textarea)) {
+                    if (window.element?.contains(focusedTextarea)) {
                         correctTargetId = id;
+                        console.log(`💾 Saving verse ${verseIndex} from focused textarea in window ${id}`);
+                        break;
+                    }
+                }
+            } else {
+                // Fallback: if we don't have the focused textarea, find the textarea that matches the text content
+                const textareas = document.querySelectorAll(`textarea[data-verse-index="${verseIndex}"]`);
+                for (const textarea of textareas) {
+                    if (textarea.value === text) {
+                        // Find which window contains this textarea
+                        for (const [id, window] of this.editor.textWindows) {
+                            if (window.element?.contains(textarea)) {
+                                correctTargetId = id;
+                                console.log(`💾 Saving verse ${verseIndex} from matching content in window ${id}`);
+                                break;
+                            }
+                        }
                         break;
                     }
                 }
@@ -86,12 +119,12 @@ class TranslationSave {
             this.editor.unsavedChanges.delete(verseIndex);
             this.editor.hasUnsavedChanges = this.editor.unsavedChanges.size > 0;
             
-            // Show subtle success indicator
-            if (textarea) {
-                const originalBorder = textarea.style.borderColor;
-                textarea.style.borderColor = '#10b981';
+            // Show subtle success indicator on the correct textarea
+            if (focusedTextarea && parseInt(focusedTextarea.dataset.verseIndex) === verseIndex) {
+                const originalBorder = focusedTextarea.style.borderColor;
+                focusedTextarea.style.borderColor = '#10b981';
                 setTimeout(() => {
-                    textarea.style.borderColor = originalBorder;
+                    focusedTextarea.style.borderColor = originalBorder;
                 }, 500);
             }
             
@@ -153,17 +186,21 @@ class TranslationSave {
         
         for (const [verseIndex, text] of this.editor.unsavedChanges.entries()) {
             try {
-                // Find the textarea for this verse index to determine correct target
-                const textarea = document.querySelector(`textarea[data-verse-index="${verseIndex}"]`);
+                // CRITICAL FIX: Find the specific textarea that matches the text content for this verse
                 let correctTargetId = targetId;
+                const textareas = document.querySelectorAll(`textarea[data-verse-index="${verseIndex}"]`);
                 
-                if (textarea && !correctTargetId) {
-                    // Find which window contains this textarea
-                    for (const [id, window] of this.editor.textWindows) {
-                        if (window.element?.contains(textarea)) {
-                            correctTargetId = id;
-                            break;
+                for (const textarea of textareas) {
+                    if (textarea.value === text) {
+                        // Find which window contains this specific textarea
+                        for (const [id, window] of this.editor.textWindows) {
+                            if (window.element?.contains(textarea)) {
+                                correctTargetId = id;
+                                console.log(`💾 Bulk save: verse ${verseIndex} from window ${id}`);
+                                break;
+                            }
                         }
+                        break;
                     }
                 }
                 
@@ -215,6 +252,12 @@ class TranslationSave {
         }
         
         console.log(`📡 API call: Saving verse ${verseIndex} to ${saveTargetId}`, metadata ? `(${metadata.source})` : '(manual)');
+        
+        // DEBUGGING: Check if we're accidentally saving to a different window type than expected
+        const targetWindow = this.editor.textWindows.get(saveTargetId);
+        if (targetWindow) {
+            console.log(`📡 Target window type: ${targetWindow.type}, title: ${targetWindow.title}`);
+        }
 
         try {
             const requestBody = {
@@ -242,6 +285,20 @@ class TranslationSave {
             }
             
             console.log(`✅ Successfully saved verse ${verseIndex}`);
+
+            // Add small delay to ensure database consistency before any events that might trigger reloads
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // Dispatch verse-saved event with analysis if available
+            if (data.analysis) {
+                document.dispatchEvent(new CustomEvent('verse-saved', {
+                    detail: {
+                        verseIndex: verseIndex,
+                        analysis: data.analysis,
+                        targetId: saveTargetId
+                    }
+                }));
+            }
 
             return data;
         } catch (error) {

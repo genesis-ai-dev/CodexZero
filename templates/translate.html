@@ -714,6 +714,11 @@ class TranslationEditor {
                 this.renderReferenceTexts();
             }
             
+            // Update language server toggle buttons
+            if (window.languageServer && window.languageServer.refreshToggleButtons) {
+                setTimeout(() => window.languageServer.refreshToggleButtons(), 100);
+            }
+            
             this.saveLayoutState();
             
         } catch (error) {
@@ -770,6 +775,11 @@ class TranslationEditor {
         
         // Initialize resizer after layout is rendered
         this.initializeResizer();
+        
+        // Refresh language server toggle buttons
+        if (window.languageServer && window.languageServer.refreshToggleButtons) {
+            setTimeout(() => window.languageServer.refreshToggleButtons(), 100);
+        }
     }
     
     renderReferenceTexts() {
@@ -791,6 +801,11 @@ class TranslationEditor {
         
         // Initialize resizer after layout is rendered
         this.initializeResizer();
+        
+        // Refresh language server toggle buttons
+        if (window.languageServer && window.languageServer.refreshToggleButtons) {
+            setTimeout(() => window.languageServer.refreshToggleButtons(), 100);
+        }
     }
     
     initializeResizer() {
@@ -1042,9 +1057,28 @@ class TranslationEditor {
             this.textWindows.get(oldPrimaryId).type = 'reference';
         }
         
+        // Update language server settings for the window type changes
+        if (window.languageServer) {
+            // Enable language server for the new primary window
+            window.languageServer.windowSettings.set(textId, { enabled: true });
+            
+            // Optionally disable for the old primary (now reference) window
+            if (oldPrimaryId) {
+                // Keep existing setting or default to disabled for reference
+                if (!window.languageServer.windowSettings.has(oldPrimaryId)) {
+                    window.languageServer.windowSettings.set(oldPrimaryId, { enabled: false });
+                }
+            }
+        }
+        
         // Re-render both areas
         this.renderPrimaryText();
         this.renderReferenceTexts();
+        
+        // Refresh language server toggle buttons
+        if (window.languageServer && window.languageServer.refreshToggleButtons) {
+            setTimeout(() => window.languageServer.refreshToggleButtons(), 100);
+        }
         
         this.saveLayoutState();
     }
@@ -1327,6 +1361,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <script defer src="{{ url_for('static', filename='js/translation-navigation.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/translation-save.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/translation-ui.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/language-server-simple.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/translation-test-results.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/translation-drag-drop.js') }}"></script>
 {% endblock %} 

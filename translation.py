@@ -922,18 +922,39 @@ def get_chapter_verses(project_id, target_id, book, chapter):
         verse_indices = [v['index'] for v in chapter_verses]
         source_verses = text_manager.get_verses(verse_indices)
         
+        # CRITICAL FIX: Each window should only receive content from its own associated text
+        # The window requesting data has windowId = target_id, so load content from that text
+        
+        # Load the content for the requesting window's text
+        window_text_manager = TextManager(text_id)  # text_id is already parsed from target_id
+        window_verses = window_text_manager.get_verses(verse_indices)
+        
         # Build response
         verses_data = []
         for i, verse_info in enumerate(chapter_verses):
-            source_text = source_verses[i] if i < len(source_verses) else ''
-            target_text = target_texts[i] if i < len(target_texts) else ''
+            # The requesting window gets its own content
+            window_content = window_verses[i] if i < len(window_verses) else ''
+            
+            # Run language server analysis if this window has content
+            analysis = None
+            if window_content.strip():
+                try:
+                    from utils.language_server import LanguageServerService
+                    ls = LanguageServerService(project_id)
+                    analysis = ls.analyze_verse(window_content)
+                except Exception as e:
+                    print(f"Language server analysis failed for verse {verse_info['index']}: {e}")
+                    analysis = {"substrings": []}
+            else:
+                analysis = {"substrings": []}
             
             verses_data.append({
                 'verse': verse_info['verse'],
                 'reference': verse_info['reference'],
-                'source_text': source_text,
-                'target_text': target_text,
-                'index': verse_info['index']
+                'source_text': '',  # Not needed - each window only shows its own content
+                'target_text': window_content,  # The content from this window's text
+                'index': verse_info['index'],
+                'analysis': analysis
             })
         
         return jsonify({
@@ -1030,6 +1051,11 @@ def save_verse(project_id, target_id, verse_index):
                 # Update progress after successful save
                 text_manager._update_progress()
                 
+                # Run language server analysis
+                from utils.language_server import LanguageServerService
+                ls = LanguageServerService(project_id)
+                analysis = ls.analyze_verse(verse_text)
+                
             except Exception as e:
                 db.session.rollback()
                 print(f"Error saving verse with history: {e}")
@@ -1038,7 +1064,8 @@ def save_verse(project_id, target_id, verse_index):
             return jsonify({
                 'success': True,
                 'edit_recorded': True,
-                'editor': current_user.name
+                'editor': current_user.name,
+                'analysis': analysis
             })
             
         else:
@@ -1232,12 +1259,26 @@ def get_verse_range(project_id, target_id, start_index, end_index):
             else:
                 verse_num = i + 1  # fallback
             
+            # Run language server analysis on target text if it exists
+            analysis = None
+            if target_text.strip():
+                try:
+                    from utils.language_server import LanguageServerService
+                    ls = LanguageServerService(project_id)
+                    analysis = ls.analyze_verse(target_text)
+                except Exception as e:
+                    print(f"Language server analysis failed for verse {verse_index}: {e}")
+                    analysis = {"substrings": []}
+            else:
+                analysis = {"substrings": []}
+            
             verses_data.append({
                 'verse': verse_num,
                 'reference': verse_reference or f'Verse {verse_index}',
                 'source_text': source_text,
                 'target_text': target_text,
-                'index': verse_index
+                'index': verse_index,
+                'analysis': analysis  # Include analysis data
             })
         
         return jsonify({

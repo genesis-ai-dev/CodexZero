@@ -18,6 +18,7 @@ from routes.audio import audio
 from routes.members import members
 from routes.flags import flags
 from routes.notifications import notifications
+from routes.language_server import language_server
 from ai.bot import Chatbot
 
 
@@ -85,6 +86,7 @@ def create_app():
     app.register_blueprint(members)
     app.register_blueprint(flags)
     app.register_blueprint(notifications)
+    app.register_blueprint(language_server)
     
     # Static file serving routes
     @app.route('/static/<path:filename>')
@@ -105,95 +107,113 @@ def create_app():
             db.create_all()
             print("Database tables initialized successfully")
             
-            # Run automatic migrations (remove this section after deployment)
+            # Run automatic migrations
             print("Running automatic migrations...")
-            
-            # 1. Drop title and priority columns from verse_flags if they exist
-            try:
-                from sqlalchemy import text
-                # Check if columns exist before dropping them
-                result = db.session.execute(text("SHOW COLUMNS FROM verse_flags LIKE 'title'"))
-                if result.fetchone():
-                    db.session.execute(text("ALTER TABLE verse_flags DROP COLUMN title"))
-                    print("✓ Dropped title column from verse_flags")
-                
-                result = db.session.execute(text("SHOW COLUMNS FROM verse_flags LIKE 'priority'"))
-                if result.fetchone():
-                    db.session.execute(text("ALTER TABLE verse_flags DROP COLUMN priority"))
-                    print("✓ Dropped priority column from verse_flags")
-                    
-            except Exception as e:
-                print(f"Schema migration warning: {e}")
-            
-            # 2. Add missing ProjectMember entries for existing projects
-            try:
-                from models import Project, ProjectMember
-                from datetime import datetime
-                
-                missing_count = 0
-                for project in Project.query.all():
-                    existing_member = ProjectMember.query.filter_by(
-                        project_id=project.id, 
-                        user_id=project.user_id
-                    ).first()
-                    
-                    if not existing_member:
-                        member = ProjectMember(
-                            project_id=project.id,
-                            user_id=project.user_id,
-                            role='owner',
-                            invited_by=project.user_id,
-                            accepted_at=project.created_at or datetime.utcnow()
-                        )
-                        db.session.add(member)
-                        missing_count += 1
-                
-                if missing_count > 0:
-                    db.session.commit()
-                    print(f"✓ Added {missing_count} missing ProjectMember entries")
-                else:
-                    print("✓ All projects already have ProjectMember entries")
-                    
-            except Exception as e:
-                print(f"ProjectMember migration warning: {e}")
-            
-            # 3. Ensure user_notifications table exists with proper indexes
-            try:
-                from sqlalchemy import text
-                # Check if user_notifications table exists
-                result = db.session.execute(text("SHOW TABLES LIKE 'user_notifications'"))
-                if not result.fetchone():
-                    # Create the table - db.create_all() should handle this
-                    db.create_all()
-                    print("✓ Created user_notifications table")
-                else:
-                    print("✓ user_notifications table already exists")
-                    
-            except Exception as e:
-                print(f"Notifications migration warning: {e}")
-                
-            # 4. Ensure flag_resolutions table exists
-            try:
-                from sqlalchemy import text
-                # Check if flag_resolutions table exists
-                result = db.session.execute(text("SHOW TABLES LIKE 'flag_resolutions'"))
-                if not result.fetchone():
-                    # Create the table - db.create_all() should handle this
-                    db.create_all()
-                    print("✓ Created flag_resolutions table")
-                else:
-                    print("✓ flag_resolutions table already exists")
-                    
-            except Exception as e:
-                print(f"Flag resolutions migration warning: {e}")
-                
-            print("Migrations completed!")
+            run_migrations(app)
+            print("✅ All migrations completed successfully!")
             
         except Exception as e:
-            print(f"Database connection failed during startup: {e}")
-            print("App will start without database initialization")
+            print(f"❌ CRITICAL: Database initialization or migration failed: {e}")
+            print("The application cannot start without a properly initialized database.")
+            raise  # Re-raise to prevent app from starting
     
     return app
+
+
+def run_migrations(app):
+    """Run all database migrations. Raises exception on failure."""
+    from sqlalchemy import text
+    
+    migrations_run = []
+    
+    try:
+        # Migration 1: Drop obsolete columns from verse_flags
+        try:
+            result = db.session.execute(text("SHOW COLUMNS FROM verse_flags LIKE 'title'"))
+            if result.fetchone():
+                db.session.execute(text("ALTER TABLE verse_flags DROP COLUMN title"))
+                migrations_run.append("Dropped title column from verse_flags")
+            
+            result = db.session.execute(text("SHOW COLUMNS FROM verse_flags LIKE 'priority'"))
+            if result.fetchone():
+                db.session.execute(text("ALTER TABLE verse_flags DROP COLUMN priority"))
+                migrations_run.append("Dropped priority column from verse_flags")
+                
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            raise Exception(f"Failed to drop obsolete columns from verse_flags: {e}")
+            
+        # Migration 2: Ensure all projects have ProjectMember entries
+        try:
+            from models import Project, ProjectMember
+            projects_without_member = db.session.query(Project).outerjoin(
+                ProjectMember, 
+                (Project.id == ProjectMember.project_id) & 
+                (Project.user_id == ProjectMember.user_id)
+            ).filter(ProjectMember.id.is_(None)).all()
+            
+            missing_count = 0
+            for project in projects_without_member:
+                member = ProjectMember(
+                    project_id=project.id,
+                    user_id=project.user_id,
+                    role='owner',
+                    created_at=project.created_at
+                )
+                db.session.add(member)
+                missing_count += 1
+            
+            if missing_count > 0:
+                db.session.commit()
+                migrations_run.append(f"Added {missing_count} missing ProjectMember entries")
+        except Exception as e:
+            db.session.rollback()
+            raise Exception(f"Failed to create ProjectMember entries: {e}")
+            
+        # Migration 3: Ensure user_notifications table exists
+        try:
+            result = db.session.execute(text("SHOW TABLES LIKE 'user_notifications'"))
+            if not result.fetchone():
+                # This should be handled by db.create_all() above
+                raise Exception("user_notifications table was not created by db.create_all()")
+        except Exception as e:
+            raise Exception(f"Failed to verify user_notifications table: {e}")
+            
+        # Migration 4: Ensure flag_resolutions table exists
+        try:
+            result = db.session.execute(text("SHOW TABLES LIKE 'flag_resolutions'"))
+            if not result.fetchone():
+                # This should be handled by db.create_all() above
+                raise Exception("flag_resolutions table was not created by db.create_all()")
+        except Exception as e:
+            raise Exception(f"Failed to verify flag_resolutions table: {e}")
+            
+        # Migration 5: Ensure project_dictionaries table exists
+        try:
+            result = db.session.execute(text("SHOW TABLES LIKE 'project_dictionaries'"))
+            if not result.fetchone():
+                # This should be handled by db.create_all() above
+                raise Exception("project_dictionaries table was not created by db.create_all()")
+        except Exception as e:
+            raise Exception(f"Failed to verify project_dictionaries table: {e}")
+        
+        # Print summary of migrations run
+        if migrations_run:
+            for migration in migrations_run:
+                print(f"  ✓ {migration}")
+        else:
+            print("  ✓ No migrations needed - database is up to date")
+            
+    except Exception as e:
+        # Log the specific migration that failed
+        print(f"\n❌ Migration failed: {e}")
+        print("\nTo fix this issue:")
+        print("1. Check your database connection settings")
+        print("2. Ensure the database user has proper permissions")
+        print("3. Review the specific error message above")
+        print("4. You may need to run manual SQL commands to fix the schema")
+        raise  # Re-raise to prevent app from starting
 
 
 app = create_app()

@@ -333,6 +333,11 @@ def save_verse(project_id, target_id, verse_index):
                 text_manager = TextManager(text_id)
                 text_manager._update_progress()
                 
+                # Run language server analysis
+                from utils.language_server import LanguageServerService
+                ls = LanguageServerService(project_id)
+                analysis = ls.analyze_verse(verse_text)
+                
             except Exception as e:
                 db.session.rollback()
                 print(f"Error saving verse with history: {e}")
@@ -341,7 +346,8 @@ def save_verse(project_id, target_id, verse_index):
             return jsonify({
                 'success': True,
                 'edit_recorded': True,
-                'editor': current_user.name
+                'editor': current_user.name,
+                'analysis': analysis
             })
             
         else:

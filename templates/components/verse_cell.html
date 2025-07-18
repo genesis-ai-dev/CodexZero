@@ -1,15 +1,25 @@
 {% macro verse_cell() %}
-<!-- PERFORMANCE: VerseCell class removed - functionality moved to optimized AudioManager in text-window.js -->
-<!-- Audio controls are now always created by AudioManager with improved styling and UX -->
+<!-- Modern verse cells are created dynamically by text-window.js -->
+<!-- This template is kept for reference but not actively used -->
 
 <template id="verse-cell-template">
-    <div class="verse-cell" data-verse-cell>
-        <div class="verse-cell-header">
-            <span class="verse-number">Verse {number}</span>
-            <!-- Audio controls will be dynamically created by AudioManager -->
+    <div class="verse-cell relative mb-4 border border-stone-300 rounded-sm overflow-hidden bg-white" data-verse-cell>
+        <div class="verse-cell-header flex items-center justify-between px-3 py-0.5 bg-gray-50 border-b border-gray-200 min-h-[22px]">
+            <div class="flex items-center gap-1">
+                <!-- Audio controls container -->
+            </div>
+            <span class="verse-number text-xs font-semibold px-2 py-1 rounded-sm bg-blue-50 text-blue-600">Verse {number}</span>
+            <div class="flex items-center gap-1">
+                <!-- Action buttons container -->
+            </div>
         </div>
         <div class="verse-cell-content">
-            <textarea placeholder="Enter verse translation..."></textarea>
+            <textarea 
+                class="w-full p-4 border-0 text-base leading-7 resize-none focus:ring-0 focus:outline-none bg-white font-['Inter'] overflow-hidden"
+                placeholder="Enter verse translation..."
+                data-verse-index="{index}"
+                data-verse="{number}">
+            </textarea>
         </div>
     </div>
 </template>

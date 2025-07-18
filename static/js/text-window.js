@@ -20,6 +20,7 @@ class TextWindow {
         textWindow.className = `flex flex-col border border-neutral-200 rounded-xl bg-white min-h-15 flex-1 shadow-sm`;
         textWindow.dataset.textId = this.id;
         textWindow.dataset.windowId = this.id;
+        textWindow.dataset.windowType = this.type;
         
         textWindow.appendChild(this.createHeader());
         textWindow.appendChild(this.createContent());
@@ -80,6 +81,12 @@ class TextWindow {
         const rightContainer = header.querySelector('div:last-child');
         rightContainer.insertBefore(downloadButton, rightContainer.firstChild);
         rightContainer.insertBefore(plusButton, rightContainer.firstChild);
+        
+        // Add language server toggle button for all windows
+        if (window.languageServer && typeof window.languageServer.createToggleButton === 'function') {
+            const languageServerToggle = window.languageServer.createToggleButton(this.id);
+            rightContainer.insertBefore(languageServerToggle, rightContainer.firstChild);
+        }
         
         // Only add sync toggle for non-primary windows
         if (this.type !== 'primary') {
@@ -936,10 +943,19 @@ class TextWindow {
     createOptimizedTextarea(verseData) {
         const textarea = document.createElement('textarea');
         textarea.className = `w-full p-4 border-0 text-base leading-7 resize-none focus:ring-0 focus:outline-none bg-white font-['Inter'] overflow-hidden`;
-        textarea.placeholder = `Edit verse ${verseData.verse} or drop text here...`;
+        
+        // Set appropriate placeholder based on window type
+        if (this.type === 'primary') {
+            textarea.placeholder = `Edit verse ${verseData.verse} or drop text here...`;
+        } else {
+            textarea.placeholder = `Reference text for verse ${verseData.verse}`;
+        }
+        
         textarea.dataset.verse = verseData.verse;
         textarea.dataset.verseIndex = verseData.index;
         textarea.dataset.reference = verseData.reference || `Verse ${verseData.verse}`;
+        
+        // SIMPLIFIED: Just use the standard fallback logic without complex window checking
         textarea.value = verseData.target_text || verseData.source_text || '';
         textarea.draggable = false;
         
@@ -948,17 +964,31 @@ class TextWindow {
         const minHeight = Math.max(80, lines * 24 + 32); // 24px per line + padding
         textarea.style.height = minHeight + 'px';
         
-        // Disable editing for viewers
-        if (window.translationEditor && !window.translationEditor.canEdit) {
+        // Disable editing for viewers or reference windows
+        if ((window.translationEditor && !window.translationEditor.canEdit) || this.type === 'reference') {
             textarea.disabled = true;
             textarea.style.backgroundColor = '#f9fafb';
             textarea.style.cursor = 'not-allowed';
-            textarea.placeholder = 'Read-only mode - Editor access required to edit';
-            textarea.title = 'Editor access required to edit translations';
+            
+            if (this.type === 'reference') {
+                textarea.placeholder = `Reference text for verse ${verseData.verse}`;
+                textarea.title = 'Reference text - read-only';
+            } else {
+                textarea.placeholder = 'Read-only mode - Editor access required to edit';
+                textarea.title = 'Editor access required to edit translations';
+            }
         }
         
         // PERFORMANCE: Use optimized event handlers
         this.attachOptimizedTextareaListeners(textarea);
+        
+        // LANGUAGE SERVER: Process analysis data if it exists
+        if (verseData.analysis && window.processVerseWithAnalysis) {
+            // Defer processing to allow DOM to settle
+            setTimeout(() => {
+                window.processVerseWithAnalysis(verseData);
+            }, 50);
+        }
         
         return textarea;
     }
@@ -1005,12 +1035,14 @@ class TextWindow {
             textarea._lastSaveTimestamp = lastSaveTimestamp;
         }, { passive: true });
         
-        // SIMPLIFIED SYNC: If this is in the primary window, add click handler to sync reference windows
-        if (this.type === 'primary') {
-            textarea.addEventListener('click', () => {
-                this.triggerSyncFromPrimary();
-            }, { passive: true });
-        }
+        // SYNC DISABLED: Automatic sync on textarea clicks was causing data loss after saves
+        // Users can still manually sync using the sync button in window headers
+        // The automatic sync was triggering chapter reloads that would overwrite just-saved content
+        // if (this.type === 'primary') {
+        //     textarea.addEventListener('click', () => {
+        //         this.triggerSyncFromPrimary();
+        //     }, { passive: true });
+        // }
     }
     
     triggerSyncFromPrimary() {

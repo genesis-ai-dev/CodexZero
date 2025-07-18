@@ -264,6 +264,42 @@ class LanguageRule(db.Model):
         return f'<LanguageRule {self.title}>'
 
 
+class ProjectDictionary(db.Model):
+    """Project-specific dictionary for language server"""
+    __tablename__ = 'project_dictionaries'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    
+    # Dictionary entry
+    word = db.Column(db.String(255), nullable=False)  # The word/phrase
+    approved = db.Column(db.Boolean, default=True)  # Whether it's in the approved dictionary
+    category = db.Column(db.String(50), default='user')  # 'user', 'theological', 'proper_noun', etc.
+    
+    # Optional context
+    definition = db.Column(db.Text, nullable=True)  # Definition or note
+    alternatives = db.Column(db.Text, nullable=True)  # JSON array of alternative spellings
+    
+    # Metadata
+    added_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    project = db.relationship('Project', backref='dictionary_entries')
+    user = db.relationship('User', backref='dictionary_additions')
+    
+    __table_args__ = (
+        db.UniqueConstraint('project_id', 'word', name='unique_project_word'),
+        db.Index('idx_project_dict', 'project_id', 'word'),
+        db.Index('idx_project_dict_approved', 'project_id', 'approved'),
+    )
+    
+    def __repr__(self):
+        return f'<ProjectDictionary {self.project_id}:{self.word}>'
+
+
+
 
 
 class VerseAudio(db.Model):
