@@ -4,6 +4,7 @@ class AdvancedLanguageServer {
         this.verseAnalyses = new Map(); // verseIndex -> analysis data
         this.enhancedTextareas = new Map(); // "windowId:verseIndex" -> {textarea, contentDiv, issues}
         this.windowSettings = new Map(); // windowId -> {enabled: boolean}
+        this.analysisTimeouts = new Map(); // verseIndex -> timeout ID
         console.log('🔤 AdvancedLanguageServer: Initialized');
     }
     
@@ -76,7 +77,7 @@ class AdvancedLanguageServer {
             if (!isNaN(verseIndex) && textarea.value?.trim()) {
                 // Check if we have cached analysis for this verse
                 const cachedAnalysis = this.verseAnalyses.get(verseIndex);
-                if (cachedAnalysis && cachedAnalysis.substrings?.length > 0) {
+                if (cachedAnalysis && cachedAnalysis.suggestions?.length > 0) {
                     this.enhanceTextareaSpecific(textarea, verseIndex, cachedAnalysis);
                 }
             }
@@ -141,8 +142,8 @@ class AdvancedLanguageServer {
 
     // Process verse data that comes with analysis (from initial load)
     processVerseWithAnalysis(verseData) {
-        if (verseData.analysis && verseData.analysis.substrings && verseData.analysis.substrings.length > 0) {
-            console.log(`🔤 Processing verse ${verseData.index} with ${verseData.analysis.substrings.length} issues`);
+                    if (verseData.analysis && verseData.analysis.suggestions && verseData.analysis.suggestions.length > 0) {
+                console.log(`🔤 Processing verse ${verseData.index} with ${verseData.analysis.suggestions.length} suggestions`);
             this.verseAnalyses.set(verseData.index, verseData.analysis);
             
             // CRITICAL FIX: Only apply highlighting to textareas that have the exact same content
@@ -174,8 +175,8 @@ class AdvancedLanguageServer {
     handleAnalysis(verseIndex, analysis, targetId = null) {
         console.log(`🔤 Handling analysis for verse ${verseIndex} from targetId ${targetId}:`, analysis);
         
-        if (!analysis?.substrings) {
-            console.log('🔤 No analysis substrings found');
+        if (!analysis?.suggestions) {
+            console.log('🔤 No analysis suggestions found');
             this.clearEnhancement(verseIndex);
             return;
         }
@@ -202,7 +203,7 @@ class AdvancedLanguageServer {
         });
     }
     
-    // Enhanced textarea for a specific textarea element
+    // Enhanced textarea for a specific textarea element using overlay approach
     enhanceTextareaSpecific(textarea, verseIndex, analysis) {
         const windowId = this.getWindowIdForTextarea(textarea);
         if (!windowId || !this.isEnabledForWindow(windowId)) {
@@ -215,24 +216,27 @@ class AdvancedLanguageServer {
             return;
         }
         
-        console.log(`🔤 Enhancing specific textarea for verse ${verseIndex} in window ${windowId}`, analysis.substrings);
+        console.log(`🔤 Enhancing specific textarea for verse ${verseIndex} in window ${windowId}`, analysis.suggestions);
         
         // Clear any existing enhancement for this specific window and verse
         const enhancementKey = `${windowId}:${verseIndex}`;
         this.clearEnhancementByKey(enhancementKey);
         
-        // Create enhanced contenteditable div
-        this.createEnhancedTextareaForSpecific(textarea, verseIndex, analysis.substrings, text, windowId);
+        // Create highlight overlay instead of replacing textarea
+        this.createHighlightOverlay(textarea, verseIndex, analysis.suggestions, windowId);
     }
     
-    // Create enhanced textarea for a specific textarea (not using findTextarea)
-    createEnhancedTextareaForSpecific(originalTextarea, verseIndex, issues, text, windowId) {
-        // Create contenteditable div that looks and behaves like the textarea
+    // Create highlight overlay that doesn't interfere with original textarea
+    createHighlightOverlay(originalTextarea, verseIndex, issues, windowId) {
+        // BACK TO CONTENTEDITABLE BUT WITH PROPER AUTO-SAVE SYNC
+        const text = originalTextarea.value;
+        
+        // Create contenteditable div that looks like the textarea
         const contentDiv = document.createElement('div');
         contentDiv.contentEditable = true;
         contentDiv.className = originalTextarea.className;
         
-        // Copy all styles from textarea
+        // Copy styles from textarea
         const computedStyle = getComputedStyle(originalTextarea);
         contentDiv.style.cssText = `
             width: ${computedStyle.width};
@@ -254,30 +258,22 @@ class AdvancedLanguageServer {
             white-space: pre-wrap;
             word-wrap: break-word;
             min-height: ${computedStyle.minHeight};
+            box-sizing: border-box;
         `;
         
-        // Copy data attributes
-        contentDiv.dataset.verse = originalTextarea.dataset.verse;
-        contentDiv.dataset.verseIndex = originalTextarea.dataset.verseIndex;
-        contentDiv.dataset.reference = originalTextarea.dataset.reference;
-        
-        // Sort issues by start position
-        const sortedIssues = [...issues].sort((a, b) => a.start - b.start);
-        
-        // Create highlighted content
+        // Create highlighted HTML
         let highlightedHtml = '';
         let lastIndex = 0;
+        const sortedIssues = [...issues].sort((a, b) => a.start - b.start);
         
         for (const issue of sortedIssues) {
-            // Add text before issue
             highlightedHtml += this.escapeHtml(text.slice(lastIndex, issue.start));
             
-            // Add highlighted issue
             const color = issue.color || '#ff6b6b';
-            const issueDataSafe = btoa(JSON.stringify(issue));
+            const suggestionDataSafe = btoa(JSON.stringify(issue));
             
-            highlightedHtml += `<span class="language-issue" 
-                data-issue-safe="${issueDataSafe}" 
+            highlightedHtml += `<span class="language-suggestion" 
+                data-suggestion-safe="${suggestionDataSafe}" 
                 data-verse-index="${verseIndex}"
                 style="
                     text-decoration: underline wavy ${color};
@@ -293,17 +289,18 @@ class AdvancedLanguageServer {
             
             lastIndex = issue.end;
         }
-        
-        // Add remaining text
         highlightedHtml += this.escapeHtml(text.slice(lastIndex));
         
         contentDiv.innerHTML = highlightedHtml;
         
-        // Replace textarea with contentDiv
+        // Hide original textarea and insert contentDiv
         originalTextarea.style.display = 'none';
         originalTextarea.parentNode.insertBefore(contentDiv, originalTextarea.nextSibling);
         
-        // Store references with window-specific key
+        // FIXED SYNC: Proper bidirectional sync with auto-save compatibility
+        this.setupProperSync(contentDiv, originalTextarea, verseIndex);
+        
+        // Store references
         const enhancementKey = `${windowId}:${verseIndex}`;
         this.enhancedTextareas.set(enhancementKey, {
             textarea: originalTextarea,
@@ -311,10 +308,7 @@ class AdvancedLanguageServer {
             issues: issues
         });
         
-        // Add event handlers
-        this.addContentDivHandlers(contentDiv, originalTextarea, verseIndex);
-        
-        console.log(`✅ Enhanced specific textarea for verse ${verseIndex} in window ${windowId}`);
+        console.log(`✅ Enhanced textarea for verse ${verseIndex} in window ${windowId} with ${issues.length} suggestions`);
     }
     
     // Get window ID for a textarea
@@ -344,14 +338,14 @@ class AdvancedLanguageServer {
             return;
         }
         
-        console.log(`🔤 Enhancing textarea for verse ${verseIndex} in window ${windowId}`, analysis.substrings);
+        console.log(`🔤 Enhancing textarea for verse ${verseIndex} in window ${windowId}`, analysis.suggestions);
         
         // Clear any existing enhancement for this specific window and verse
         const enhancementKey = `${windowId}:${verseIndex}`;
         this.clearEnhancementByKey(enhancementKey);
         
         // Create enhanced contenteditable div
-        this.createEnhancedTextarea(textarea, verseIndex, analysis.substrings, text);
+        this.createEnhancedTextarea(textarea, verseIndex, analysis.suggestions, text);
     }
     
     createEnhancedTextarea(originalTextarea, verseIndex, issues, text) {
@@ -402,10 +396,10 @@ class AdvancedLanguageServer {
             
             // Add highlighted issue
             const color = issue.color || '#ff6b6b';
-            const issueDataSafe = btoa(JSON.stringify(issue));
+            const suggestionDataSafe = btoa(JSON.stringify(issue));
             
-            highlightedHtml += `<span class="language-issue" 
-                data-issue-safe="${issueDataSafe}" 
+            highlightedHtml += `<span class="language-suggestion" 
+                data-suggestion-safe="${suggestionDataSafe}" 
                 data-verse-index="${verseIndex}"
                 style="
                     text-decoration: underline wavy ${color};
@@ -449,27 +443,45 @@ class AdvancedLanguageServer {
     addContentDivHandlers(contentDiv, originalTextarea, verseIndex) {
         // Handle clicks on language issues
         contentDiv.addEventListener('click', (e) => {
-            if (e.target.classList.contains('language-issue')) {
-                e.preventDefault();
-                const issueDataSafe = e.target.dataset.issueSafe;
-                const issueData = JSON.parse(atob(issueDataSafe));
-                this.showIssueModal(issueData, verseIndex, e.target);
-            }
+                    if (e.target.classList.contains('language-suggestion')) {
+            e.preventDefault();
+            const suggestionDataSafe = e.target.dataset.suggestionSafe;
+            const suggestionData = JSON.parse(atob(suggestionDataSafe));
+            this.showSuggestionModal(suggestionData, verseIndex, e.target);
+        }
         });
         
         // Sync changes back to original textarea
         const syncToTextarea = () => {
             const plainText = contentDiv.textContent || contentDiv.innerText || '';
+            const oldValue = originalTextarea.value;
             originalTextarea.value = plainText;
             
-            // Trigger input event on original textarea
-            originalTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+            // Only trigger input event if value actually changed
+            if (oldValue !== plainText) {
+                console.log(`🔤 Syncing text change to textarea for verse ${verseIndex}: "${oldValue}" → "${plainText}"`);
+                // Trigger input event on original textarea with proper event properties
+                const inputEvent = new Event('input', { bubbles: true });
+                inputEvent.target = originalTextarea;
+                originalTextarea.dispatchEvent(inputEvent);
+            }
         };
         
-        contentDiv.addEventListener('input', syncToTextarea);
+        // Auto-analysis with 2-second debounce
+        contentDiv.addEventListener('input', () => {
+            syncToTextarea();
+            console.log(`🔤 Text changed in verse ${verseIndex}, setting 2-second re-analysis timer`);
+            clearTimeout(this.analysisTimeouts.get(verseIndex));
+            const timeout = setTimeout(() => {
+                console.log(`🔤 Auto re-analysis triggered for verse ${verseIndex}`);
+                this.reanalyzeVerse(verseIndex);
+            }, 2000);
+            this.analysisTimeouts.set(verseIndex, timeout);
+        });
         contentDiv.addEventListener('blur', () => {
             syncToTextarea();
             // Trigger blur on original textarea for save functionality
+            console.log(`🔤 Content div blur for verse ${verseIndex}, triggering textarea blur`);
             originalTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
         });
         
@@ -482,9 +494,9 @@ class AdvancedLanguageServer {
             originalTextarea.dispatchEvent(new Event('focus', { bubbles: true }));
         });
         
-        // Prevent contentDiv from losing focus when clicking issues
+        // Prevent contentDiv from losing focus when clicking suggestions
         contentDiv.addEventListener('mousedown', (e) => {
-            if (e.target.classList.contains('language-issue')) {
+            if (e.target.classList.contains('language-suggestion')) {
                 e.preventDefault();
             }
         });
@@ -510,9 +522,22 @@ class AdvancedLanguageServer {
     clearEnhancementByKey(enhancementKey) {
         const enhancement = this.enhancedTextareas.get(enhancementKey);
         if (enhancement) {
-            enhancement.contentDiv.remove();
-            enhancement.textarea.style.display = '';
+            // Remove contentDiv if it exists and restore textarea
+            if (enhancement.contentDiv) {
+                enhancement.contentDiv.remove();
+                enhancement.textarea.style.display = '';
+            }
+            
             this.enhancedTextareas.delete(enhancementKey);
+            
+            // Clear any pending analysis timeout for this verse
+            const verseIndex = parseInt(enhancementKey.split(':')[1]);
+            if (!isNaN(verseIndex)) {
+                clearTimeout(this.analysisTimeouts.get(verseIndex));
+                this.analysisTimeouts.delete(verseIndex);
+            }
+            
+            console.log(`🔤 Cleared enhancement for ${enhancementKey}`);
         }
     }
     
@@ -524,13 +549,13 @@ class AdvancedLanguageServer {
             message: `"${word}" not in dictionary`,
             color: '#ff6b6b'
         };
-        this.showIssueModal(issue, verseIndex, null);
+                    this.showSuggestionModal(issue, verseIndex, null);
     }
     
-    showIssueModal(issue, verseIndex, element) {
+    showSuggestionModal(suggestion, verseIndex, element) {
         // Create modal backdrop
         const backdrop = document.createElement('div');
-        backdrop.className = 'language-issue-backdrop';
+        backdrop.className = 'language-suggestion-backdrop';
         backdrop.style.cssText = `
             position: fixed;
             top: 0;
@@ -546,7 +571,7 @@ class AdvancedLanguageServer {
         
         // Create modal
         const modal = document.createElement('div');
-        modal.className = 'language-issue-modal';
+        modal.className = 'language-suggestion-modal';
         modal.style.cssText = `
             background: white;
             border-radius: 8px;
@@ -557,17 +582,17 @@ class AdvancedLanguageServer {
             position: relative;
         `;
         
-        const color = issue.color || '#ff6b6b';
+        const color = suggestion.color || '#ff6b6b';
         
         modal.innerHTML = `
             <div style="margin-bottom: 16px;">
                 <h3 style="margin: 0 0 8px 0; color: ${color}; font-size: 18px; font-weight: bold;">
-                    ${this.capitalizeFirst(issue.type)} Issue
+                    Suggestion
                 </h3>
                 <div style="background: #f8f9fa; padding: 8px 12px; border-radius: 4px; margin-bottom: 8px;">
-                    <span style="font-weight: bold; color: ${color};">"${this.escapeHtml(issue.substring)}"</span>
+                    <span style="font-weight: bold; color: ${color};">"${this.escapeHtml(suggestion.substring)}"</span>
                 </div>
-                <p style="margin: 0; color: #666; font-size: 14px;">${this.escapeHtml(issue.message)}</p>
+                <p style="margin: 0; color: #666; font-size: 14px;">${this.escapeHtml(suggestion.message)}</p>
             </div>
             
             <div style="display: flex; gap: 8px; justify-content: flex-end;">
@@ -585,12 +610,16 @@ class AdvancedLanguageServer {
         const addBtn = modal.querySelector('.btn-primary');
         
         ignoreBtn.addEventListener('click', () => {
+            this.removeSuggestionHighlighting(suggestion, verseIndex);
             backdrop.remove();
-            // Could implement ignore functionality here
+            // Re-analyze the verse after ignoring suggestion
+            console.log(`🔤 Ignore clicked for verse ${verseIndex}, triggering re-analysis`);
+            this.reanalyzeVerse(verseIndex);
         });
         
         addBtn.addEventListener('click', async () => {
-            await this.addWordToDictionary(issue.substring, verseIndex);
+            this.removeSuggestionHighlighting(suggestion, verseIndex);
+            await this.addWordToDictionary(suggestion.substring, verseIndex);
             backdrop.remove();
         });
         
@@ -612,7 +641,7 @@ class AdvancedLanguageServer {
                 console.error('No project ID available');
                 return;
             }
-            
+
             const response = await fetch(`/project/${projectId}/language-server/dictionary`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -621,16 +650,10 @@ class AdvancedLanguageServer {
             
             if (response.ok) {
                 console.log(`✅ Added "${word}" to dictionary`);
-                
-                // Remove the word from current analysis and refresh highlighting
-                const analysis = this.verseAnalyses.get(verseIndex);
-                if (analysis) {
-                    analysis.substrings = analysis.substrings.filter(item => item.substring !== word);
-                    this.enhanceTextarea(verseIndex, analysis);
-                }
-                
-                // Show success message
                 this.showToast(`Added "${word}" to dictionary`, 'success');
+                // Re-analyze the verse after adding to dictionary
+                console.log(`🔤 Dictionary add successful for verse ${verseIndex}, triggering re-analysis`);
+                this.reanalyzeVerse(verseIndex);
             } else {
                 console.error(`Failed to add "${word}" to dictionary`);
                 this.showToast('Failed to add word to dictionary', 'error');
@@ -640,7 +663,51 @@ class AdvancedLanguageServer {
             this.showToast('Error adding word to dictionary', 'error');
         }
     }
-    
+
+    removeSuggestionHighlighting(suggestion, verseIndex) {
+        console.log(`🔤 Removing specific suggestion for "${suggestion.substring}" at position ${suggestion.start}-${suggestion.end} in verse ${verseIndex}`);
+        
+        // Find the enhanced textarea for this verse
+        this.enhancedTextareas.forEach((enhancement, key) => {
+            if (key.includes(`:${verseIndex}`) && enhancement.contentDiv) {
+                // Find all suggestion spans in this content div
+                const suggestionSpans = enhancement.contentDiv.querySelectorAll('.language-suggestion');
+                
+                suggestionSpans.forEach(span => {
+                    try {
+                        const spanDataSafe = span.dataset.suggestionSafe;
+                        const spanData = JSON.parse(atob(spanDataSafe));
+                        
+                        // Match the exact suggestion by position and text
+                        if (spanData.substring === suggestion.substring && 
+                            spanData.start === suggestion.start && 
+                            spanData.end === suggestion.end) {
+                            
+                            // Replace the highlighted span with plain text
+                            const textNode = document.createTextNode(suggestion.substring);
+                            span.parentNode.replaceChild(textNode, span);
+                            
+                            console.log(`🔤 Removed highlighting for "${suggestion.substring}" at position ${suggestion.start}`);
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('Error parsing suggestion data:', error);
+                    }
+                });
+            }
+        });
+        
+        // Also remove from cached analysis so it doesn't reappear
+        const analysis = this.verseAnalyses.get(verseIndex);
+        if (analysis && analysis.suggestions) {
+            analysis.suggestions = analysis.suggestions.filter(item => 
+                !(item.substring === suggestion.substring && 
+                  item.start === suggestion.start && 
+                  item.end === suggestion.end)
+            );
+        }
+    }
+
     findTextarea(verseIndex) {
         const selectors = [
             `textarea[data-verse-index="${verseIndex}"]`,
@@ -670,6 +737,72 @@ class AdvancedLanguageServer {
         return str.charAt(0).toUpperCase() + str.slice(1);
     }
     
+    async reanalyzeVerse(verseIndex) {
+        const projectId = window.translationEditor?.projectId;
+        if (!projectId) {
+            console.warn('🔤 No project ID available for re-analysis');
+            return;
+        }
+        
+        // Find the correct textarea - prioritize the one with language server enabled
+        const textareas = document.querySelectorAll(`textarea[data-verse-index="${verseIndex}"]`);
+        let targetTextarea = null;
+        let targetWindowId = null;
+        
+        // First, try to find a textarea in a window where language server is enabled
+        for (const textarea of textareas) {
+            const windowId = this.getWindowIdForTextarea(textarea);
+            if (windowId && this.isEnabledForWindow(windowId)) {
+                targetTextarea = textarea;
+                targetWindowId = windowId;
+                console.log(`🔤 Found textarea in enabled window ${windowId} for verse ${verseIndex}`);
+                break;
+            }
+        }
+        
+        // If no enabled window found, use the first textarea but skip re-analysis
+        if (!targetTextarea && textareas.length > 0) {
+            targetTextarea = textareas[0];
+            targetWindowId = this.getWindowIdForTextarea(targetTextarea);
+            console.log(`🔤 Language server disabled for window ${targetWindowId}, skipping re-analysis`);
+            return;
+        }
+        
+        if (!targetTextarea || !targetWindowId) {
+            console.warn(`🔤 No suitable textarea found for verse ${verseIndex} re-analysis`);
+            return;
+        }
+        
+        // Convert window ID to text ID for API call
+        const textId = targetWindowId.startsWith('text_') ? 
+            targetWindowId.replace('text_', '') : 
+            targetWindowId.startsWith('translation_') ? 
+            targetWindowId.replace('translation_', '') : 
+            targetWindowId;
+        
+        // Get current text from textarea
+        const currentText = targetTextarea.value || '';
+        
+        console.log(`🔤 Re-analyzing verse ${verseIndex} for window ${targetWindowId} (textId: ${textId}) with current text: "${currentText}"`);
+        
+        try {
+            const response = await fetch(`/project/${projectId}/language-server/analyze/text_${textId}/${verseIndex}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: currentText })
+            });
+            const result = await response.json();
+            if (result.success && result.analysis) {
+                console.log(`🔤 Re-analysis complete for verse ${verseIndex}:`, result.analysis);
+                this.handleAnalysis(verseIndex, result.analysis, targetWindowId);
+            } else {
+                console.warn('🔤 Re-analysis failed or returned no results:', result);
+            }
+        } catch (error) {
+            console.error('🔤 Error re-analyzing verse:', error);
+        }
+    }
+
     showToast(message, type = 'info') {
         const toast = document.createElement('div');
         const bgColor = type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#6b7280';
@@ -694,10 +827,139 @@ class AdvancedLanguageServer {
             toast.remove();
         }, 3000);
     }
+
+    setupProperSync(contentDiv, originalTextarea, verseIndex) {
+        // Track changes properly to trigger auto-save
+        let lastValue = originalTextarea.value;
+        
+        const syncToTextarea = () => {
+            const plainText = contentDiv.textContent || contentDiv.innerText || '';
+            const oldValue = originalTextarea.value;
+            
+            if (oldValue !== plainText) {
+                // Update textarea value
+                originalTextarea.value = plainText;
+                
+                // CRITICAL: Manually trigger the textarea's input event with the right approach
+                // This ensures the text-window.js hasChanges tracking works
+                console.log(`🔤 Syncing text change for verse ${verseIndex}: "${oldValue}" → "${plainText}"`);
+                
+                // Create and dispatch a proper input event
+                const event = new Event('input', { bubbles: true });
+                originalTextarea.dispatchEvent(event);
+                
+                lastValue = plainText;
+            }
+        };
+        
+        // Sync on every input change + add 2-second re-analysis timeout
+        contentDiv.addEventListener('input', () => {
+            syncToTextarea();
+            
+            // Add 2-second auto re-analysis timeout
+            console.log(`🔤 Text changed in verse ${verseIndex}, setting 2-second re-analysis timer`);
+            clearTimeout(this.analysisTimeouts.get(verseIndex));
+            const timeout = setTimeout(() => {
+                console.log(`🔤 Auto re-analysis triggered for verse ${verseIndex}`);
+                this.reanalyzeVerse(verseIndex);
+            }, 2000);
+            this.analysisTimeouts.set(verseIndex, timeout);
+        });
+        
+        // Also sync on blur to ensure auto-save triggers
+        contentDiv.addEventListener('blur', () => {
+            syncToTextarea();
+            // Trigger blur on original textarea for auto-save
+            console.log(`🔤 Content div blur for verse ${verseIndex}, triggering textarea blur`);
+            originalTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
+        });
+        
+        // Handle focus tracking for save system
+        contentDiv.addEventListener('focus', () => {
+            if (window.translationEditor?.saveSystem) {
+                window.translationEditor.saveSystem.currentFocusedTextarea = originalTextarea;
+            }
+            originalTextarea.dispatchEvent(new Event('focus', { bubbles: true }));
+        });
+        
+        // Handle suggestion clicks
+        contentDiv.addEventListener('click', (e) => {
+            if (e.target.classList.contains('language-suggestion')) {
+                e.preventDefault();
+                const suggestionDataSafe = e.target.dataset.suggestionSafe;
+                const suggestionData = JSON.parse(atob(suggestionDataSafe));
+                this.showSuggestionModal(suggestionData, verseIndex, e.target);
+            }
+        });
+        
+        // Prevent losing focus when clicking suggestions
+        contentDiv.addEventListener('mousedown', (e) => {
+            if (e.target.classList.contains('language-suggestion')) {
+                e.preventDefault();
+            }
+        });
+    }
 }
 
 // Initialize global instance
 window.languageServer = new AdvancedLanguageServer();
+
+// Debug function to test re-analysis manually
+window.testLanguageServerReanalysis = function(verseIndex) {
+    console.log('🔤 Manual test: Re-analyzing verse', verseIndex);
+    if (window.languageServer) {
+        window.languageServer.reanalyzeVerse(verseIndex);
+    } else {
+        console.error('🔤 Language server not initialized');
+    }
+};
+
+// Simple test function to verify API works
+window.testLanguageServerAPI = async function(verseIndex = 1, testText = null) {
+    const projectId = window.translationEditor?.projectId;
+    if (!projectId) {
+        console.error('🔤 No project ID available');
+        return;
+    }
+    
+    // Try to find any text window to get a text ID
+    const textWindows = window.translationEditor?.textWindows;
+    if (!textWindows || textWindows.size === 0) {
+        console.error('🔤 No text windows available');
+        return;
+    }
+    
+    // Get the first available text window
+    const firstWindow = textWindows.values().next().value;
+    const windowId = firstWindow.id;
+    
+    // Convert window ID to text ID
+    const textId = windowId.startsWith('text_') ? 
+        windowId.replace('text_', '') : 
+        windowId.replace('translation_', '');
+    
+    // Get test text from textarea if not provided
+    if (!testText) {
+        const textarea = document.querySelector(`textarea[data-verse-index="${verseIndex}"]`);
+        testText = textarea?.value || 'hello world test unknownword';
+    }
+    
+    console.log(`🔤 Testing API with textId: ${textId}, verseIndex: ${verseIndex}, text: "${testText}"`);
+    
+    try {
+        const response = await fetch(`/project/${projectId}/language-server/analyze/text_${textId}/${verseIndex}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: testText })
+        });
+        const result = await response.json();
+        console.log('🔤 API test result:', result);
+        return result;
+    } catch (error) {
+        console.error('🔤 API test failed:', error);
+        return null;
+    }
+};
 
 // Listen for save results
 document.addEventListener('verse-saved', (event) => {
@@ -710,6 +972,26 @@ document.addEventListener('verse-saved', (event) => {
 // Process verses that come with analysis data from initial load
 window.processVerseWithAnalysis = (verseData) => {
     window.languageServer.processVerseWithAnalysis(verseData);
+};
+
+// Debug function to show language server status for all windows
+window.showLanguageServerStatus = function() {
+    if (!window.languageServer) {
+        console.error('🔤 Language server not initialized');
+        return;
+    }
+    
+    const textWindows = window.translationEditor?.textWindows;
+    if (!textWindows) {
+        console.error('🔤 No text windows available');
+        return;
+    }
+    
+    console.log('🔤 Language Server Status:');
+    textWindows.forEach((textWindow, windowId) => {
+        const enabled = window.languageServer.isEnabledForWindow(windowId);
+        console.log(`  - ${windowId} (${textWindow.title}, ${textWindow.type}): ${enabled ? 'ENABLED' : 'DISABLED'}`);
+    });
 };
 
 console.log('🔤 Advanced Language Server ready'); 

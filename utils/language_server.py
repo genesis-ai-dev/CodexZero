@@ -22,29 +22,28 @@ class LanguageServerService:
             self.approved_words = {entry.word.lower() for entry in entries}
     
     def analyze_verse(self, verse_text: str) -> Dict:
-        """Analyze verse text and return issues"""
+        """Analyze verse text and return suggestions"""
         if not verse_text or not verse_text.strip():
-            return {"substrings": []}
+            return {"suggestions": []}
         
         self._ensure_dictionary()
         
-        issues = []
+        suggestions = []
         
         # Find unknown words (3+ letters, not numbers)
         for match in re.finditer(r'\b[a-zA-Z]{3,}\b', verse_text):
             word = match.group()
             if word.lower() not in self.approved_words:
-                issues.append({
+                suggestions.append({
                     "substring": word,
                     "start": match.start(),
                     "end": match.end(),
-                    "color": "#ff6b6b",
-                    "type": "spelling",
+                    "color": "#ff6b6b",  # Red for dictionary suggestions
                     "message": f"'{word}' not in dictionary",
                     "actions": ["add_to_dictionary"]
                 })
         
-        return {"substrings": issues}
+        return {"suggestions": suggestions}
 
     def add_word_to_dictionary(self, word: str, user_id: int):
         """Add word to project dictionary"""

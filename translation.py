@@ -944,9 +944,9 @@ def get_chapter_verses(project_id, target_id, book, chapter):
                     analysis = ls.analyze_verse(window_content)
                 except Exception as e:
                     print(f"Language server analysis failed for verse {verse_info['index']}: {e}")
-                    analysis = {"substrings": []}
+                    analysis = {"suggestions": []}
             else:
-                analysis = {"substrings": []}
+                analysis = {"suggestions": []}
             
             verses_data.append({
                 'verse': verse_info['verse'],
@@ -1268,9 +1268,9 @@ def get_verse_range(project_id, target_id, start_index, end_index):
                     analysis = ls.analyze_verse(target_text)
                 except Exception as e:
                     print(f"Language server analysis failed for verse {verse_index}: {e}")
-                    analysis = {"substrings": []}
+                    analysis = {"suggestions": []}
             else:
-                analysis = {"substrings": []}
+                analysis = {"suggestions": []}
             
             verses_data.append({
                 'verse': verse_num,

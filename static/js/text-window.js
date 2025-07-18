@@ -964,19 +964,13 @@ class TextWindow {
         const minHeight = Math.max(80, lines * 24 + 32); // 24px per line + padding
         textarea.style.height = minHeight + 'px';
         
-        // Disable editing for viewers or reference windows
-        if ((window.translationEditor && !window.translationEditor.canEdit) || this.type === 'reference') {
+        // Disable editing only for viewers (not reference windows - they should be editable)
+        if (window.translationEditor && !window.translationEditor.canEdit) {
             textarea.disabled = true;
             textarea.style.backgroundColor = '#f9fafb';
             textarea.style.cursor = 'not-allowed';
-            
-            if (this.type === 'reference') {
-                textarea.placeholder = `Reference text for verse ${verseData.verse}`;
-                textarea.title = 'Reference text - read-only';
-            } else {
-                textarea.placeholder = 'Read-only mode - Editor access required to edit';
-                textarea.title = 'Editor access required to edit translations';
-            }
+            textarea.placeholder = 'Read-only mode - Editor access required to edit';
+            textarea.title = 'Editor access required to edit translations';
         }
         
         // PERFORMANCE: Use optimized event handlers
@@ -1002,7 +996,9 @@ class TextWindow {
         
         textarea.addEventListener('input', (e) => {
             const newValue = e.target.value;
+            const wasChanged = hasChanges;
             hasChanges = (newValue !== currentValue);
+            console.log(`💾 Input event on verse ${textarea.dataset.verseIndex}: "${currentValue}" → "${newValue}", hasChanges: ${wasChanged} → ${hasChanges}`);
             currentValue = newValue;
             // NOTE: Height auto-resize is handled by virtual-scroll-manager.js to avoid conflicts
         }, { passive: true });
@@ -1010,13 +1006,17 @@ class TextWindow {
         // AUTO-SAVE: Save when user moves to different cell or leaves the textarea
         textarea.addEventListener('blur', () => {
             const now = Date.now();
+            console.log(`💾 Blur event on verse ${textarea.dataset.verseIndex}: hasChanges=${hasChanges}, saveSystem=${!!window.translationEditor?.saveSystem}, timeDiff=${now - lastSaveTimestamp}`);
             if (hasChanges && window.translationEditor?.saveSystem && (now - lastSaveTimestamp) > saveDelay) {
                 const verseIndex = parseInt(textarea.dataset.verseIndex);
                 if (!isNaN(verseIndex)) {
+                    console.log(`💾 Triggering auto-save for verse ${verseIndex}`);
                     window.translationEditor.saveSystem.bufferVerseChange(verseIndex, currentValue);
                     hasChanges = false; // Reset change tracking
                     lastSaveTimestamp = now;
                 }
+            } else {
+                console.log(`💾 Skipping auto-save for verse ${textarea.dataset.verseIndex}`);
             }
         }, { passive: true });
         

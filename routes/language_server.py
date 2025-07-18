@@ -8,44 +8,46 @@ from utils.language_server import LanguageServerService
 language_server = Blueprint('language_server', __name__)
 
 
-@language_server.route('/project/<int:project_id>/language-server/analyze/<text_id>/<int:verse_index>', methods=['GET'])
+@language_server.route('/project/<int:project_id>/language-server/analyze/<text_id>/<int:verse_index>', methods=['GET', 'POST'])
 @login_required
 def analyze_verse(project_id, text_id, verse_index):
-    """Analyze a specific verse and return language issues"""
+    """Analyze a specific verse and return language suggestions"""
     require_project_access(project_id, "viewer")
     
     try:
-        # Get the verse text from the database
-        from models import Verse
-        verse = Verse.query.filter_by(
-            text_id=int(text_id.replace('text_', '')),
-            verse_index=verse_index
-        ).first()
+        verse_text = None
         
-        if not verse:
-            return jsonify({
-                'success': True,
-                'analysis': {'substrings': []},
-                'statistics': {
-                    'total_issues': 0,
-                    'spelling_issues': 0,
-                    'capitalization_issues': 0,
-                    'punctuation_issues': 0,
-                    'style_issues': 0
-                }
-            })
+        # Check if text is provided in POST request (for current unsaved text)
+        if request.method == 'POST':
+            data = request.get_json()
+            verse_text = data.get('text', '').strip() if data else None
+        
+        # If no text provided, get from database
+        if not verse_text:
+            from models import Verse
+            verse = Verse.query.filter_by(
+                text_id=int(text_id.replace('text_', '')),
+                verse_index=verse_index
+            ).first()
+            
+            if not verse:
+                return jsonify({
+                    'success': True,
+                    'analysis': {'suggestions': []},
+                    'statistics': {
+                        'total_suggestions': 0
+                    }
+                })
+            
+            verse_text = verse.verse_text
         
         # Run analysis
         ls = LanguageServerService(project_id)
-        analysis = ls.analyze_verse(verse.verse_text)
+        analysis = ls.analyze_verse(verse_text)
         
         # Calculate statistics
         stats = {
-            'total_issues': len(analysis.get('substrings', [])),
-            'spelling_issues': sum(1 for item in analysis.get('substrings', []) if item.get('type') == 'spelling'),
-            'capitalization_issues': sum(1 for item in analysis.get('substrings', []) if item.get('type') == 'capitalization'),
-            'punctuation_issues': sum(1 for item in analysis.get('substrings', []) if item.get('type') == 'punctuation'),
-            'style_issues': sum(1 for item in analysis.get('substrings', []) if item.get('type') == 'style')
+            'total_suggestions': len(analysis.get('suggestions', []))
         }
         
         return jsonify({
@@ -54,6 +56,68 @@ def analyze_verse(project_id, text_id, verse_index):
             'statistics': stats
         })
         
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@language_server.route('/project/<int:project_id>/language-server/action', methods=['POST'])
+@login_required
+def execute_action(project_id):
+    """Execute a suggestion action (add_to_dictionary, ignore, etc.)"""
+    require_project_access(project_id, "editor")
+    
+    try:
+        data = request.get_json()
+        action = data.get('action', '').strip()
+        substring = data.get('substring', '').strip()
+        text_id = data.get('text_id', '')
+        verse_index = data.get('verse_index')
+        
+        if not action or not substring:
+            return jsonify({
+                'success': False,
+                'error': 'Action and substring are required'
+            }), 400
+        
+        ls = LanguageServerService(project_id)
+        
+        if action == 'add_to_dictionary':
+            ls.add_word_to_dictionary(substring, current_user.id)
+            
+            # Re-analyze the verse to get updated suggestions
+            updated_analysis = None
+            if text_id and verse_index is not None:
+                from models import Verse
+                verse = Verse.query.filter_by(
+                    text_id=int(text_id.replace('text_', '')),
+                    verse_index=verse_index
+                ).first()
+                
+                if verse:
+                    updated_analysis = ls.analyze_verse(verse.verse_text)
+            
+            return jsonify({
+                'success': True,
+                'message': f'Added "{substring}" to dictionary',
+                'updated_analysis': updated_analysis
+            })
+        
+        elif action == 'ignore':
+            # For now, just return success - ignore functionality could be implemented later
+            return jsonify({
+                'success': True,
+                'message': f'Ignored suggestion for "{substring}"'
+            })
+        
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Unknown action: {action}'
+            }), 400
+            
     except Exception as e:
         return jsonify({
             'success': False,

@@ -5,14 +5,8 @@ class LanguageServerManager {
         this.activeAnalyses = new Set(); // Track ongoing analyses
         this.enabled = true;
         
-        // Color scheme for different issue types
-        this.colors = {
-            spelling: '#ff6b6b',
-            capitalization: '#ffa500', 
-            punctuation: '#9370db',
-            style: '#20b2aa',
-            default: '#ff6b6b'
-        };
+        // Default color for suggestions when none specified
+        this.defaultColor = '#ff6b6b';
     }
     
     /**
@@ -65,7 +59,7 @@ class LanguageServerManager {
      * Highlight issues in a textarea
      */
     highlightIssues(textarea, analysis) {
-        if (!textarea || !analysis || !analysis.substrings || analysis.substrings.length === 0) {
+        if (!textarea || !analysis || !analysis.suggestions || analysis.suggestions.length === 0) {
             this.clearHighlights(textarea);
             return;
         }
@@ -76,7 +70,7 @@ class LanguageServerManager {
         }
         
         // Create overlay for highlights
-        this.createHighlightOverlay(textarea, analysis.substrings);
+        this.createHighlightOverlay(textarea, analysis.suggestions);
         
         // Add issue count indicator
         this.updateIssueIndicator(textarea, analysis.statistics);
@@ -134,8 +128,8 @@ class LanguageServerManager {
             highlightedText += this.escapeHtml(text.slice(lastIndex, issue.start));
             
             // Add highlighted issue
-            const color = this.colors[issue.type] || this.colors.default;
-            highlightedText += `<span class="language-issue" data-issue='${JSON.stringify(issue)}' style="background-color: ${color}33; border-bottom: 2px solid ${color};">${this.escapeHtml(issue.substring)}</span>`;
+            const color = issue.color || this.defaultColor;
+            highlightedText += `<span class="language-suggestion" data-suggestion='${JSON.stringify(issue)}' style="background-color: ${color}33; border-bottom: 2px solid ${color};">${this.escapeHtml(issue.substring)}</span>`;
             
             lastIndex = issue.end;
         }
@@ -154,31 +148,31 @@ class LanguageServerManager {
      * Add click handlers for language issues
      */
     addIssueClickHandlers(overlay) {
-        const issues = overlay.querySelectorAll('.language-issue');
+        const suggestions = overlay.querySelectorAll('.language-suggestion');
         
-        issues.forEach(issueElement => {
-            issueElement.style.cursor = 'pointer';
-            issueElement.style.pointerEvents = 'auto';
+        suggestions.forEach(suggestionElement => {
+            suggestionElement.style.cursor = 'pointer';
+            suggestionElement.style.pointerEvents = 'auto';
             
-            issueElement.addEventListener('click', (e) => {
+            suggestionElement.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 
                 try {
-                    const issueData = JSON.parse(issueElement.dataset.issue);
-                    this.showIssueModal(issueData, issueElement);
+                    const suggestionData = JSON.parse(suggestionElement.dataset.suggestion);
+                    this.showSuggestionModal(suggestionData, suggestionElement);
                 } catch (error) {
-                    console.error('Error parsing issue data:', error);
+                    console.error('Error parsing suggestion data:', error);
                 }
             });
             
             // Add hover effect
-            issueElement.addEventListener('mouseenter', () => {
-                issueElement.style.opacity = '0.8';
+            suggestionElement.addEventListener('mouseenter', () => {
+                suggestionElement.style.opacity = '0.8';
             });
             
-            issueElement.addEventListener('mouseleave', () => {
-                issueElement.style.opacity = '1';
+            suggestionElement.addEventListener('mouseleave', () => {
+                suggestionElement.style.opacity = '1';
             });
         });
     }
@@ -186,16 +180,16 @@ class LanguageServerManager {
     /**
      * Show modal for issue actions
      */
-    showIssueModal(issue, element) {
+    showSuggestionModal(suggestion, element) {
         // Remove existing modal
-        const existingModal = document.querySelector('.language-issue-modal');
+        const existingModal = document.querySelector('.language-suggestion-modal');
         if (existingModal) {
             existingModal.remove();
         }
         
         // Create modal
         const modal = document.createElement('div');
-        modal.className = 'language-issue-modal';
+        modal.className = 'language-suggestion-modal';
         modal.style.cssText = `
             position: fixed;
             top: 50%;
@@ -213,12 +207,12 @@ class LanguageServerManager {
         
         // Modal content
         let alternativesHtml = '';
-        if (issue.alternatives && issue.alternatives.length > 0) {
+        if (suggestion.alternatives && suggestion.alternatives.length > 0) {
             alternativesHtml = `
                 <div style="margin: 10px 0;">
                     <strong>Suggestions:</strong>
                     <div style="margin-top: 5px;">
-                        ${issue.alternatives.map(alt => 
+                        ${suggestion.alternatives.map(alt => 
                             `<button class="suggestion-btn" data-suggestion="${this.escapeHtml(alt)}" style="margin: 2px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9; cursor: pointer;">${this.escapeHtml(alt)}</button>`
                         ).join('')}
                     </div>
@@ -228,18 +222,18 @@ class LanguageServerManager {
         
         modal.innerHTML = `
             <div style="margin-bottom: 15px;">
-                <h3 style="margin: 0 0 10px 0; color: ${this.colors[issue.type] || this.colors.default};">
-                    ${issue.type.charAt(0).toUpperCase() + issue.type.slice(1)} Issue
+                <h3 style="margin: 0 0 10px 0; color: ${suggestion.color || this.defaultColor};">
+                    Suggestion
                 </h3>
-                <p style="margin: 0; color: #666; font-style: italic;">"${this.escapeHtml(issue.substring)}"</p>
-                <p style="margin: 5px 0 0 0; font-size: 14px;">${this.escapeHtml(issue.message)}</p>
+                <p style="margin: 0; color: #666; font-style: italic;">"${this.escapeHtml(suggestion.substring)}"</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px;">${this.escapeHtml(suggestion.message)}</p>
             </div>
             
             ${alternativesHtml}
             
             <div style="margin-top: 15px; text-align: right;">
-                ${issue.actions.includes('ignore') ? '<button class="action-btn" data-action="ignore" style="margin-left: 5px; padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5; cursor: pointer;">Ignore</button>' : ''}
-                ${issue.actions.includes('add_to_dictionary') ? '<button class="action-btn" data-action="add_to_dictionary" style="margin-left: 5px; padding: 6px 12px; border: 1px solid #007bff; border-radius: 4px; background: #007bff; color: white; cursor: pointer;">Add to Dictionary</button>' : ''}
+                ${suggestion.actions.includes('ignore') ? '<button class="action-btn" data-action="ignore" style="margin-left: 5px; padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5; cursor: pointer;">Ignore</button>' : ''}
+                ${suggestion.actions.includes('add_to_dictionary') ? '<button class="action-btn" data-action="add_to_dictionary" style="margin-left: 5px; padding: 6px 12px; border: 1px solid #007bff; border-radius: 4px; background: #007bff; color: white; cursor: pointer;">Add to Dictionary</button>' : ''}
                 <button class="close-modal" style="margin-left: 5px; padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer;">Close</button>
             </div>
         `;
@@ -316,6 +310,9 @@ class LanguageServerManager {
      */
     async executeAction(issue, action) {
         try {
+            // Remove highlighting immediately
+            this.removeSuggestionHighlighting(issue);
+
             const response = await fetch(`/project/${this.projectId}/language-server/action`, {
                 method: 'POST',
                 headers: {
@@ -333,19 +330,7 @@ class LanguageServerManager {
             const data = await response.json();
             
             if (data.success) {
-                // Show success message
                 this.showToast(data.message || `Action "${action}" completed`, 'success');
-                
-                // If we got updated analysis, refresh highlights
-                if (data.updated_analysis) {
-                    const textarea = this.findTextareaForIssue(issue);
-                    if (textarea) {
-                        this.highlightIssues(textarea, data.updated_analysis);
-                    }
-                }
-                
-                // Clear cache to force refresh
-                this.clearCache();
             } else {
                 this.showToast(data.error || 'Action failed', 'error');
             }
@@ -353,6 +338,33 @@ class LanguageServerManager {
             console.error('Error executing action:', error);
             this.showToast('Error executing action', 'error');
         }
+    }
+
+    /**
+     * Remove highlighting for a specific suggestion
+     */
+    removeSuggestionHighlighting(issue) {
+        const textarea = this.findTextareaForIssue(issue);
+        if (!textarea) return;
+
+        const overlay = textarea.parentNode.querySelector('.language-server-overlay');
+        if (!overlay) return;
+
+        // Find and remove the specific suggestion span
+        const suggestionSpans = overlay.querySelectorAll('.language-suggestion');
+        suggestionSpans.forEach(span => {
+            try {
+                const suggestionData = JSON.parse(span.dataset.suggestion);
+                if (suggestionData.substring === issue.substring && 
+                    suggestionData.start === issue.start) {
+                    // Replace the highlighted span with plain text
+                    const textNode = document.createTextNode(suggestionData.substring);
+                    span.parentNode.replaceChild(textNode, span);
+                }
+            } catch (error) {
+                console.error('Error parsing suggestion data:', error);
+            }
+        });
     }
     
     /**
