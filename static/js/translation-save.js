@@ -13,8 +13,7 @@ class TranslationSave {
         this.recentSaves = new Map(); // verseIndex -> {text, timestamp}
         this.saveDelay = 300; // Back to 300ms since we fixed the root cause
         
-        // Track save operations to prevent sync conflicts
-        this.isCurrentlySaving = false;
+
         
         // Cleanup old entries every 5 minutes to prevent memory leaks
         setInterval(() => {
@@ -78,9 +77,6 @@ class TranslationSave {
         }
 
         try {
-            // Set saving flag to prevent sync conflicts
-            this.isCurrentlySaving = true;
-            
             // CRITICAL FIX: Use the currently focused textarea to determine the correct target,
             // not just any textarea with the same verse index
             let correctTargetId = targetId;
@@ -136,9 +132,6 @@ class TranslationSave {
             
         } catch (error) {
             console.error('Error in auto-save:', error);
-        } finally {
-            // Clear saving flag
-            this.isCurrentlySaving = false;
         }
     }
     
@@ -184,11 +177,7 @@ class TranslationSave {
         
         const saveBtn = document.getElementById('save-changes-btn');
         
-        try {
-            // Set saving flag to prevent sync conflicts
-            this.isCurrentlySaving = true;
-            
-            if (saveBtn) {
+        if (saveBtn) {
                 saveBtn.disabled = true;
                 saveBtn.textContent = 'Saving...';
             }
@@ -240,17 +229,10 @@ class TranslationSave {
                 console.log(`✅ Successfully saved ${savedVerses.size} verse(s)`);
             }
             
-        } catch (error) {
-            console.error('Error in bulk save:', error);
-            alert('Error saving changes: ' + error.message);
-        } finally {
-            // Clear saving flag and reset button
-            this.isCurrentlySaving = false;
-            
-            if (saveBtn) {
-                saveBtn.disabled = false;
-                saveBtn.textContent = 'Save Changes';
-            }
+        
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save Changes';
         }
     }
     

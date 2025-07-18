@@ -267,8 +267,7 @@ class TextWindow {
                 if (primaryWindow && primaryWindow.type === 'primary') {
                     const primaryContainer = primaryWindow.element?.querySelector('[data-window-content]');
                     if (primaryContainer) {
-                        // Use safe sync to avoid data loss
-                        primaryWindow.syncOtherWindowsToThisSafe(primaryContainer);
+                        primaryWindow.syncOtherWindowsToThis(primaryContainer);
                     }
                 }
             }
@@ -721,38 +720,6 @@ class TextWindow {
         });
     }
     
-    syncOtherWindowsToThisSafe(sourceContainer) {
-        // Safe sync version: Find the currently visible verse and sync to that exact verse
-        // but avoid triggering chapter reloads that could cause data loss
-        const currentVisibleVerse = this.getCurrentVisibleVerse(sourceContainer);
-        
-        if (!currentVisibleVerse) {
-            console.log('No visible verse found for safe syncing');
-            return;
-        }
-        
-        const targetVerseIndex = parseInt(currentVisibleVerse.dataset.verseIndex);
-        const targetVerseNumber = currentVisibleVerse.dataset.verse;
-        const targetReference = currentVisibleVerse.dataset.reference || `Verse ${targetVerseNumber}`;
-        
-        if (isNaN(targetVerseIndex)) {
-            console.log('Invalid verse index for safe syncing');
-            return;
-        }
-        
-        console.log(`Safe syncing reference windows to verse index ${targetVerseIndex} (${targetReference})`);
-        
-        // Find all other text windows and sync those with sync enabled
-        window.translationEditor?.textWindows?.forEach((textWindow, windowId) => {
-            if (textWindow.id !== this.id && textWindow.syncEnabled !== false) {
-                const otherContainer = textWindow.element?.querySelector('[data-window-content]');
-                if (otherContainer && otherContainer.offsetParent) {
-                    this.syncToVerseIndexSafe(otherContainer, targetVerseIndex, targetReference, textWindow.id);
-                }
-            }
-        });
-    }
-    
     getCurrentVisibleVerse(container) {
         const scrollTop = container.scrollTop;
         const containerHeight = container.clientHeight;
@@ -795,35 +762,6 @@ class TextWindow {
             console.log(`Verse index ${verseIndex} not found in ${windowId}, loading appropriate content`);
             
             await this.loadContentForVerseIndex(container, verseIndex, reference, windowId);
-        }
-    }
-    
-    async syncToVerseIndexSafe(container, verseIndex, reference, windowId) {
-        // Safe version: Try to find the target verse by index in the reference window
-        const targetVerse = container.querySelector(`[data-verse-index="${verseIndex}"]`);
-        
-        if (targetVerse) {
-            // Verse found - jump directly to it (this is safe, no data loss risk)
-            const targetTop = targetVerse.offsetTop - 50; // Small offset for better visibility
-            container.scrollTop = Math.max(0, targetTop);
-            console.log(`Safe synced ${windowId} to verse index ${verseIndex} (found locally)`);
-        } else {
-            // SAFETY: Don't trigger chapter reloads during automatic sync to prevent data loss
-            // Instead, just log that sync was skipped
-            console.log(`Safe sync: Verse index ${verseIndex} not found in ${windowId}, skipping to prevent data loss`);
-            
-            // Optional: Show a brief visual indicator that sync was attempted but limited
-            const windowElement = window.translationEditor?.textWindows?.get(windowId)?.element;
-            if (windowElement) {
-                const syncButton = windowElement.querySelector('.sync-toggle-btn');
-                if (syncButton && syncButton.classList.contains('text-blue-600')) {
-                    // Briefly flash the sync button to indicate attempted sync
-                    syncButton.style.opacity = '0.5';
-                    setTimeout(() => {
-                        syncButton.style.opacity = '';
-                    }, 200);
-                }
-            }
         }
     }
     
@@ -1108,37 +1046,22 @@ class TextWindow {
             textarea._lastSaveTimestamp = lastSaveTimestamp;
         }, { passive: true });
         
-        // AUTOMATIC SYNC: Re-enabled with safety checks to prevent data loss
-        // Only sync if this is the primary window and we're not in the middle of saving
+        // AUTOMATIC SYNC: Re-enabled for primary window textarea clicks
         if (this.type === 'primary') {
             textarea.addEventListener('click', () => {
-                // Add small delay to avoid conflicts with save operations
-                setTimeout(() => {
-                    this.triggerSafeSync();
-                }, 100);
+                this.triggerSyncFromPrimary();
             }, { passive: true });
         }
     }
     
-    triggerSafeSync() {
+    triggerSyncFromPrimary() {
         // Only trigger sync if this is the primary window
         if (this.type !== 'primary') return;
         
-        // Check if we're in the middle of a save operation
-        if (window.translationEditor?.saveSystem?.isCurrentlySaving) {
-            console.log('Skipping sync - save operation in progress');
-            return;
-        }
-        
         const container = this.element?.querySelector('[data-window-content]');
         if (container) {
-            this.syncOtherWindowsToThisSafe(container);
+            this.syncOtherWindowsToThis(container);
         }
-    }
-    
-    triggerSyncFromPrimary() {
-        // Legacy method - now calls the safe version for automatic sync
-        this.triggerSafeSync();
     }
     
     // PERFORMANCE: Resize functions removed - textareas are proper size from start
