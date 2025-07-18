@@ -13,6 +13,9 @@ class TranslationSave {
         this.recentSaves = new Map(); // verseIndex -> {text, timestamp}
         this.saveDelay = 300; // Back to 300ms since we fixed the root cause
         
+        // Track save operations to prevent sync conflicts
+        this.isCurrentlySaving = false;
+        
         // Cleanup old entries every 5 minutes to prevent memory leaks
         setInterval(() => {
             this.cleanupOldSaves();
@@ -75,6 +78,9 @@ class TranslationSave {
         }
 
         try {
+            // Set saving flag to prevent sync conflicts
+            this.isCurrentlySaving = true;
+            
             // CRITICAL FIX: Use the currently focused textarea to determine the correct target,
             // not just any textarea with the same verse index
             let correctTargetId = targetId;
@@ -129,8 +135,10 @@ class TranslationSave {
             }
             
         } catch (error) {
-            console.error(`❌ Auto-save failed for verse ${verseIndex}:`, error);
-            // Keep in unsaved changes on error
+            console.error('Error in auto-save:', error);
+        } finally {
+            // Clear saving flag
+            this.isCurrentlySaving = false;
         }
     }
     
@@ -176,69 +184,72 @@ class TranslationSave {
         
         const saveBtn = document.getElementById('save-changes-btn');
         
-        if (saveBtn) {
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Saving...';
-        }
-        
-        const savedVerses = new Set();
-        const failedVerses = new Map();
-        
-        for (const [verseIndex, text] of this.editor.unsavedChanges.entries()) {
-            try {
-                // CRITICAL FIX: Find the specific textarea that matches the text content for this verse
-                let correctTargetId = targetId;
-                const textareas = document.querySelectorAll(`textarea[data-verse-index="${verseIndex}"]`);
-                
-                for (const textarea of textareas) {
-                    if (textarea.value === text) {
-                        // Find which window contains this specific textarea
-                        for (const [id, window] of this.editor.textWindows) {
-                            if (window.element?.contains(textarea)) {
-                                correctTargetId = id;
-                                console.log(`💾 Bulk save: verse ${verseIndex} from window ${id}`);
-                                break;
+        try {
+            // Set saving flag to prevent sync conflicts
+            this.isCurrentlySaving = true;
+            
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'Saving...';
+            }
+            
+            const savedVerses = new Set();
+            const failedVerses = new Map();
+            
+            for (const [verseIndex, text] of this.editor.unsavedChanges.entries()) {
+                try {
+                    // CRITICAL FIX: Find the specific textarea that matches the text content for this verse
+                    let correctTargetId = targetId;
+                    const textareas = document.querySelectorAll(`textarea[data-verse-index="${verseIndex}"]`);
+                    
+                    for (const textarea of textareas) {
+                        if (textarea.value === text) {
+                            // Find which window contains this specific textarea
+                            for (const [id, window] of this.editor.textWindows) {
+                                if (window.element?.contains(textarea)) {
+                                    correctTargetId = id;
+                                    console.log(`💾 Bulk save: verse ${verseIndex} from window ${id}`);
+                                    break;
+                                }
                             }
+                            break;
                         }
-                        break;
                     }
+                    
+                    await this.saveVerse(verseIndex, text, correctTargetId);
+                    savedVerses.add(verseIndex);
+                } catch (error) {
+                    console.error(`Failed to save verse ${verseIndex}:`, error);
+                    failedVerses.set(verseIndex, error.message);
                 }
-                
-                await this.saveVerse(verseIndex, text, correctTargetId);
-                savedVerses.add(verseIndex);
-            } catch (error) {
-                failedVerses.set(verseIndex, error.message);
-                console.error(`Failed to save verse ${verseIndex}:`, error);
             }
-        }
-        
-        // Remove successfully saved verses from unsaved changes
-        for (const verseIndex of savedVerses) {
-            this.editor.unsavedChanges.delete(verseIndex);
-        }
-        
-        this.editor.hasUnsavedChanges = this.editor.unsavedChanges.size > 0;
-        
-        if (savedVerses.size > 0) {
-            // Refresh metadata for successful saves
-            await this.editor.refreshTextMetadata();
-            this.editor.saveLayoutState();
-        }
-        
-        // Show appropriate feedback
-        if (failedVerses.size === 0) {
-           
-        } else if (savedVerses.size > 0) {
-            // Partial success
-            if (saveBtn) {
-                saveBtn.textContent = `${savedVerses.size} Saved, ${failedVerses.size} Failed`;
-                saveBtn.disabled = false;
+            
+            // Update unsaved changes - remove successfully saved verses
+            for (const verseIndex of savedVerses) {
+                this.editor.unsavedChanges.delete(verseIndex);
             }
-        } else {
-            // All failed
+            this.editor.hasUnsavedChanges = this.editor.unsavedChanges.size > 0;
+            
+            // Show results
+            if (failedVerses.size > 0) {
+                const failedList = Array.from(failedVerses.entries())
+                    .map(([index, error]) => `Verse ${index}: ${error}`)
+                    .join('\n');
+                alert(`Some verses failed to save:\n\n${failedList}`);
+            } else if (savedVerses.size > 0) {
+                console.log(`✅ Successfully saved ${savedVerses.size} verse(s)`);
+            }
+            
+        } catch (error) {
+            console.error('Error in bulk save:', error);
+            alert('Error saving changes: ' + error.message);
+        } finally {
+            // Clear saving flag and reset button
+            this.isCurrentlySaving = false;
+            
             if (saveBtn) {
-                saveBtn.textContent = 'Save Failed - Retry';
                 saveBtn.disabled = false;
+                saveBtn.textContent = 'Save Changes';
             }
         }
     }
