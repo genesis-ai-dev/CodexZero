@@ -358,7 +358,8 @@ class TranslationDragDrop {
                 verse_reference: verse.reference,
                 project_id: this.editor.projectId,
                 temperature: settings.temperature,  // Always 0.2
-                use_examples: settings.useExamples  // Auto-determined by model type
+                use_examples: settings.useExamples,  // Auto-determined by model type
+                current_verse_index: parseInt(textarea.dataset.verseIndex)
             };
             
             // Add test mode parameters if target has content

@@ -185,6 +185,9 @@ class Verse(db.Model):
     verse_index = db.Column(db.Integer, nullable=False)  # 0-31169
     verse_text = db.Column(db.Text, nullable=False)
     
+    # Refinement prompt for AI translations
+    refinement_prompt = db.Column(db.Text, nullable=True)
+    
     # Simplified - edit tracking handled by VerseEditHistory table
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

@@ -956,6 +956,15 @@ class TextWindow {
         // PERFORMANCE: Batch control setup to reduce DOM queries
         this.setupVerseControlsBatched(controlsContainer, leftControlsContainer, verseData, textarea, verseWrapper);
         
+        // Add refinement indicator if verse has a refinement prompt
+        if (verseData.refinement_prompt) {
+            const indicator = document.createElement('div');
+            indicator.className = 'absolute top-8 left-2 text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full';
+            indicator.innerHTML = '🔧 Refined';
+            indicator.title = `Refinement: ${verseData.refinement_prompt}`;
+            verseWrapper.appendChild(indicator);
+        }
+        
         return verseWrapper;
     }
     

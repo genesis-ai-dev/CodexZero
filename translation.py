@@ -59,7 +59,7 @@ def translate_page(project_id):
 
 
 def _get_translation_examples(project_id, source_text_id, target_text_id, query_text, exclude_verse_index=None):
-    """Get examples using UNIFIED SCHEMA - dramatically simplified!"""
+    """Get examples using UNIFIED SCHEMA - including refinement prompts"""
     
     if not query_text:
         return [], "No query text provided"
@@ -104,7 +104,18 @@ def _get_translation_examples(project_id, source_text_id, target_text_id, query_
         
         examples = []
         for verse_id, source_text, target_text, coverage in results:
-            examples.append(target_text.strip())
+            # Get refinement prompt if exists
+            verse = Verse.query.filter_by(
+                text_id=target_id,
+                verse_index=verse_id
+            ).first()
+            
+            if verse and verse.refinement_prompt:
+                # Include refinement prompt with the example
+                example_with_refinement = f"{target_text.strip()}\n[Refinement: {verse.refinement_prompt}]"
+                examples.append(example_with_refinement)
+            else:
+                examples.append(target_text.strip())
         
         return examples, f"Found {len(examples)} examples using unified schema"
         
@@ -116,7 +127,8 @@ def _get_translation_examples(project_id, source_text_id, target_text_id, query_
 
 
 def translate_text(project_id: int, text: str, model: Optional[str] = None, temperature: float = 0.2, 
-                  source_file_id: Optional[str] = None, target_file_id: Optional[str] = None) -> Dict[str, Any]:
+                  source_file_id: Optional[str] = None, target_file_id: Optional[str] = None,
+                  refinement_prompt: Optional[str] = None) -> Dict[str, Any]:
     """
     Translate text using the specified model and project settings.
     Returns translation with metadata including confidence and examples used.
@@ -150,6 +162,9 @@ def translate_text(project_id: int, text: str, model: Optional[str] = None, temp
     
     if instructions:
         system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
+    
+    if refinement_prompt:
+        system_prompt += f"\n\nImportant refinement for this specific verse:\n{refinement_prompt}"
     
     # Create user prompt with examples if available
     if examples:
@@ -220,12 +235,12 @@ def _get_translation_instructions(project_id: int, source_file_id: str, target_f
 
 
 def _get_verse_content(project_id, text_id, verse_index):
-    """Get content for a specific verse index - unified schema only"""
+    """Get content and refinement prompt for a specific verse index - unified schema only"""
     if text_id.startswith('text_'):
         text_id_int = int(text_id.replace('text_', ''))
         text = Text.query.filter_by(id=text_id_int, project_id=project_id).first()
         if not text:
-            return ""
+            return "", None
         
         # Get verse from unified schema
         verse = Verse.query.filter_by(
@@ -233,9 +248,11 @@ def _get_verse_content(project_id, text_id, verse_index):
             verse_index=verse_index
         ).first()
         
-        return verse.verse_text if verse else ""
+        if verse:
+            return verse.verse_text, verse.refinement_prompt
+        return "", None
     
-    return ""
+    return "", None
 
 def simple_decode_utf8(file_content):
     """Auto-detect encoding to preserve all characters with zero information loss"""
@@ -356,6 +373,10 @@ def translate():
         ground_truth = data.get('ground_truth', '').strip()
         exclude_verse_index = data.get('exclude_verse_index')
         
+        # Refinement prompt for current verse
+        refinement_prompt = data.get('refinement_prompt', '').strip()
+        current_verse_index = data.get('current_verse_index')
+        
         if not text_to_translate:
             return jsonify({'success': False, 'error': 'No text provided'})
         
@@ -391,6 +412,20 @@ def translate():
             )
         
         
+        # Get current verse's refinement prompt if available
+        current_refinement = None
+        if current_verse_index is not None and target_file_id and target_file_id.startswith('text_'):
+            target_text_id = int(target_file_id.replace('text_', ''))
+            current_verse = Verse.query.filter_by(
+                text_id=target_text_id,
+                verse_index=current_verse_index
+            ).first()
+            if current_verse and current_verse.refinement_prompt:
+                current_refinement = current_verse.refinement_prompt
+        
+        # Use provided refinement prompt or fetch from database
+        final_refinement = refinement_prompt or current_refinement
+        
         # Generate translation using project's selected model
         translation = _generate_translation_with_examples(
             text_to_translate, 
@@ -398,7 +433,8 @@ def translate():
             examples,
             [source_info],
             model=translation_model,
-            temperature=temperature
+            temperature=temperature,
+            refinement_prompt=final_refinement
         )
         
         # Calculate confidence metrics
@@ -605,7 +641,7 @@ def _calculate_translation_confidence(translation, examples):
         }
     }
 
-def _generate_translation_with_examples(text, target_language, examples, source_descriptions, model=None, temperature=0.7):
+def _generate_translation_with_examples(text, target_language, examples, source_descriptions, model=None, temperature=0.7, refinement_prompt=None):
     """Generates a translation using the AI with examples, matching fine-tuning structure exactly."""
     
     # Get project info to create the exact same system prompt as fine-tuning
@@ -625,9 +661,15 @@ def _generate_translation_with_examples(text, target_language, examples, source_
         
         if instructions:
             system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
+            
+        if refinement_prompt:
+            system_prompt += f"\n\nImportant refinement for this specific verse:\n{refinement_prompt}"
     else:
         # Fallback system prompt if project not available
         system_prompt = f"You are an expert Bible translator specializing in {target_language} translation. Translate biblical text accurately while maintaining the meaning and tone of the original text."
+        
+        if refinement_prompt:
+            system_prompt += f"\n\nImportant refinement for this specific verse:\n{refinement_prompt}"
     
     # Use exact same user prompt structure as fine-tuning
     if examples:
@@ -948,13 +990,23 @@ def get_chapter_verses(project_id, target_id, book, chapter):
             else:
                 analysis = {"suggestions": []}
             
+            # Get refinement prompt if exists
+            refinement_prompt = None
+            verse_record = Verse.query.filter_by(
+                text_id=text_id,
+                verse_index=verse_info['index']
+            ).first()
+            if verse_record:
+                refinement_prompt = verse_record.refinement_prompt
+            
             verses_data.append({
                 'verse': verse_info['verse'],
                 'reference': verse_info['reference'],
                 'source_text': '',  # Not needed - each window only shows its own content
                 'target_text': window_content,  # The content from this window's text
                 'index': verse_info['index'],
-                'analysis': analysis
+                'analysis': analysis,
+                'refinement_prompt': refinement_prompt
             })
         
         return jsonify({
@@ -1075,6 +1127,51 @@ def save_verse(project_id, target_id, verse_index):
         db.session.rollback()
         print(f"Error saving verse: {e}")
         return jsonify({'error': 'Failed to save verse'}), 500
+
+
+@translation.route('/project/<int:project_id>/translation/<target_id>/verse/<int:verse_index>/refinement', methods=['POST'])
+@login_required
+def save_refinement_prompt(project_id, target_id, verse_index):
+    """Save refinement prompt for a verse"""
+    require_project_access(project_id, "editor")
+    project = Project.query.get_or_404(project_id)
+    
+    data = request.get_json()
+    if not data or 'refinement_prompt' not in data:
+        return jsonify({'error': 'Refinement prompt is required'}), 400
+    
+    refinement_prompt = data['refinement_prompt'].strip()
+    
+    try:
+        if target_id.startswith('text_'):
+            text_id = int(target_id.replace('text_', ''))
+            target_text = Text.query.filter_by(id=text_id, project_id=project_id).first_or_404()
+            
+            # Get or create verse
+            verse = Verse.query.filter_by(
+                text_id=text_id,
+                verse_index=verse_index
+            ).first()
+            
+            if verse:
+                # Update refinement prompt
+                verse.refinement_prompt = refinement_prompt if refinement_prompt else None
+                db.session.commit()
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Refinement prompt saved'
+                })
+            else:
+                return jsonify({'error': 'Verse not found'}), 404
+                
+        else:
+            return jsonify({'error': 'Invalid target_id format - only text_ IDs supported'}), 400
+            
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error saving refinement prompt: {e}")
+        return jsonify({'error': 'Failed to save refinement prompt'}), 500
 
 
 @translation.route('/project/<int:project_id>/verse/<int:text_id>/<int:verse_index>/history')
@@ -1272,13 +1369,25 @@ def get_verse_range(project_id, target_id, start_index, end_index):
             else:
                 analysis = {"suggestions": []}
             
+            # Get refinement prompt if exists
+            refinement_prompt = None
+            if target_id.startswith('text_'):
+                target_text_id = int(target_id.replace('text_', ''))
+                verse_record = Verse.query.filter_by(
+                    text_id=target_text_id,
+                    verse_index=verse_index
+                ).first()
+                if verse_record:
+                    refinement_prompt = verse_record.refinement_prompt
+            
             verses_data.append({
                 'verse': verse_num,
                 'reference': verse_reference or f'Verse {verse_index}',
                 'source_text': source_text,
                 'target_text': target_text,
                 'index': verse_index,
-                'analysis': analysis  # Include analysis data
+                'analysis': analysis,  # Include analysis data
+                'refinement_prompt': refinement_prompt
             })
         
         return jsonify({

@@ -127,24 +127,7 @@ def run_migrations(app):
     migrations_run = []
     
     try:
-        # Migration 1: Drop obsolete columns from verse_flags
-        try:
-            result = db.session.execute(text("SHOW COLUMNS FROM verse_flags LIKE 'title'"))
-            if result.fetchone():
-                db.session.execute(text("ALTER TABLE verse_flags DROP COLUMN title"))
-                migrations_run.append("Dropped title column from verse_flags")
-            
-            result = db.session.execute(text("SHOW COLUMNS FROM verse_flags LIKE 'priority'"))
-            if result.fetchone():
-                db.session.execute(text("ALTER TABLE verse_flags DROP COLUMN priority"))
-                migrations_run.append("Dropped priority column from verse_flags")
-                
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            raise Exception(f"Failed to drop obsolete columns from verse_flags: {e}")
-            
-        # Migration 2: Ensure all projects have ProjectMember entries
+        # Migration 1: Ensure all projects have ProjectMember entries
         try:
             from models import Project, ProjectMember
             projects_without_member = db.session.query(Project).outerjoin(
@@ -171,32 +154,20 @@ def run_migrations(app):
             db.session.rollback()
             raise Exception(f"Failed to create ProjectMember entries: {e}")
             
-        # Migration 3: Ensure user_notifications table exists
+        # Migration 2: Add refinement_prompt column to verses table
         try:
-            result = db.session.execute(text("SHOW TABLES LIKE 'user_notifications'"))
+            result = db.session.execute(text("SHOW COLUMNS FROM verses LIKE 'refinement_prompt'"))
             if not result.fetchone():
-                # This should be handled by db.create_all() above
-                raise Exception("user_notifications table was not created by db.create_all()")
+                db.session.execute(text("ALTER TABLE verses ADD COLUMN refinement_prompt TEXT DEFAULT NULL"))
+                db.session.commit()
+                migrations_run.append("Added refinement_prompt column to verses table")
         except Exception as e:
-            raise Exception(f"Failed to verify user_notifications table: {e}")
-            
-        # Migration 4: Ensure flag_resolutions table exists
-        try:
-            result = db.session.execute(text("SHOW TABLES LIKE 'flag_resolutions'"))
-            if not result.fetchone():
-                # This should be handled by db.create_all() above
-                raise Exception("flag_resolutions table was not created by db.create_all()")
-        except Exception as e:
-            raise Exception(f"Failed to verify flag_resolutions table: {e}")
-            
-        # Migration 5: Ensure project_dictionaries table exists
-        try:
-            result = db.session.execute(text("SHOW TABLES LIKE 'project_dictionaries'"))
-            if not result.fetchone():
-                # This should be handled by db.create_all() above
-                raise Exception("project_dictionaries table was not created by db.create_all()")
-        except Exception as e:
-            raise Exception(f"Failed to verify project_dictionaries table: {e}")
+            if "Duplicate column name" in str(e) or "duplicate column" in str(e).lower():
+                # Column already exists, that's fine
+                pass
+            else:
+                db.session.rollback()
+                raise Exception(f"Failed to add refinement_prompt column to verses: {e}")
         
         # Print summary of migrations run
         if migrations_run:
