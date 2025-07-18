@@ -244,14 +244,32 @@ class TranslationEditor {
         const layoutState = this.storage.getSavedLayoutState();
         
         if (layoutState.textIds.length === 0) {
-            // No saved layout, try to auto-load ULB as reference text
-            console.log('No saved layout state found. Attempting to auto-load ULB translation...');
+            // No saved layout, try to auto-load texts
+            console.log('No saved layout state found. Attempting to auto-load target translation and ULB...');
+            
+            // First, try to load the target translation as primary
+            const targetLoaded = await this.tryAutoLoadTargetTranslation();
+            
+            // Then, try to load ULB as reference text
             const ulbLoaded = await this.tryAutoLoadULB();
-            if (!ulbLoaded) {
-                // No ULB found, show empty state
-                console.log('No ULB found or failed to load. Showing empty state.');
+            
+            if (!targetLoaded && !ulbLoaded) {
+                // No texts found, show empty state
+                console.log('No target translation or ULB found. Showing empty state.');
                 this.renderPrimaryText();
                 this.renderReferenceTexts();
+            } else {
+                // At least one text was loaded, render the interface
+                this.renderPrimaryText();
+                this.renderReferenceTexts();
+                
+                // If both target and source were auto-loaded, trigger auto-translation of first verse
+                if (targetLoaded && ulbLoaded) {
+                    console.log('🎯 Auto-loaded fresh project! Triggering auto-translation of first verse...');
+                    setTimeout(() => {
+                        this.autoTranslateFirstVerse();
+                    }, 1000); // Give the interface time to fully render
+                }
             }
             return;
         }
@@ -288,6 +306,46 @@ class TranslationEditor {
             this.renderPrimaryText();
             this.renderReferenceTexts();
         }
+    }
+    
+    async tryAutoLoadTargetTranslation() {
+        // Look for the target translation text in the project
+        // We want to find a text that looks like it was auto-created as the target
+        let targetTextId = null;
+        
+        for (const [textId, metadata] of this.textMetadata) {
+            if (metadata.name && 
+                metadata.name.includes('Translation') && 
+                !metadata.name.includes('ULB') &&
+                !metadata.name.includes('English')
+            ) {
+                targetTextId = textId;
+                console.log(`Found potential target translation: ${metadata.name} (${textId})`);
+                break;
+            }
+        }
+        
+        if (!targetTextId) {
+            console.log('No target translation text found for auto-loading');
+            return false;
+        }
+        
+        try {
+            console.log(`Auto-loading target translation: ${targetTextId}`);
+            const result = await this.loadTextData(targetTextId, true); // Load as primary text
+            if (result) {
+                this.textWindows.set(targetTextId, result.textWindow);
+                this.primaryTextId = targetTextId;
+                this.currentTranslation = targetTextId;
+                this.saveLayoutState();
+                console.log('Target translation auto-loaded successfully as primary text');
+                return true;
+            }
+        } catch (error) {
+            console.error('Error auto-loading target translation:', error);
+        }
+        
+        return false;
     }
     
     hasULBAvailable() {
@@ -1272,6 +1330,95 @@ class TranslationEditor {
         } catch (error) {
             console.error('Error getting project info:', error);
             return null;
+        }
+    }
+    
+    async autoTranslateFirstVerse() {
+        console.log('🎯 AutoTranslateFirstVerse: Starting auto-translation of first verse...');
+        
+        // Check if we have both primary and reference windows
+        if (!this.primaryTextId || this.textWindows.size < 2) {
+            console.log('🎯 AutoTranslateFirstVerse: Not enough windows loaded, skipping');
+            return;
+        }
+        
+        // Wait a bit more for virtual scroll manager to fully load
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        try {
+            // Find the first verse (Genesis 1:1) in both windows
+            const primaryWindow = this.textWindows.get(this.primaryTextId);
+            let sourceWindow = null;
+            
+            // Find a source window (non-primary)
+            for (const [id, window] of this.textWindows) {
+                if (id !== this.primaryTextId) {
+                    sourceWindow = window;
+                    break;
+                }
+            }
+            
+            if (!primaryWindow || !sourceWindow) {
+                console.log('🎯 AutoTranslateFirstVerse: Missing primary or source window');
+                return;
+            }
+            
+            console.log('🎯 AutoTranslateFirstVerse: Looking for first verse in both windows...');
+            
+            // Wait for textareas to be rendered
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Find first verse textareas (Genesis 1:1 should be verse index 0)
+            const primaryTextarea = primaryWindow.element?.querySelector('textarea[data-verse-index="0"]');
+            const sourceTextarea = sourceWindow.element?.querySelector('textarea[data-verse-index="0"]');
+            
+            if (!primaryTextarea || !sourceTextarea) {
+                console.log('🎯 AutoTranslateFirstVerse: Could not find first verse textareas, skipping');
+                return;
+            }
+            
+            // Check if the primary textarea is empty (no translation yet)
+            if (primaryTextarea.value && primaryTextarea.value.trim()) {
+                console.log('🎯 AutoTranslateFirstVerse: First verse already has content, skipping');
+                return;
+            }
+            
+            // Check if source has content
+            if (!sourceTextarea.value || !sourceTextarea.value.trim()) {
+                console.log('🎯 AutoTranslateFirstVerse: Source verse is empty, skipping');
+                return;
+            }
+            
+            console.log('🎯 AutoTranslateFirstVerse: Conditions met, triggering AI translation...');
+            
+            // Create drag data for the translation system
+            const dragData = {
+                sourceText: sourceTextarea.value.trim(),
+                sourceId: sourceWindow.id,
+                verse: 1, // Genesis 1:1 - this is the actual verse number
+                reference: 'Genesis 1:1',
+                sourceType: sourceWindow.type,
+                sourceTitle: sourceWindow.title
+            };
+            
+            // Show a brief message to the user
+            this.showMessage('🤖 Translating your first verse automatically...', 'info');
+            
+            // Use the existing drag-drop translation system
+            if (this.dragDrop) {
+                await this.dragDrop.translateSingle(dragData, primaryTextarea, primaryWindow);
+                console.log('🎯 AutoTranslateFirstVerse: Auto-translation completed successfully!');
+                
+                // Show success message
+                setTimeout(() => {
+                    this.showMessage('✨ First verse translated! Try editing it or translating more verses.', 'success');
+                }, 2000);
+            } else {
+                console.log('🎯 AutoTranslateFirstVerse: Drag-drop system not available');
+            }
+            
+        } catch (error) {
+            console.error('🎯 AutoTranslateFirstVerse: Error during auto-translation:', error);
         }
     }
     

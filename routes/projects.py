@@ -129,9 +129,36 @@ def create_project():
     except Exception as e:
         print(f"Warning: Could not auto-import ULB for project {project.id}: {e}")
     
+    # Automatically create a blank target translation
+    try:
+        from utils.text_manager import TextManager
+        
+        # Create descriptive purpose based on project details
+        purpose_description = f"Translation to {target_language}"
+        if audience:
+            purpose_description += f" for {audience}"
+        if style:
+            purpose_description += f" using a {style} approach"
+        purpose_description += "."
+        
+        # Create the target translation name
+        target_name = f"{target_language} Translation"
+        
+        # Create the blank target text
+        target_text_id = TextManager.create_text(
+            project_id=project.id,
+            name=target_name,
+            description=purpose_description
+        )
+        
+        print(f"Successfully created blank target translation for project {project.id}: {target_name}")
+        
+    except Exception as e:
+        print(f"Warning: Could not create blank target translation for project {project.id}: {e}")
+    
     db.session.commit()
     flash('Project created successfully!', 'success')
-    return redirect(url_for('projects.dashboard'))
+    return redirect(url_for('translation.translate_page', project_id=project.id))
 
 
 @projects.route('/project/<int:project_id>')
