@@ -977,18 +977,17 @@ def get_chapter_verses(project_id, target_id, book, chapter):
             # The requesting window gets its own content
             window_content = window_verses[i] if i < len(window_verses) else ''
             
-            # Run language server analysis if this window has content
-            analysis = None
+            # ALWAYS run language server analysis if this window has content
+            analysis = {"suggestions": []}
             if window_content.strip():
                 try:
                     from utils.language_server import LanguageServerService
                     ls = LanguageServerService(project_id)
                     analysis = ls.analyze_verse(window_content)
+                    print(f"✅ Language server analysis completed for verse {verse_info['index']} (window {target_id}): analyzed text='{window_content[:50]}...', suggestions={len(analysis.get('suggestions', []))}")
                 except Exception as e:
-                    print(f"Language server analysis failed for verse {verse_info['index']}: {e}")
+                    print(f"❌ Language server analysis failed for verse {verse_info['index']}: {e}")
                     analysis = {"suggestions": []}
-            else:
-                analysis = {"suggestions": []}
             
             # Get refinement prompt if exists
             refinement_prompt = None
@@ -1107,6 +1106,7 @@ def save_verse(project_id, target_id, verse_index):
                 from utils.language_server import LanguageServerService
                 ls = LanguageServerService(project_id)
                 analysis = ls.analyze_verse(verse_text)
+                print(f"✅ Save verse - Language server analysis completed for verse {verse_index}: {len(analysis.get('suggestions', []))} suggestions")
                 
             except Exception as e:
                 db.session.rollback()
@@ -1117,7 +1117,9 @@ def save_verse(project_id, target_id, verse_index):
                 'success': True,
                 'edit_recorded': True,
                 'editor': current_user.name,
-                'analysis': analysis
+                'analysis': analysis,
+                'verseIndex': verse_index,
+                'targetId': target_id
             })
             
         else:
@@ -1356,18 +1358,17 @@ def get_verse_range(project_id, target_id, start_index, end_index):
             else:
                 verse_num = i + 1  # fallback
             
-            # Run language server analysis on target text if it exists
-            analysis = None
+            # ALWAYS run language server analysis on target text if it exists
+            analysis = {"suggestions": []}
             if target_text.strip():
                 try:
                     from utils.language_server import LanguageServerService
                     ls = LanguageServerService(project_id)
                     analysis = ls.analyze_verse(target_text)
+                    print(f"✅ Language server analysis completed for verse {verse_index} (window {target_id}): analyzed text='{target_text[:50]}...', suggestions={len(analysis.get('suggestions', []))}")
                 except Exception as e:
-                    print(f"Language server analysis failed for verse {verse_index}: {e}")
+                    print(f"❌ Language server analysis failed for verse {verse_index}: {e}")
                     analysis = {"suggestions": []}
-            else:
-                analysis = {"suggestions": []}
             
             # Get refinement prompt if exists
             refinement_prompt = None

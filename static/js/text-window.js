@@ -965,6 +965,15 @@ class TextWindow {
             verseWrapper.appendChild(indicator);
         }
         
+        // CRITICAL: Process language server analysis if provided
+        if (verseData.analysis && window.languageServer) {
+            // Use setTimeout to ensure DOM is ready
+            setTimeout(() => {
+                console.log(`🔤 Processing analysis for verse ${verseData.index} from createVerseElement for window ${this.id}`);
+                window.languageServer.processVerseWithAnalysis(verseData, this.id);
+            }, 50);
+        }
+        
         return verseWrapper;
     }
     

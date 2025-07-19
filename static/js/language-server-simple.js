@@ -1,10 +1,12 @@
 // Advanced Language Server Client - Inline Text Highlighting
 class AdvancedLanguageServer {
     constructor() {
-        this.verseAnalyses = new Map(); // verseIndex -> analysis data
+        this.verseAnalyses = new Map(); // "windowId:verseIndex" -> analysis data (WINDOW-SPECIFIC!)
         this.enhancedTextareas = new Map(); // "windowId:verseIndex" -> {textarea, contentDiv, issues}
         this.windowSettings = new Map(); // windowId -> {enabled: boolean}
         this.analysisTimeouts = new Map(); // verseIndex -> timeout ID
+        this.currentTooltip = null; // Store current tooltip element
+        this.tooltipHideTimeout = null; // Delay hiding tooltip
         console.log('🔤 AdvancedLanguageServer: Initialized');
     }
     
@@ -19,8 +21,8 @@ class AdvancedLanguageServer {
             return this.windowSettings.get(windowId).enabled;
         }
         
-        // Default: enabled for primary windows, disabled for reference windows
-        const defaultEnabled = textWindow.type === 'primary';
+        // Default: enabled for all windows except explicitly disabled ones
+        const defaultEnabled = textWindow.type !== 'reference';
         this.windowSettings.set(windowId, { enabled: defaultEnabled });
         return defaultEnabled;
     }
@@ -75,8 +77,9 @@ class AdvancedLanguageServer {
         textareas.forEach(textarea => {
             const verseIndex = parseInt(textarea.dataset.verseIndex);
             if (!isNaN(verseIndex) && textarea.value?.trim()) {
-                // Check if we have cached analysis for this verse
-                const cachedAnalysis = this.verseAnalyses.get(verseIndex);
+                // Check if we have cached analysis for this verse in this window
+                const analysisKey = `${windowId}:${verseIndex}`;
+                const cachedAnalysis = this.verseAnalyses.get(analysisKey);
                 if (cachedAnalysis && cachedAnalysis.suggestions?.length > 0) {
                     this.enhanceTextareaSpecific(textarea, verseIndex, cachedAnalysis);
                 }
@@ -141,33 +144,74 @@ class AdvancedLanguageServer {
     }
 
     // Process verse data that comes with analysis (from initial load)
-    processVerseWithAnalysis(verseData) {
-                    if (verseData.analysis && verseData.analysis.suggestions && verseData.analysis.suggestions.length > 0) {
-                console.log(`🔤 Processing verse ${verseData.index} with ${verseData.analysis.suggestions.length} suggestions`);
-            this.verseAnalyses.set(verseData.index, verseData.analysis);
-            
-            // CRITICAL FIX: Only apply highlighting to textareas that have the exact same content
-            // that the analysis was generated for. Don't apply to other windows with different content.
+    processVerseWithAnalysis(verseData, specificWindowId = null) {
+        console.log(`🔤 Processing verse ${verseData.index} with analysis for window ${specificWindowId}:`, verseData.analysis);
+        console.log(`🔤 Verse has target_text: "${verseData.target_text}"`);
+        
+        // Store analysis if provided (backend now always provides this)
+        // CRITICAL FIX: Store analysis by window+verse, not just verse
+        if (verseData.analysis && specificWindowId) {
+            const analysisKey = `${specificWindowId}:${verseData.index}`;
+            this.verseAnalyses.set(analysisKey, verseData.analysis);
+            console.log(`🔤 Stored analysis for ${analysisKey} with ${verseData.analysis.suggestions?.length || 0} suggestions`);
+        }
+        
+        // Apply highlighting immediately if we have content and analysis
+        if (verseData.target_text && verseData.target_text.trim()) {
             setTimeout(() => {
-                const textareas = document.querySelectorAll(`textarea[data-verse-index="${verseData.index}"]`);
+                // If specific window provided, only look for textareas in that window
+                let textareas;
+                if (specificWindowId) {
+                    const textWindow = window.translationEditor?.textWindows?.get(specificWindowId);
+                    if (textWindow?.element) {
+                        textareas = textWindow.element.querySelectorAll(`textarea[data-verse-index="${verseData.index}"]`);
+                        console.log(`🔤 Found ${textareas.length} textareas for verse ${verseData.index} in specific window ${specificWindowId}`);
+                    } else {
+                        console.log(`🔤 Window ${specificWindowId} not found or has no element`);
+                        textareas = [];
+                    }
+                } else {
+                    // Fallback: search all textareas (legacy behavior)
+                    textareas = document.querySelectorAll(`textarea[data-verse-index="${verseData.index}"]`);
+                    console.log(`🔤 Found ${textareas.length} textareas for verse ${verseData.index} (all windows)`);
+                }
+                
                 textareas.forEach(textarea => {
                     const windowId = this.getWindowIdForTextarea(textarea);
+                    console.log(`🔤 Textarea in window ${windowId}, enabled: ${this.isEnabledForWindow(windowId)}`);
+                    
+                    // If specific window provided, only process that window
+                    if (specificWindowId && windowId !== specificWindowId) {
+                        console.log(`🔤 Skipping window ${windowId} (not target ${specificWindowId}) for verse ${verseData.index}`);
+                        return;
+                    }
+                    
                     if (windowId && this.isEnabledForWindow(windowId)) {
-                        // CRITICAL: Only apply analysis if the textarea content matches what was analyzed
                         const textareaContent = textarea.value || '';
                         const analyzedContent = verseData.target_text || '';
                         
+                        console.log(`🔤 Comparing content: textarea="${textareaContent}" vs analyzed="${analyzedContent}"`);
+                        
                         if (textareaContent === analyzedContent) {
                             console.log(`🔤 Content matches for verse ${verseData.index} in window ${windowId}, applying analysis`);
-                            this.enhanceTextareaSpecific(textarea, verseData.index, verseData.analysis);
+                            
+                            // Use the analysis from the verse data (window-specific!)
+                            const analysisKey = `${windowId}:${verseData.index}`;
+                            const analysis = this.verseAnalyses.get(analysisKey);
+                            if (analysis && analysis.suggestions && analysis.suggestions.length > 0) {
+                                console.log(`🔤 Applying ${analysis.suggestions.length} suggestions to verse ${verseData.index} from ${analysisKey}`);
+                                this.enhanceTextareaSpecific(textarea, verseData.index, analysis);
+                            } else {
+                                console.log(`🔤 No suggestions to apply for verse ${verseData.index} (key: ${analysisKey})`);
+                            }
                         } else {
-                            console.log(`🔤 Content mismatch for verse ${verseData.index} in window ${windowId}, skipping analysis`);
-                            console.log(`Textarea: "${textareaContent}"`);
-                            console.log(`Analyzed: "${analyzedContent}"`);
+                            console.log(`🔤 Content mismatch for verse ${verseData.index} in window ${windowId}`);
                         }
                     }
                 });
             }, 100);
+        } else {
+            console.log(`🔤 No target_text for verse ${verseData.index}, skipping highlighting`);
         }
     }
     
@@ -175,15 +219,27 @@ class AdvancedLanguageServer {
     handleAnalysis(verseIndex, analysis, targetId = null) {
         console.log(`🔤 Handling analysis for verse ${verseIndex} from targetId ${targetId}:`, analysis);
         
-        if (!analysis?.suggestions) {
-            console.log('🔤 No analysis suggestions found');
-            this.clearEnhancement(verseIndex);
+        // Always store the analysis (even if empty) - window-specific!
+        if (targetId) {
+            const analysisKey = `${targetId}:${verseIndex}`;
+            this.verseAnalyses.set(analysisKey, analysis || {"suggestions": []});
+            console.log(`🔤 Stored save analysis for ${analysisKey}`);
+        }
+        
+        if (!analysis?.suggestions || analysis.suggestions.length === 0) {
+            console.log('🔤 No analysis suggestions found, clearing enhancements');
+            if (targetId) {
+                // Clear enhancement for specific window
+                const enhancementKey = `${targetId}:${verseIndex}`;
+                this.clearEnhancementByKey(enhancementKey);
+            } else {
+                // Fallback: clear all enhancements for this verse
+                this.clearEnhancement(verseIndex);
+            }
             return;
         }
         
-        this.verseAnalyses.set(verseIndex, analysis);
-        
-        // CRITICAL FIX: Only apply analysis to textareas that belong to the specific targetId
+        // Apply analysis to textareas that belong to the specific targetId
         const textareas = document.querySelectorAll(`textarea[data-verse-index="${verseIndex}"]`);
         textareas.forEach(textarea => {
             const windowId = this.getWindowIdForTextarea(textarea);
@@ -448,15 +504,31 @@ class AdvancedLanguageServer {
     }
     
     addContentDivHandlers(contentDiv, originalTextarea, verseIndex) {
-        // Handle clicks on language issues
-        contentDiv.addEventListener('click', (e) => {
-                    if (e.target.classList.contains('language-suggestion')) {
-            e.preventDefault();
-            const suggestionDataSafe = e.target.dataset.suggestionSafe;
-            const suggestionData = JSON.parse(atob(suggestionDataSafe));
-            this.showSuggestionModal(suggestionData, verseIndex, e.target);
-        }
-        });
+        // Handle hover and clicks on language issues
+        contentDiv.addEventListener('mouseenter', async (e) => {
+            if (e.target.classList.contains('language-suggestion')) {
+                // Cancel any pending hide timeout
+                if (this.tooltipHideTimeout) {
+                    clearTimeout(this.tooltipHideTimeout);
+                    this.tooltipHideTimeout = null;
+                }
+                
+                const suggestionDataSafe = e.target.dataset.suggestionSafe;
+                const suggestionData = JSON.parse(atob(suggestionDataSafe));
+                await this.showSuggestionTooltip(suggestionData, e.target, verseIndex);
+            }
+        }, true);
+        
+        contentDiv.addEventListener('mouseleave', (e) => {
+            if (e.target.classList.contains('language-suggestion')) {
+                // Delay hiding to allow moving to tooltip
+                this.tooltipHideTimeout = setTimeout(() => {
+                    this.hideSuggestionTooltip();
+                }, 300);
+            }
+        }, true);
+        
+        // Click on suggestions is now handled by hover tooltip - no modal needed
         
         // Sync changes back to original textarea
         const syncToTextarea = () => {
@@ -526,6 +598,26 @@ class AdvancedLanguageServer {
         }
     }
     
+    clearAllHighlightingForVerse(verseIndex) {
+        // Clear all enhancements for this verse across all windows
+        const keysToDelete = [];
+        this.enhancedTextareas.forEach((enhancement, key) => {
+            if (key.endsWith(`:${verseIndex}`)) {
+                this.clearEnhancementByKey(key);
+                keysToDelete.push(key);
+            }
+        });
+        
+        // Clear cached analysis for this verse across all windows
+        this.verseAnalyses.forEach((analysis, key) => {
+            if (key.endsWith(`:${verseIndex}`)) {
+                this.verseAnalyses.set(key, {suggestions: []});
+            }
+        });
+        
+        console.log(`🔤 Cleared all highlighting for verse ${verseIndex} across all windows`);
+    }
+    
     clearEnhancementByKey(enhancementKey) {
         const enhancement = this.enhancedTextareas.get(enhancementKey);
         if (enhancement) {
@@ -591,15 +683,49 @@ class AdvancedLanguageServer {
         
         const color = suggestion.color || '#ff6b6b';
         
+        // Check if we have similar words to suggest
+        const hasSimilarWords = suggestion.similar_words && suggestion.similar_words.length > 0;
+        
+        let similarWordsHtml = '';
+        if (hasSimilarWords) {
+            similarWordsHtml = `
+                <div style="margin: 12px 0;">
+                    <h4 style="margin: 0 0 8px 0; color: #333; font-size: 14px; font-weight: bold;">
+                        Did you mean:
+                    </h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                        ${suggestion.similar_words.map(word => `
+                            <button class="similar-word-btn" data-word="${this.escapeHtml(word)}" 
+                                style="
+                                    padding: 6px 12px; 
+                                    border: 1px solid #3b82f6; 
+                                    border-radius: 4px; 
+                                    background: #eff6ff; 
+                                    color: #1d4ed8; 
+                                    cursor: pointer; 
+                                    font-size: 13px; 
+                                    transition: all 0.2s ease;
+                                    font-weight: 500;
+                                "
+                            >
+                                ${this.escapeHtml(word)}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
         modal.innerHTML = `
             <div style="margin-bottom: 16px;">
                 <h3 style="margin: 0 0 8px 0; color: ${color}; font-size: 18px; font-weight: bold;">
-                    Suggestion
+                    Unknown Word
                 </h3>
                 <div style="background: #f8f9fa; padding: 8px 12px; border-radius: 4px; margin-bottom: 8px;">
                     <span style="font-weight: bold; color: ${color};">"${this.escapeHtml(suggestion.substring)}"</span>
                 </div>
                 <p style="margin: 0; color: #666; font-size: 14px;">${this.escapeHtml(suggestion.message)}</p>
+                ${similarWordsHtml}
             </div>
             
             <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: stretch; flex-wrap: nowrap;">
@@ -619,6 +745,7 @@ class AdvancedLanguageServer {
         const ignoreBtn = modal.querySelector('.btn-secondary');
         const addBtn = modal.querySelector('.btn-primary');
         const addAllBtn = modal.querySelector('.btn-add-all');
+        const similarWordBtns = modal.querySelectorAll('.similar-word-btn');
         
         // Add hover effects
         ignoreBtn.addEventListener('mouseenter', () => {
@@ -667,6 +794,25 @@ class AdvancedLanguageServer {
             backdrop.remove();
         });
         
+        // Add similar word click handlers - just add the word to dictionary
+        similarWordBtns.forEach(btn => {
+            btn.addEventListener('mouseenter', () => {
+                btn.style.background = '#dbeafe';
+                btn.style.transform = 'translateY(-1px)';
+            });
+            btn.addEventListener('mouseleave', () => {
+                btn.style.background = '#eff6ff';
+                btn.style.transform = 'translateY(0)';
+            });
+            
+            btn.addEventListener('click', async () => {
+                const word = btn.dataset.word;
+                this.removeSuggestionHighlighting(suggestion, verseIndex);
+                await this.addWordToDictionary(word, verseIndex);
+                backdrop.remove();
+            });
+        });
+        
         // Close on backdrop click
         backdrop.addEventListener('click', (e) => {
             if (e.target === backdrop) {
@@ -705,6 +851,261 @@ class AdvancedLanguageServer {
         } catch (error) {
             console.error('Error adding word to dictionary:', error);
             this.showToast('Error adding word to dictionary', 'error');
+        }
+    }
+    
+    async showSuggestionTooltip(suggestion, element, verseIndex) {
+        // Remove any existing tooltip
+        this.hideSuggestionTooltip();
+        
+        // Fetch suggestions on-demand for better performance
+        const similarWords = await this.fetchWordSuggestions(suggestion.substring);
+        
+        // Create suggestion tooltip with actions
+        const tooltip = document.createElement('div');
+        tooltip.className = 'language-suggestion-tooltip';
+        tooltip.style.cssText = `
+            position: absolute;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            font-size: 12px;
+            max-width: 200px;
+            pointer-events: auto;
+        `;
+        
+        // Word suggestions section
+        let suggestionsHtml = '';
+        if (similarWords && similarWords.length > 0) {
+            suggestionsHtml = `
+                                 <div class="mb-2">
+                     <div class="font-semibold text-gray-700 mb-1 text-xs">
+                         "${this.escapeHtml(suggestion.substring)}" → Suggestions:
+                     </div>
+                     <div class="flex flex-wrap gap-1">
+                                                 ${similarWords.slice(0, 4).map(word => `
+                             <button class="tooltip-suggestion-btn px-2 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-300 text-blue-700 rounded text-xs font-medium transition-all duration-200 hover:scale-105" 
+                                     data-word="${this.escapeHtml(word)}" 
+                                     data-verse-index="${verseIndex}"
+                                     title="Replace with '${this.escapeHtml(word)}' and add to dictionary">
+                                 ${this.escapeHtml(word)}
+                             </button>
+                         `).join('')}
+                    </div>
+                </div>
+            `;
+                 } else {
+             suggestionsHtml = `
+                 <div class="mb-2">
+                     <div class="font-semibold text-gray-700 mb-1 text-xs">
+                         "${this.escapeHtml(suggestion.substring)}" not in dictionary
+                     </div>
+                 </div>
+             `;
+        }
+        
+        // Action buttons section with icons
+        const actionsHtml = `
+            <div class="flex gap-2 border-t border-gray-200 pt-2">
+                <button class="tooltip-add-btn flex items-center gap-1 px-2 py-1 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-700 rounded text-xs font-medium transition-all duration-200 hover:scale-105" 
+                        data-word="${this.escapeHtml(suggestion.substring)}" 
+                        data-verse-index="${verseIndex}"
+                        title="Add '${this.escapeHtml(suggestion.substring)}' to dictionary">
+                    <span class="text-sm">✓</span>
+                    <span>Add</span>
+                </button>
+                <button class="tooltip-add-all-btn flex items-center gap-1 px-2 py-1 bg-blue-100 hover:bg-blue-200 border border-blue-300 text-blue-700 rounded text-xs font-medium transition-all duration-200 hover:scale-105" 
+                        data-verse-index="${verseIndex}"
+                        title="Add all unknown words in this verse to dictionary">
+                    <span class="text-sm">✓✓</span>
+                    <span>All</span>
+                </button>
+            </div>
+        `;
+        
+        tooltip.innerHTML = suggestionsHtml + actionsHtml;
+        
+        // Add click handlers for suggestion buttons
+        tooltip.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            
+            if (e.target.classList.contains('tooltip-suggestion-btn') || e.target.closest('.tooltip-suggestion-btn')) {
+                const btn = e.target.classList.contains('tooltip-suggestion-btn') ? e.target : e.target.closest('.tooltip-suggestion-btn');
+                const correctedWord = btn.dataset.word;
+                const verseIndex = parseInt(btn.dataset.verseIndex);
+                
+                // Replace the misspelled word with the suggestion
+                this.replaceWordInText(suggestion.substring, correctedWord, verseIndex);
+                
+                // Add corrected word to dictionary
+                await this.addWordToDictionary(correctedWord, verseIndex);
+                
+                // Hide tooltip
+                this.hideSuggestionTooltip();
+            }
+                         else if (e.target.classList.contains('tooltip-add-btn') || e.target.closest('.tooltip-add-btn')) {
+                 const btn = e.target.classList.contains('tooltip-add-btn') ? e.target : e.target.closest('.tooltip-add-btn');
+                 const word = btn.dataset.word;
+                 const verseIndex = parseInt(btn.dataset.verseIndex);
+                 
+                 // Remove highlighting and add original word to dictionary
+                 this.removeSuggestionHighlighting(suggestion, verseIndex);
+                 await this.addWordToDictionary(word, verseIndex);
+                 
+                 // Hide tooltip
+                 this.hideSuggestionTooltip();
+             }
+             else if (e.target.classList.contains('tooltip-add-all-btn') || e.target.closest('.tooltip-add-all-btn')) {
+                 const btn = e.target.classList.contains('tooltip-add-all-btn') ? e.target : e.target.closest('.tooltip-add-all-btn');
+                 const verseIndex = parseInt(btn.dataset.verseIndex);
+                 
+                 // Add all words and let reanalysis handle highlighting
+                 await this.addAllWordsToDictionary(verseIndex);
+                 
+                 // Hide tooltip
+                 this.hideSuggestionTooltip();
+             }
+        });
+        
+        // Hover effects are now handled by Tailwind classes
+        
+        // Handle tooltip hover to keep it visible
+        tooltip.addEventListener('mouseenter', () => {
+            if (this.tooltipHideTimeout) {
+                clearTimeout(this.tooltipHideTimeout);
+                this.tooltipHideTimeout = null;
+            }
+        });
+        
+        tooltip.addEventListener('mouseleave', () => {
+            this.hideSuggestionTooltip();
+        });
+        
+        // Position the tooltip
+        document.body.appendChild(tooltip);
+        this.positionTooltip(tooltip, element);
+        
+        this.currentTooltip = tooltip;
+    }
+    
+    createSimpleTooltip(suggestion, element) {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'language-suggestion-tooltip';
+        tooltip.style.cssText = `
+            position: absolute;
+            background: #1f2937;
+            color: white;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: 12px;
+            z-index: 1000;
+            pointer-events: none;
+        `;
+        
+        tooltip.textContent = suggestion.message || `"${suggestion.substring}" not in dictionary`;
+        
+        document.body.appendChild(tooltip);
+        this.positionTooltip(tooltip, element);
+        
+        this.currentTooltip = tooltip;
+    }
+    
+    positionTooltip(tooltip, element) {
+        const elementRect = element.getBoundingClientRect();
+        const tooltipRect = tooltip.getBoundingClientRect();
+        
+        // Position above the element by default
+        let top = elementRect.top - tooltipRect.height - 8;
+        let left = elementRect.left + (elementRect.width / 2) - (tooltipRect.width / 2);
+        
+        // Adjust if tooltip would go off screen
+        if (top < 10) {
+            // Position below instead
+            top = elementRect.bottom + 8;
+        }
+        
+        if (left < 10) {
+            left = 10;
+        } else if (left + tooltipRect.width > window.innerWidth - 10) {
+            left = window.innerWidth - tooltipRect.width - 10;
+        }
+        
+        tooltip.style.top = `${top + window.scrollY}px`;
+        tooltip.style.left = `${left + window.scrollX}px`;
+    }
+    
+    hideSuggestionTooltip() {
+        if (this.tooltipHideTimeout) {
+            clearTimeout(this.tooltipHideTimeout);
+            this.tooltipHideTimeout = null;
+        }
+        
+        if (this.currentTooltip) {
+            this.currentTooltip.remove();
+            this.currentTooltip = null;
+        }
+    }
+    
+    replaceWordInText(originalWord, correctedWord, verseIndex) {
+        // Find the enhanced textarea for this verse
+        this.enhancedTextareas.forEach((enhancement, key) => {
+            if (key.includes(`:${verseIndex}`) && enhancement.contentDiv) {
+                const contentDiv = enhancement.contentDiv;
+                const originalTextarea = enhancement.textarea;
+                
+                // Replace in contentDiv HTML (preserve highlighting for other words)
+                let innerHTML = contentDiv.innerHTML;
+                const regex = new RegExp(`\\b${this.escapeRegex(originalWord)}\\b`, 'gi');
+                innerHTML = innerHTML.replace(regex, correctedWord);
+                contentDiv.innerHTML = innerHTML;
+                
+                // Update the original textarea
+                const plainText = contentDiv.textContent || contentDiv.innerText || '';
+                originalTextarea.value = plainText;
+                
+                // Trigger input event for auto-save
+                const inputEvent = new Event('input', { bubbles: true });
+                originalTextarea.dispatchEvent(inputEvent);
+                
+                console.log(`🔤 Replaced "${originalWord}" with "${correctedWord}" in verse ${verseIndex}`);
+            }
+        });
+    }
+    
+    escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    
+    async fetchWordSuggestions(word) {
+        console.log(`🔤 Fetching suggestions for word: "${word}"`);
+        try {
+            const projectId = window.translationEditor?.projectId;
+            if (!projectId) {
+                console.log('🔤 No project ID available for suggestions');
+                return [];
+            }
+            
+            const url = `/project/${projectId}/language-server/suggestions/${encodeURIComponent(word)}`;
+            console.log(`🔤 Making request to: ${url}`);
+            
+            const response = await fetch(url);
+            const result = await response.json();
+            
+            console.log(`🔤 Suggestions response:`, result);
+            
+            if (result.success) {
+                console.log(`🔤 Found ${result.suggestions?.length || 0} suggestions for "${word}":`, result.suggestions);
+                return result.suggestions || [];
+            } else {
+                console.warn('🔤 Failed to fetch word suggestions:', result.error);
+                return [];
+            }
+        } catch (error) {
+            console.warn('🔤 Error fetching word suggestions:', error);
+            return [];
         }
     }
 
@@ -774,9 +1175,11 @@ class AdvancedLanguageServer {
                 this.showToast(`Failed to add ${errorCount} words`, 'warning');
             }
             
-            // Clear all highlighting and re-analyze
-            this.clearEnhancement(verseIndex);
-            this.reanalyzeVerse(verseIndex);
+            // Always reanalyze to update server-side stored analysis with new dictionary
+            console.log(`🔤 Words added to dictionary, re-analyzing verse ${verseIndex} to update server analysis`);
+            setTimeout(() => {
+                this.reanalyzeVerse(verseIndex);
+            }, 500);
             
         } catch (error) {
             console.error('Error adding words to dictionary:', error);
@@ -849,15 +1252,16 @@ class AdvancedLanguageServer {
             }
         });
         
-        // Also remove from cached analysis so it doesn't reappear
-        const analysis = this.verseAnalyses.get(verseIndex);
-        if (analysis && analysis.suggestions) {
-            analysis.suggestions = analysis.suggestions.filter(item => 
-                !(item.substring === suggestion.substring && 
-                  item.start === suggestion.start && 
-                  item.end === suggestion.end)
-            );
-        }
+        // Also remove from cached analysis so it doesn't reappear (check all windows)
+        this.verseAnalyses.forEach((analysis, key) => {
+            if (key.endsWith(`:${verseIndex}`) && analysis.suggestions) {
+                analysis.suggestions = analysis.suggestions.filter(item => 
+                    !(item.substring === suggestion.substring && 
+                      item.start === suggestion.start && 
+                      item.end === suggestion.end)
+                );
+            }
+        });
     }
 
     findTextarea(verseIndex) {
@@ -1034,15 +1438,31 @@ class AdvancedLanguageServer {
             originalTextarea.dispatchEvent(new Event('focus', { bubbles: true }));
         });
         
-        // Handle suggestion clicks
-        contentDiv.addEventListener('click', (e) => {
+        // Handle suggestion hover and click
+        contentDiv.addEventListener('mouseenter', async (e) => {
             if (e.target.classList.contains('language-suggestion')) {
-                e.preventDefault();
+                // Cancel any pending hide timeout
+                if (this.tooltipHideTimeout) {
+                    clearTimeout(this.tooltipHideTimeout);
+                    this.tooltipHideTimeout = null;
+                }
+                
                 const suggestionDataSafe = e.target.dataset.suggestionSafe;
                 const suggestionData = JSON.parse(atob(suggestionDataSafe));
-                this.showSuggestionModal(suggestionData, verseIndex, e.target);
+                await this.showSuggestionTooltip(suggestionData, e.target, verseIndex);
             }
-        });
+        }, true);
+        
+        contentDiv.addEventListener('mouseleave', (e) => {
+            if (e.target.classList.contains('language-suggestion')) {
+                // Delay hiding to allow moving to tooltip
+                this.tooltipHideTimeout = setTimeout(() => {
+                    this.hideSuggestionTooltip();
+                }, 300);
+            }
+        }, true);
+        
+        // Click on suggestions is now handled by hover tooltip - no modal needed
         
         // Prevent losing focus when clicking suggestions
         contentDiv.addEventListener('mousedown', (e) => {
@@ -1055,6 +1475,18 @@ class AdvancedLanguageServer {
 
 // Initialize global instance
 window.languageServer = new AdvancedLanguageServer();
+console.log('🔤 AdvancedLanguageServer initialized and ready');
+
+// Hide tooltips when clicking elsewhere or scrolling
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.language-suggestion-tooltip') && !e.target.classList.contains('language-suggestion')) {
+        window.languageServer.hideSuggestionTooltip();
+    }
+});
+
+document.addEventListener('scroll', () => {
+    window.languageServer.hideSuggestionTooltip();
+}, true);
 
 // Debug function to test re-analysis manually
 window.testLanguageServerReanalysis = function(verseIndex) {
@@ -1158,8 +1590,8 @@ window.testBulkDictionaryAdd = async function(verseIndex = 1, testText = null) {
 };
 
 // Process verses that come with analysis data from initial load
-window.processVerseWithAnalysis = (verseData) => {
-    window.languageServer.processVerseWithAnalysis(verseData);
+window.processVerseWithAnalysis = (verseData, specificWindowId = null) => {
+    window.languageServer.processVerseWithAnalysis(verseData, specificWindowId);
 };
 
 // Debug function to show language server status for all windows
@@ -1182,4 +1614,6 @@ window.showLanguageServerStatus = function() {
     });
 };
 
-console.log('🔤 Advanced Language Server ready'); 
+console.log('🔤 Advanced Language Server ready');
+
+ 

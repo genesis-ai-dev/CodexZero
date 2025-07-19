@@ -284,11 +284,12 @@ class TranslationSave {
 
             // Dispatch verse-saved event with analysis if available
             if (data.analysis) {
+                console.log(`🔤 Dispatching verse-saved event for verse ${verseIndex} with analysis:`, data.analysis);
                 document.dispatchEvent(new CustomEvent('verse-saved', {
                     detail: {
-                        verseIndex: verseIndex,
+                        verseIndex: data.verseIndex || verseIndex,  // Use backend's verseIndex if provided
                         analysis: data.analysis,
-                        targetId: saveTargetId
+                        targetId: data.targetId || saveTargetId    // Use backend's targetId if provided
                     }
                 }));
             }

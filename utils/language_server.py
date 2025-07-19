@@ -4,6 +4,7 @@ import unicodedata
 from typing import List, Dict, Set
 
 from models import db, ProjectDictionary
+from utils.spell_checker import SpellChecker
 
 
 class LanguageServerService:
@@ -12,6 +13,7 @@ class LanguageServerService:
     def __init__(self, project_id: int):
         self.project_id = project_id
         self.approved_words = None  # Lazy load
+        self.spell_checker = None  # Lazy load
     
     def _ensure_dictionary(self):
         """Load dictionary on first use"""
@@ -21,6 +23,11 @@ class LanguageServerService:
                 approved=True
             ).all()
             self.approved_words = {self._normalize_word(entry.word) for entry in entries}
+            
+            # Initialize spell checker with approved words
+            if self.spell_checker is None:
+                original_words = {entry.word for entry in entries}
+                self.spell_checker = SpellChecker(original_words)
     
     def _normalize_word(self, word: str) -> str:
         """Normalize word for consistent comparison across Unicode encodings"""
@@ -173,16 +180,29 @@ class LanguageServerService:
         for word, start, end in words:
             normalized_word = self._normalize_word(word)
             if normalized_word and normalized_word not in self.approved_words:
-                suggestions.append({
+                # Just flag unknown words - don't generate suggestions yet
+                suggestion = {
                     "substring": word,
                     "start": start,
                     "end": end,
-                    "color": "#ff6b6b",  # Red for dictionary suggestions
+                    "color": "#ff6b6b",
                     "message": f"'{word}' not in dictionary",
                     "actions": ["add_to_dictionary"]
-                })
+                }
+                
+                suggestions.append(suggestion)
         
         return {"suggestions": suggestions}
+    
+    def get_word_suggestions(self, word: str) -> List[str]:
+        """Get spelling suggestions for a specific word (called on hover)"""
+        self._ensure_dictionary()
+        
+        if not self.spell_checker:
+            return []
+        
+        suggestions_with_scores = self.spell_checker.get_suggestions(word, max_suggestions=5)
+        return [word for word, score in suggestions_with_scores]
 
     def add_word_to_dictionary(self, word: str, user_id: int) -> bool:
         """Add word to project dictionary, returns True if word was actually added"""
@@ -209,6 +229,10 @@ class LanguageServerService:
             # Update cache if loaded (use normalized form for lookup)
             if self.approved_words is not None:
                 self.approved_words.add(normalized_word)
+            
+            # Update spell checker
+            if self.spell_checker is not None:
+                self.spell_checker.update_dictionary({word})
             
             return True
         
@@ -250,7 +274,11 @@ class LanguageServerService:
             # Update cache if loaded
             if self.approved_words is not None:
                 for word in added_words:
-                    self.approved_words.add(word.lower())
+                    self.approved_words.add(self._normalize_word(word))
+            
+            # Update spell checker
+            if self.spell_checker is not None:
+                self.spell_checker.update_dictionary(set(added_words))
         
         return len(added_words)
 

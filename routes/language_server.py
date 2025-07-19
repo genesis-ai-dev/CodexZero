@@ -112,6 +112,7 @@ def execute_action(project_id):
                 'message': f'Ignored suggestion for "{substring}"'
             })
         
+
         else:
             return jsonify({
                 'success': False,
@@ -173,6 +174,29 @@ def add_bulk_to_dictionary(project_id):
         'added_count': added_count,
         'total_words': len(words)
     })
+
+
+@language_server.route('/project/<int:project_id>/language-server/suggestions/<word>', methods=['GET'])
+@login_required
+def get_word_suggestions(project_id, word):
+    """Get spelling suggestions for a specific word"""
+    require_project_access(project_id, "viewer")
+    
+    try:
+        ls = LanguageServerService(project_id)
+        suggestions = ls.get_word_suggestions(word)
+        
+        return jsonify({
+            'success': True,
+            'word': word,
+            'suggestions': suggestions
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
  
