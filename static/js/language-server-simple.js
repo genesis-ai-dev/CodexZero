@@ -817,10 +817,12 @@ class AdvancedLanguageServer {
     async showSuggestionTooltip(suggestion, element, verseIndex) {
         // Remove any existing tooltip
         this.hideSuggestionTooltip();
-        
-        // Fetch suggestions on-demand for better performance
-        const similarWords = await this.fetchWordSuggestions(suggestion.substring);
-        
+
+        const isSmartEdit = suggestion.actions?.includes('apply_smart_edit');
+
+        // Fetch suggestions on-demand for better performance (only for spell check)
+        const similarWords = isSmartEdit ? [] : await this.fetchWordSuggestions(suggestion.substring);
+
         // Create suggestion tooltip with actions
         const tooltip = document.createElement('div');
         tooltip.className = 'language-suggestion-tooltip';
@@ -836,11 +838,32 @@ class AdvancedLanguageServer {
             max-width: 200px;
             pointer-events: auto;
         `;
-        
-        // Word suggestions section
-        let suggestionsHtml = '';
-        if (similarWords && similarWords.length > 0) {
-            suggestionsHtml = `
+
+        let contentHtml = '';
+
+        if (isSmartEdit) {
+            // --- Smart Edit Tooltip ---
+            contentHtml = `
+                <div class="mb-2">
+                    <div class="font-semibold text-gray-700 mb-1 text-xs" style="color: ${suggestion.color};">
+                        ${this.escapeHtml(suggestion.message)}
+                    </div>
+                    <div class="flex flex-wrap gap-1">
+                        <button class="tooltip-smart-edit-btn px-2 py-1 bg-purple-50 hover:bg-purple-100 border border-purple-300 text-purple-700 rounded text-xs font-medium transition-all duration-200 hover:scale-105" 
+                                data-replacement="${this.escapeHtml(suggestion.replacement)}"
+                                data-original="${this.escapeHtml(suggestion.substring)}"
+                                data-verse-index="${verseIndex}"
+                                title="Apply suggestion: '${this.escapeHtml(suggestion.replacement)}'">
+                            "${this.escapeHtml(suggestion.replacement)}"
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            // --- Spelling Tooltip ---
+            let suggestionsHtml = '';
+            if (similarWords && similarWords.length > 0) {
+                suggestionsHtml = `
                                  <div class="mb-2">
                      <div class="font-semibold text-gray-700 mb-1 text-xs">
                          "${this.escapeHtml(suggestion.substring)}" → Suggestions:
@@ -866,69 +889,92 @@ class AdvancedLanguageServer {
                  </div>
              `;
         }
+
+            contentHtml = `
+                ${suggestionsHtml}
+                <div class="border-t border-gray-200 mt-2 pt-2 flex items-center justify-between gap-1">
+                    <button class="tooltip-add-btn flex items-center gap-1 px-2 py-1 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-700 rounded text-xs font-medium transition-all duration-200 hover:scale-105" 
+                            data-word="${this.escapeHtml(suggestion.substring)}" 
+                            data-verse-index="${verseIndex}"
+                            title="Add '${this.escapeHtml(suggestion.substring)}' to dictionary">
+                        <span class="text-sm">✓</span>
+                        <span>Add</span>
+                    </button>
+                    <button class="tooltip-add-all-btn flex items-center gap-1 px-2 py-1 bg-blue-100 hover:bg-blue-200 border border-blue-300 text-blue-700 rounded text-xs font-medium transition-all duration-200 hover:scale-105" 
+                            data-verse-index="${verseIndex}"
+                            title="Add all unknown words in this verse to dictionary">
+                        <span class="text-sm">✓✓</span>
+                        <span>All</span>
+                    </button>
+                </div>
+            `;
+        }
         
-        // Action buttons section with icons
-        const actionsHtml = `
-            <div class="flex gap-2 border-t border-gray-200 pt-2">
-                <button class="tooltip-add-btn flex items-center gap-1 px-2 py-1 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-700 rounded text-xs font-medium transition-all duration-200 hover:scale-105" 
-                        data-word="${this.escapeHtml(suggestion.substring)}" 
-                        data-verse-index="${verseIndex}"
-                        title="Add '${this.escapeHtml(suggestion.substring)}' to dictionary">
-                    <span class="text-sm">✓</span>
-                    <span>Add</span>
-                </button>
-                <button class="tooltip-add-all-btn flex items-center gap-1 px-2 py-1 bg-blue-100 hover:bg-blue-200 border border-blue-300 text-blue-700 rounded text-xs font-medium transition-all duration-200 hover:scale-105" 
-                        data-verse-index="${verseIndex}"
-                        title="Add all unknown words in this verse to dictionary">
-                    <span class="text-sm">✓✓</span>
-                    <span>All</span>
-                </button>
-            </div>
-        `;
-        
-        tooltip.innerHTML = suggestionsHtml + actionsHtml;
-        
-        // Add click handlers for suggestion buttons
-        tooltip.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            
-            if (e.target.classList.contains('tooltip-suggestion-btn') || e.target.closest('.tooltip-suggestion-btn')) {
-                const btn = e.target.classList.contains('tooltip-suggestion-btn') ? e.target : e.target.closest('.tooltip-suggestion-btn');
-                const correctedWord = btn.dataset.word;
-                const verseIndex = parseInt(btn.dataset.verseIndex);
-                
-                // Replace the misspelled word with the suggestion
-                this.replaceWordInText(suggestion.substring, correctedWord, verseIndex);
-                
-                // Add corrected word to dictionary
-                await this.addWordToDictionary(correctedWord, verseIndex);
-                
-                // Hide tooltip
-                this.hideSuggestionTooltip();
+        tooltip.innerHTML = contentHtml;
+
+        // --- Event Handlers ---
+        if (isSmartEdit) {
+            const applyBtn = tooltip.querySelector('.tooltip-smart-edit-btn');
+            if (applyBtn) {
+                applyBtn.addEventListener('click', (e) => {
+                    const original = e.currentTarget.dataset.original;
+                    const replacement = e.currentTarget.dataset.replacement;
+                    this.replaceWordInText(original, replacement, verseIndex);
+                    this.hideSuggestionTooltip();
+                    // No need to add to dictionary, just re-analyze
+                    this.reanalyzeVerse(verseIndex);
+                });
             }
-                         else if (e.target.classList.contains('tooltip-add-btn') || e.target.closest('.tooltip-add-btn')) {
-                 const btn = e.target.classList.contains('tooltip-add-btn') ? e.target : e.target.closest('.tooltip-add-btn');
-                 const word = btn.dataset.word;
-                 const verseIndex = parseInt(btn.dataset.verseIndex);
-                 
-                 // Remove highlighting and add original word to dictionary
-                 this.removeSuggestionHighlighting(suggestion, verseIndex);
-                 await this.addWordToDictionary(word, verseIndex);
-                 
-                 // Hide tooltip
-                 this.hideSuggestionTooltip();
-             }
-             else if (e.target.classList.contains('tooltip-add-all-btn') || e.target.closest('.tooltip-add-all-btn')) {
-                 const btn = e.target.classList.contains('tooltip-add-all-btn') ? e.target : e.target.closest('.tooltip-add-all-btn');
-                 const verseIndex = parseInt(btn.dataset.verseIndex);
-                 
-                 // Add all words and let reanalysis handle highlighting
-                 await this.addAllWordsToDictionary(verseIndex);
-                 
-                 // Hide tooltip
-                 this.hideSuggestionTooltip();
-             }
-        });
+        } else {
+            // Spelling handlers
+            const suggestionBtns = tooltip.querySelectorAll('.tooltip-suggestion-btn');
+            suggestionBtns.forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const btn = e.target.classList.contains('tooltip-suggestion-btn') ? e.target : e.target.closest('.tooltip-suggestion-btn');
+                    const correctedWord = btn.dataset.word;
+                    const verseIndex = parseInt(btn.dataset.verseIndex);
+                    
+                    // Replace the misspelled word with the suggestion
+                    this.replaceWordInText(suggestion.substring, correctedWord, verseIndex);
+                    
+                    // Add corrected word to dictionary
+                    await this.addWordToDictionary(correctedWord, verseIndex);
+                    
+                    // Hide tooltip
+                    this.hideSuggestionTooltip();
+                });
+            });
+
+            const addBtn = tooltip.querySelector('.tooltip-add-btn');
+            if (addBtn) {
+                addBtn.addEventListener('click', async (e) => {
+                    const btn = e.target.classList.contains('tooltip-add-btn') ? e.target : e.target.closest('.tooltip-add-btn');
+                    const word = btn.dataset.word;
+                    const verseIndex = parseInt(btn.dataset.verseIndex);
+                    
+                    // Remove highlighting and add original word to dictionary
+                    this.removeSuggestionHighlighting(suggestion, verseIndex);
+                    await this.addWordToDictionary(word, verseIndex);
+                    
+                    // Hide tooltip
+                    this.hideSuggestionTooltip();
+                });
+            }
+
+            const addAllBtn = tooltip.querySelector('.tooltip-add-all-btn');
+            if (addAllBtn) {
+                addAllBtn.addEventListener('click', async (e) => {
+                    const btn = e.target.classList.contains('tooltip-add-all-btn') ? e.target : e.target.closest('.tooltip-add-all-btn');
+                    const verseIndex = parseInt(btn.dataset.verseIndex);
+                    
+                    // Add all words and let reanalysis handle highlighting
+                    await this.addAllWordsToDictionary(verseIndex);
+                    
+                    // Hide tooltip
+                    this.hideSuggestionTooltip();
+                });
+            }
+        }
         
         // Hover effects are now handled by Tailwind classes
         

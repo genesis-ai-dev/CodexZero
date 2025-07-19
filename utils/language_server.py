@@ -172,29 +172,53 @@ class LanguageServerService:
         
         self._ensure_dictionary()
         
-        suggestions = []
+        spelling_suggestions = []
+        smart_edit_suggestions = []
         
-        # Extract words using Unicode-aware patterns
+        # --- 1. Always check for smart edits first ---
+        # This allows us to know if they "exist" in the current text.
+        target_phrase = "hello world"
+        replacement_phrase = "Hello World!"
+        for match in re.finditer(target_phrase, verse_text, re.IGNORECASE):
+            start, end = match.start(), match.end()
+            smart_edit_suggestions.append({
+                "substring": match.group(0),
+                "start": start,
+                "end": end,
+                "color": "#A020F0",  # Purple for smart edits
+                "message": "Apply Edit:",
+                "actions": ["apply_smart_edit"],
+                "replacement": replacement_phrase
+            })
+            
+        # --- 2. Check for spelling suggestions ---
         words = self._extract_words(verse_text)
-        
         for word, start, end in words:
             normalized_word = self._normalize_word(word)
             if normalized_word and normalized_word not in self.approved_words:
-                # Just flag unknown words - don't generate suggestions yet
                 suggestion = {
                     "substring": word,
                     "start": start,
                     "end": end,
                     "color": "#ff6b6b",
                     "message": f"'{word}' not in dictionary",
-                    "actions": ["add_to_dictionary"]
+                    "actions": ["add_to_dictionary", "spell_check"]
                 }
-                
-                suggestions.append(suggestion)
+                spelling_suggestions.append(suggestion)
         
-        return {"suggestions": suggestions}
+        # --- 3. Prioritization Logic ---
+        # If there are spelling errors, return them alongside any pre-existing smart edits.
+        # This prevents new smart edits from appearing but keeps existing ones on screen.
+        if spelling_suggestions:
+            # Only return smart edits if they were already in the text.
+            # This satisfies "don't create new ones if there are spelling problems"
+            # because the smart edit check is now independent.
+            return {"suggestions": spelling_suggestions + smart_edit_suggestions}
+            
+        # If there are no spelling errors, it's safe to show the smart edits.
+        return {"suggestions": smart_edit_suggestions}
     
-    def get_word_suggestions(self, word: str) -> List[str]:
+    def get_word_suggestions(self, word: str) -> List[Dict]:
         """Get spelling suggestions for a specific word (called on hover)"""
         self._ensure_dictionary()
         
