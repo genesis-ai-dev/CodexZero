@@ -19,22 +19,12 @@ class VerseEditHistoryService:
     ) -> VerseEditHistory:
         """Record a verse edit in history - simplified version"""
         
-        # Add logging to track revision creation
-        import time
-        timestamp = time.time()
-        print(f"📚 HISTORY SERVICE: record_edit called at {timestamp}")
-        print(f"   📝 Text: {text_id}, Verse: {verse_index}, User: {user_id}")
-        print(f"   📄 Previous: '{previous_text[:30]}{'...' if len(previous_text) > 30 else ''}'")
-        print(f"   📄 New: '{new_text[:30]}{'...' if len(new_text) > 30 else ''}'")
-        print(f"   🏷️  Type: {edit_type}, Source: {edit_source}")
-        
         # Normalize text consistently with save routes - join split to clean whitespace
         previous_text = ' '.join(previous_text.split()) if previous_text else ''
         new_text = ' '.join(new_text.split()) if new_text else ''
         
         # Skip recording if no actual change (more robust comparison)
         if previous_text == new_text and edit_type == 'update':
-            print(f"🚫 HISTORY SERVICE: Skipping duplicate revision - no text change for verse {verse_index}")
             return None
         
         # Create history record

@@ -467,45 +467,9 @@
             }, 133); // 50% faster than 200ms (200 * 0.67 ≈ 133)
         };
 
-        // Add test functions
-        window.testTransform = function() {
-            console.log('Manual transform test triggered');
-            applyInitialTransform();
-        };
-        
-        window.stopAllMorphing = function() {
-            console.log('Stopping all morphing...');
-            if (morphingInterval) {
-                clearInterval(morphingInterval);
-                morphingInterval = null;
-            }
-        };
-        
-        window.restartMorphing = function() {
-            console.log('Manual restart triggered');
-            applyInitialTransform();
-            setTimeout(() => {
-                window.startLokiEffect();
-            }, 500);
-        };
-        
-        window.getMorphingStatus = function() {
-            console.log(`Morphing active: ${morphingInterval !== null}`);
-            console.log(`Frozen elements: ${frozenElements.size}`);
-            console.log(`Total morphable elements: ${morphableElements.length}`);
-            return {
-                active: morphingInterval !== null,
-                frozen: frozenElements.size,
-                total: morphableElements.length
-            };
-        };
 
-        // Also add a simple test on page load
-        setTimeout(() => {
-            console.log('Testing character transformation...');
-            console.log('Original: CodexZero');
-            console.log('Transformed:', transformText('CodexZero'));
-        }, 500);
+
+
     </script>
 
     <!-- Notification System -->

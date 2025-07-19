@@ -48,10 +48,7 @@ class TranslationSave {
         
         // DEBUGGING: Log which textarea this change is coming from
         const focusedWindow = this.currentFocusedTextarea ? this.getWindowForTextarea(this.currentFocusedTextarea) : null;
-        console.log(`💾 Auto-saving verse ${verseIndex}: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
-        if (focusedWindow) {
-            console.log(`💾 Change from window: ${focusedWindow.title} (${focusedWindow.type})`);
-        }
+
         
         // Auto-save immediately when user moves between cells
         this.autoSaveVerse(verseIndex, text);
@@ -87,7 +84,6 @@ class TranslationSave {
                 for (const [id, window] of this.editor.textWindows) {
                     if (window.element?.contains(focusedTextarea)) {
                         correctTargetId = id;
-                        console.log(`💾 Saving verse ${verseIndex} from focused textarea in window ${id}`);
                         break;
                     }
                 }
@@ -100,7 +96,6 @@ class TranslationSave {
                         for (const [id, window] of this.editor.textWindows) {
                             if (window.element?.contains(textarea)) {
                                 correctTargetId = id;
-                                console.log(`💾 Saving verse ${verseIndex} from matching content in window ${id}`);
                                 break;
                             }
                         }
@@ -197,7 +192,7 @@ class TranslationSave {
                             for (const [id, window] of this.editor.textWindows) {
                                 if (window.element?.contains(textarea)) {
                                     correctTargetId = id;
-                                    console.log(`💾 Bulk save: verse ${verseIndex} from window ${id}`);
+                        
                                     break;
                                 }
                             }

@@ -7,7 +7,7 @@ class AdvancedLanguageServer {
         this.analysisTimeouts = new Map(); // verseIndex -> timeout ID
         this.currentTooltip = null; // Store current tooltip element
         this.tooltipHideTimeout = null; // Delay hiding tooltip
-        console.log('🔤 AdvancedLanguageServer: Initialized');
+
     }
     
     // Check if language server should be enabled for this window
@@ -45,7 +45,6 @@ class AdvancedLanguageServer {
         // Update toggle button state
         this.updateToggleButton(windowId, newEnabled);
         
-        console.log(`🔤 Language server ${newEnabled ? 'enabled' : 'disabled'} for window ${windowId}`);
         return newEnabled;
     }
     
@@ -145,15 +144,11 @@ class AdvancedLanguageServer {
 
     // Process verse data that comes with analysis (from initial load)
     processVerseWithAnalysis(verseData, specificWindowId = null) {
-        console.log(`🔤 Processing verse ${verseData.index} with analysis for window ${specificWindowId}:`, verseData.analysis);
-        console.log(`🔤 Verse has target_text: "${verseData.target_text}"`);
-        
         // Store analysis if provided (backend now always provides this)
         // CRITICAL FIX: Store analysis by window+verse, not just verse
         if (verseData.analysis && specificWindowId) {
             const analysisKey = `${specificWindowId}:${verseData.index}`;
             this.verseAnalyses.set(analysisKey, verseData.analysis);
-            console.log(`🔤 Stored analysis for ${analysisKey} with ${verseData.analysis.suggestions?.length || 0} suggestions`);
         }
         
         // Apply highlighting immediately if we have content and analysis
@@ -165,24 +160,19 @@ class AdvancedLanguageServer {
                     const textWindow = window.translationEditor?.textWindows?.get(specificWindowId);
                     if (textWindow?.element) {
                         textareas = textWindow.element.querySelectorAll(`textarea[data-verse-index="${verseData.index}"]`);
-                        console.log(`🔤 Found ${textareas.length} textareas for verse ${verseData.index} in specific window ${specificWindowId}`);
                     } else {
-                        console.log(`🔤 Window ${specificWindowId} not found or has no element`);
                         textareas = [];
                     }
                 } else {
                     // Fallback: search all textareas (legacy behavior)
                     textareas = document.querySelectorAll(`textarea[data-verse-index="${verseData.index}"]`);
-                    console.log(`🔤 Found ${textareas.length} textareas for verse ${verseData.index} (all windows)`);
                 }
                 
                 textareas.forEach(textarea => {
                     const windowId = this.getWindowIdForTextarea(textarea);
-                    console.log(`🔤 Textarea in window ${windowId}, enabled: ${this.isEnabledForWindow(windowId)}`);
                     
                     // If specific window provided, only process that window
                     if (specificWindowId && windowId !== specificWindowId) {
-                        console.log(`🔤 Skipping window ${windowId} (not target ${specificWindowId}) for verse ${verseData.index}`);
                         return;
                     }
                     
@@ -190,44 +180,29 @@ class AdvancedLanguageServer {
                         const textareaContent = textarea.value || '';
                         const analyzedContent = verseData.target_text || '';
                         
-                        console.log(`🔤 Comparing content: textarea="${textareaContent}" vs analyzed="${analyzedContent}"`);
-                        
                         if (textareaContent === analyzedContent) {
-                            console.log(`🔤 Content matches for verse ${verseData.index} in window ${windowId}, applying analysis`);
-                            
                             // Use the analysis from the verse data (window-specific!)
                             const analysisKey = `${windowId}:${verseData.index}`;
                             const analysis = this.verseAnalyses.get(analysisKey);
                             if (analysis && analysis.suggestions && analysis.suggestions.length > 0) {
-                                console.log(`🔤 Applying ${analysis.suggestions.length} suggestions to verse ${verseData.index} from ${analysisKey}`);
                                 this.enhanceTextareaSpecific(textarea, verseData.index, analysis);
-                            } else {
-                                console.log(`🔤 No suggestions to apply for verse ${verseData.index} (key: ${analysisKey})`);
                             }
-                        } else {
-                            console.log(`🔤 Content mismatch for verse ${verseData.index} in window ${windowId}`);
                         }
                     }
                 });
             }, 100);
-        } else {
-            console.log(`🔤 No target_text for verse ${verseData.index}, skipping highlighting`);
         }
     }
     
     // Handle analysis from save operations
     handleAnalysis(verseIndex, analysis, targetId = null) {
-        console.log(`🔤 Handling analysis for verse ${verseIndex} from targetId ${targetId}:`, analysis);
-        
         // Always store the analysis (even if empty) - window-specific!
         if (targetId) {
             const analysisKey = `${targetId}:${verseIndex}`;
             this.verseAnalyses.set(analysisKey, analysis || {"suggestions": []});
-            console.log(`🔤 Stored save analysis for ${analysisKey}`);
         }
         
         if (!analysis?.suggestions || analysis.suggestions.length === 0) {
-            console.log('🔤 No analysis suggestions found, clearing enhancements');
             if (targetId) {
                 // Clear enhancement for specific window
                 const enhancementKey = `${targetId}:${verseIndex}`;
@@ -246,14 +221,10 @@ class AdvancedLanguageServer {
             if (windowId && this.isEnabledForWindow(windowId)) {
                 // Only apply to the specific window that was saved
                 if (targetId && windowId === targetId) {
-                    console.log(`🔤 Applying analysis to correct window ${windowId} for verse ${verseIndex}`);
                     this.enhanceTextareaSpecific(textarea, verseIndex, analysis);
                 } else if (!targetId) {
                     // Fallback: if no targetId provided, apply to all (legacy behavior)
-                    console.log(`🔤 No targetId provided, applying to window ${windowId} for verse ${verseIndex}`);
                     this.enhanceTextareaSpecific(textarea, verseIndex, analysis);
-                } else {
-                    console.log(`🔤 Skipping window ${windowId} (not target ${targetId}) for verse ${verseIndex}`);
                 }
             }
         });
@@ -268,11 +239,8 @@ class AdvancedLanguageServer {
         
         const text = textarea.value;
         if (!text.trim()) {
-            console.log(`🔤 No text to highlight in verse ${verseIndex} for window ${windowId}`);
             return;
         }
-        
-        console.log(`🔤 Enhancing specific textarea for verse ${verseIndex} in window ${windowId}`, analysis.suggestions);
         
         // Clear any existing enhancement for this specific window and verse
         const enhancementKey = `${windowId}:${verseIndex}`;
@@ -391,17 +359,13 @@ class AdvancedLanguageServer {
         // Check if language server is enabled for this window
         const windowId = this.getWindowIdForTextarea(textarea);
         if (!windowId || !this.isEnabledForWindow(windowId)) {
-            console.log(`🔤 Language server disabled for window ${windowId}, skipping enhancement`);
             return;
         }
         
         const text = textarea.value;
         if (!text.trim()) {
-            console.log(`🔤 No text to highlight in verse ${verseIndex}`);
             return;
         }
-        
-        console.log(`🔤 Enhancing textarea for verse ${verseIndex} in window ${windowId}`, analysis.suggestions);
         
         // Clear any existing enhancement for this specific window and verse
         const enhancementKey = `${windowId}:${verseIndex}`;
@@ -538,7 +502,6 @@ class AdvancedLanguageServer {
             
             // Only trigger input event if value actually changed
             if (oldValue !== plainText) {
-                console.log(`🔤 Syncing text change to textarea for verse ${verseIndex}: "${oldValue}" → "${plainText}"`);
                 // Trigger input event on original textarea with proper event properties
                 const inputEvent = new Event('input', { bubbles: true });
                 inputEvent.target = originalTextarea;
@@ -549,10 +512,8 @@ class AdvancedLanguageServer {
         // Auto-analysis with 2-second debounce
         contentDiv.addEventListener('input', () => {
             syncToTextarea();
-            console.log(`🔤 Text changed in verse ${verseIndex}, setting 2-second re-analysis timer`);
             clearTimeout(this.analysisTimeouts.get(verseIndex));
             const timeout = setTimeout(() => {
-                console.log(`🔤 Auto re-analysis triggered for verse ${verseIndex}`);
                 this.reanalyzeVerse(verseIndex);
             }, 2000);
             this.analysisTimeouts.set(verseIndex, timeout);
@@ -560,7 +521,6 @@ class AdvancedLanguageServer {
         contentDiv.addEventListener('blur', () => {
             syncToTextarea();
             // Trigger blur on original textarea for save functionality
-            console.log(`🔤 Content div blur for verse ${verseIndex}, triggering textarea blur`);
             originalTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
         });
         
@@ -1488,132 +1448,16 @@ document.addEventListener('scroll', () => {
     window.languageServer.hideSuggestionTooltip();
 }, true);
 
-// Debug function to test re-analysis manually
-window.testLanguageServerReanalysis = function(verseIndex) {
-    console.log('🔤 Manual test: Re-analyzing verse', verseIndex);
-    if (window.languageServer) {
-        window.languageServer.reanalyzeVerse(verseIndex);
-    } else {
-        console.error('🔤 Language server not initialized');
-    }
-};
-
-// Simple test function to verify API works
-window.testLanguageServerAPI = async function(verseIndex = 1, testText = null) {
-    const projectId = window.translationEditor?.projectId;
-    if (!projectId) {
-        console.error('🔤 No project ID available');
-        return;
-    }
-    
-    // Try to find any text window to get a text ID
-    const textWindows = window.translationEditor?.textWindows;
-    if (!textWindows || textWindows.size === 0) {
-        console.error('🔤 No text windows available');
-        return;
-    }
-    
-    // Get the first available text window
-    const firstWindow = textWindows.values().next().value;
-    const windowId = firstWindow.id;
-    
-    // Convert window ID to text ID
-    const textId = windowId.startsWith('text_') ? 
-        windowId.replace('text_', '') : 
-        windowId.replace('translation_', '');
-    
-    // Get test text from textarea if not provided
-    if (!testText) {
-        const textarea = document.querySelector(`textarea[data-verse-index="${verseIndex}"]`);
-        testText = textarea?.value || 'hello world test unknownword';
-    }
-    
-    console.log(`🔤 Testing API with textId: ${textId}, verseIndex: ${verseIndex}, text: "${testText}"`);
-    
-    try {
-        const response = await fetch(`/project/${projectId}/language-server/analyze/text_${textId}/${verseIndex}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: testText })
-        });
-        const result = await response.json();
-        console.log('🔤 API test result:', result);
-        return result;
-    } catch (error) {
-        console.error('🔤 API test failed:', error);
-        return null;
-    }
-};
-
 // Listen for save results
 document.addEventListener('verse-saved', (event) => {
-    console.log('🔤 Received verse-saved event:', event.detail);
     if (event.detail?.analysis) {
         window.languageServer.handleAnalysis(event.detail.verseIndex, event.detail.analysis, event.detail.targetId);
     }
 });
 
-// Test function for bulk dictionary addition
-window.testBulkDictionaryAdd = async function(verseIndex = 1, testText = null) {
-    console.log('🔤 Testing bulk dictionary addition for verse', verseIndex);
-    
-    if (!window.languageServer) {
-        console.error('🔤 Language server not initialized');
-        return;
-    }
-    
-    // Get or set test text
-    let verseText = testText;
-    if (!verseText) {
-        verseText = window.languageServer.getCurrentVerseText(verseIndex);
-        if (!verseText) {
-            verseText = 'hello world test unknown word';
-            console.log('🔤 No verse text found, using test text:', verseText);
-        }
-    }
-    
-    console.log('🔤 Extracting words from text:', verseText);
-    const words = window.languageServer.extractUniqueWords(verseText);
-    console.log('🔤 Extracted words:', words);
-    
-    if (words.length === 0) {
-        console.log('🔤 No words to add');
-        return;
-    }
-    
-    try {
-        await window.languageServer.addAllWordsToDictionary(verseIndex);
-        console.log('🔤 Bulk addition test completed successfully');
-    } catch (error) {
-        console.error('🔤 Bulk addition test failed:', error);
-    }
-};
-
 // Process verses that come with analysis data from initial load
 window.processVerseWithAnalysis = (verseData, specificWindowId = null) => {
     window.languageServer.processVerseWithAnalysis(verseData, specificWindowId);
 };
-
-// Debug function to show language server status for all windows
-window.showLanguageServerStatus = function() {
-    if (!window.languageServer) {
-        console.error('🔤 Language server not initialized');
-        return;
-    }
-    
-    const textWindows = window.translationEditor?.textWindows;
-    if (!textWindows) {
-        console.error('🔤 No text windows available');
-        return;
-    }
-    
-    console.log('🔤 Language Server Status:');
-    textWindows.forEach((textWindow, windowId) => {
-        const enabled = window.languageServer.isEnabledForWindow(windowId);
-        console.log(`  - ${windowId} (${textWindow.title}, ${textWindow.type}): ${enabled ? 'ENABLED' : 'DISABLED'}`);
-    });
-};
-
-console.log('🔤 Advanced Language Server ready');
 
  

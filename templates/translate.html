@@ -201,7 +201,7 @@ class TranslationEditor {
             
             // Handle deep linking after editor is fully loaded
             setTimeout(() => {
-                console.log('Starting deep linking process...');
+        
                 this.handleDeepLinking();
             }, 500);
         }
@@ -246,7 +246,7 @@ class TranslationEditor {
         
         if (layoutState.textIds.length === 0) {
             // No saved layout, try to auto-load texts
-            console.log('No saved layout state found. Attempting to auto-load target translation and ULB...');
+
             
             // First, try to load the target translation as primary
             const targetLoaded = await this.tryAutoLoadTargetTranslation();
@@ -256,7 +256,7 @@ class TranslationEditor {
             
             if (!targetLoaded && !ulbLoaded) {
                 // No texts found, show empty state
-                console.log('No target translation or ULB found. Showing empty state.');
+
                 this.renderPrimaryText();
                 this.renderReferenceTexts();
             } else {
@@ -266,7 +266,7 @@ class TranslationEditor {
                 
                 // If both target and source were auto-loaded, trigger auto-translation of first verse
                 if (targetLoaded && ulbLoaded) {
-                    console.log('🎯 Auto-loaded fresh project! Triggering auto-translation of first verse...');
+    
                     setTimeout(() => {
                         this.autoTranslateFirstVerse();
                     }, 1000); // Give the interface time to fully render

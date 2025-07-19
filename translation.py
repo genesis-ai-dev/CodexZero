@@ -486,7 +486,7 @@ def _calculate_translation_confidence(translation, examples):
     if not target_texts_with_source:
         return {'segments': [], 'overall_confidence': 0}
     
-    print(f"Processing translation: '{translation}' with {len(target_texts_with_source)} example texts")
+    
     
     translation_lower = translation.lower()
     covered_positions = set()
@@ -984,7 +984,6 @@ def get_chapter_verses(project_id, target_id, book, chapter):
                     from utils.language_server import LanguageServerService
                     ls = LanguageServerService(project_id)
                     analysis = ls.analyze_verse(window_content)
-                    print(f"✅ Language server analysis completed for verse {verse_info['index']} (window {target_id}): analyzed text='{window_content[:50]}...', suggestions={len(analysis.get('suggestions', []))}")
                 except Exception as e:
                     print(f"❌ Language server analysis failed for verse {verse_info['index']}: {e}")
                     analysis = {"suggestions": []}
@@ -1039,13 +1038,7 @@ def save_verse(project_id, target_id, verse_index):
     edit_source = data.get('source', 'manual')
     confidence_score = data.get('confidence')
     
-    # Add detailed logging to track API calls
-    import time
-    timestamp = time.time()
-    print(f"🔥 BACKEND: save_verse called at {timestamp}")
-    print(f"   📝 Project: {project_id}, Target: {target_id}, Verse: {verse_index}")
-    print(f"   📄 Text: '{verse_text[:50]}{'...' if len(verse_text) > 50 else ''}'")
-    print(f"   🏷️  Source: {edit_source}, Comment: {edit_comment}")
+
     
     # Strip newlines to maintain line alignment for context queries
     verse_text = ' '.join(verse_text.split())
@@ -1106,7 +1099,6 @@ def save_verse(project_id, target_id, verse_index):
                 from utils.language_server import LanguageServerService
                 ls = LanguageServerService(project_id)
                 analysis = ls.analyze_verse(verse_text)
-                print(f"✅ Save verse - Language server analysis completed for verse {verse_index}: {len(analysis.get('suggestions', []))} suggestions")
                 
             except Exception as e:
                 db.session.rollback()
@@ -1365,7 +1357,6 @@ def get_verse_range(project_id, target_id, start_index, end_index):
                     from utils.language_server import LanguageServerService
                     ls = LanguageServerService(project_id)
                     analysis = ls.analyze_verse(target_text)
-                    print(f"✅ Language server analysis completed for verse {verse_index} (window {target_id}): analyzed text='{target_text[:50]}...', suggestions={len(analysis.get('suggestions', []))}")
                 except Exception as e:
                     print(f"❌ Language server analysis failed for verse {verse_index}: {e}")
                     analysis = {"suggestions": []}
