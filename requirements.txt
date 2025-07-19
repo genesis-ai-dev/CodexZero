@@ -17,3 +17,4 @@ pymysql
 boto3
 vref-utils==0.0.10
 chardet
+regex>=2023.10.3

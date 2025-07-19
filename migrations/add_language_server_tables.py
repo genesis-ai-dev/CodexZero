@@ -15,16 +15,16 @@ from models import db
 def create_language_server_tables():
     """Create the language server tables"""
     
-    # ProjectDictionary table
+    # ProjectDictionary table with UTF8MB4 charset for Unicode support
     project_dictionary_sql = """
     CREATE TABLE IF NOT EXISTS project_dictionaries (
         id INT AUTO_INCREMENT PRIMARY KEY,
         project_id INT NOT NULL,
-        word VARCHAR(255) NOT NULL,
+        word VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
         approved BOOLEAN DEFAULT TRUE,
-        category VARCHAR(50) DEFAULT 'user',
-        definition TEXT,
-        alternatives TEXT,
+        category VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'user',
+        definition TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        alternatives TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
         added_by INT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -35,7 +35,7 @@ def create_language_server_tables():
         UNIQUE KEY unique_project_word (project_id, word),
         INDEX idx_project_dict (project_id, word),
         INDEX idx_project_dict_approved (project_id, approved)
-    );
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """
     
     try:
@@ -43,7 +43,7 @@ def create_language_server_tables():
         db.session.execute(text(project_dictionary_sql))
         db.session.commit()
         
-        print("✅ Language server tables created successfully!")
+        print("✅ Language server tables created successfully with UTF8MB4 charset!")
         return True
         
     except Exception as e:
@@ -60,7 +60,7 @@ def run_migration():
     db.init_app(app)
     
     with app.app_context():
-        print("🔄 Adding language server tables...")
+        print("🔄 Adding language server tables with Unicode support...")
         success = create_language_server_tables()
         
         if success:

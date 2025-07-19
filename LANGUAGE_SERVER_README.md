@@ -4,7 +4,16 @@
 
 The CodexZero language server provides real-time text analysis for Bible translation projects using a unified suggestion framework. All language analysis results are returned as "suggestions" with customizable colors and actions, featuring **immediate visual feedback** when users take actions.
 
+**🌍 Now supports all Unicode scripts including Arabic, Hebrew, Chinese, Cyrillic, and 50+ other writing systems!**
+
 ## Key Features
+
+### Universal Script Support
+- **Unicode-Aware**: Supports all Unicode scripts including Latin, Cyrillic, Arabic, Hebrew, Chinese, Japanese, Korean, Thai, Hindi, and many more
+- **Smart Word Detection**: Uses advanced Unicode patterns to correctly identify words in different writing systems
+- **RTL Language Support**: Handles right-to-left scripts like Arabic and Hebrew correctly
+- **CJK Support**: Properly processes Chinese, Japanese, and Korean characters which don't use spaces between words
+- **Unicode Normalization**: Handles composed/decomposed character variants consistently
 
 ### Immediate Visual Feedback
 - **Instant Response**: Highlighting disappears immediately when users add words to dictionary or ignore suggestions
@@ -216,19 +225,57 @@ CREATE TABLE project_dictionaries (
 
 1. **Backend**: Extend `LanguageServerService.analyze_verse()`
 ```python
-suggestions.append({
-    "substring": text,
-    "start": start,
-    "end": end,
-    "color": "#your-color",  # Custom color
-    "message": "Your suggestion message",
-    "actions": ["your_action"]
-})
+# Example: Add grammar checking for any language
+def analyze_verse(self, verse_text: str) -> Dict:
+    suggestions = []
+    
+    # Extract words using Unicode-aware patterns
+    words = self._extract_words(verse_text)
+    
+    for word, start, end in words:
+        # Dictionary checking (existing)
+        normalized_word = self._normalize_word(word)
+        if normalized_word not in self.approved_words:
+            suggestions.append({
+                "substring": word,
+                "start": start,
+                "end": end,
+                "color": "#ff6b6b",  # Red for dictionary
+                "message": f"'{word}' not in dictionary",
+                "actions": ["add_to_dictionary"]
+            })
+        
+        # Grammar checking (new example)
+        if self._check_grammar_issue(word):
+            suggestions.append({
+                "substring": word,
+                "start": start,
+                "end": end,
+                "color": "#ffa500",  # Orange for grammar
+                "message": f"'{word}' has grammar issue",
+                "actions": ["fix_grammar", "ignore"]
+            })
+    
+    return {"suggestions": suggestions}
 ```
 
 2. **Frontend**: No changes needed - unified handling with immediate feedback
 
 3. **Actions**: Add new action handlers in `/language-server/action` endpoint
+
+### Unicode Text Processing
+
+The language server includes robust Unicode handling:
+
+```python
+# Word extraction works with any script
+words = ls._extract_words("Hello مرحبا 你好 Привет")
+# Returns: [("Hello", 0, 5), ("مرحبا", 6, 11), ("你好", 12, 14), ("Привет", 15, 21)]
+
+# Normalization handles composed/decomposed characters
+normalized = ls._normalize_word("café")  # Works same for c\u0061\u0066\u00e9
+# Returns: "café" (consistent regardless of encoding)
+```
 
 ### Color Schemes
 - No predefined color categories
@@ -238,13 +285,28 @@ suggestions.append({
 
 ## Current Implementation
 
-### Dictionary Checking
-- Analyzes words 3+ characters
+### Unicode-Aware Dictionary Checking
+- **Universal Script Support**: Analyzes words in all Unicode scripts (Latin, Cyrillic, Arabic, Hebrew, CJK, etc.)
+- **Smart Word Detection**: Uses Unicode letter categories (\p{L}) and combining marks (\p{M}) for accurate word boundaries
+- **Minimum Length**: 3+ characters for most scripts, 1+ for CJK characters (Chinese/Japanese/Korean)
+- **Unicode Normalization**: All text normalized to NFC form for consistent comparison
+- **Fallback Support**: Works with both advanced `regex` module and standard `re` module
+- **Database Storage**: UTF8MB4 charset ensures all Unicode characters are stored correctly
 - Compares against project dictionary
 - Flags unknown words for review
 - **One-click dictionary addition with immediate feedback**
 - **Real-time analysis of current text** (not just saved content)
 - **Auto re-analysis after 2 seconds of no typing**
+
+### Supported Writing Systems
+- **Latin Scripts**: English, Spanish, French, German, Polish, Romanian, etc.
+- **Cyrillic Scripts**: Russian, Bulgarian, Serbian, Ukrainian, etc.
+- **Greek**: Modern and Ancient Greek
+- **RTL Scripts**: Arabic, Hebrew, Persian, Urdu
+- **South/Southeast Asian**: Hindi, Bengali, Tamil, Telugu, Thai, Lao, Khmer, Myanmar
+- **East Asian**: Chinese (Simplified/Traditional), Japanese (Hiragana/Katakana/Kanji), Korean
+- **African Scripts**: Amharic (Ethiopic), various African languages
+- **Other Scripts**: Armenian, Georgian, Cherokee, Mongolian, and many more
 
 ## Future Opportunities
 

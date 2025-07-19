@@ -690,6 +690,7 @@ class FlagManager {
         // Create textarea (same as text-window.js)
         const textarea = document.createElement('textarea');
         textarea.className = 'w-full p-4 border-0 text-base leading-7 resize-none focus:ring-0 focus:outline-none bg-white font-[\'Inter\'] overflow-hidden';
+        textarea.dir = 'auto'; // Use native HTML direction detection
         textarea.placeholder = `Edit verse ${this.currentVerseData.verse} or drop text here...`;
         textarea.dataset.verse = this.currentVerseData.verse;
         textarea.dataset.verseIndex = this.currentVerseData.index;
@@ -800,6 +801,9 @@ class FlagManager {
                 const audioManager = window.translationEditor.textWindows.get(this.currentTextId).audioManager;
                 audioManager.createAudioControls(leftControlsContainer, this.currentVerseData, textarea);
             }
+            
+            // Text direction is now handled automatically with dir="auto" on textareas
+            // No need for a manual toggle button
             
             // Sparkle button (AI translate)
             const sparkleButton = document.createElement('button');

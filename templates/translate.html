@@ -11,6 +11,7 @@
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/translation-editor.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/rtl-support.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -1502,6 +1503,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <script defer src="{{ url_for('static', filename='js/audio-manager.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/theme-manager.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/bible-constants.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/text-direction-manager.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/text-window.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/translation-storage.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/translation-confidence.js') }}"></script>

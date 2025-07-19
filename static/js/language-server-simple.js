@@ -261,6 +261,13 @@ class AdvancedLanguageServer {
             box-sizing: border-box;
         `;
         
+        // Copy direction and unicode-bidi properties for RTL support
+        if (originalTextarea.dir) {
+            contentDiv.dir = originalTextarea.dir;
+            contentDiv.style.direction = originalTextarea.style.direction || computedStyle.direction;
+            contentDiv.style.unicodeBidi = originalTextarea.style.unicodeBidi || computedStyle.unicodeBidi;
+        }
+        
         // Create highlighted HTML
         let highlightedHtml = '';
         let lastIndex = 0;

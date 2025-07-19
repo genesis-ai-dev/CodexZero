@@ -10,13 +10,30 @@ class Config:
     # Development mode flag
     DEVELOPMENT_MODE = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEVELOPMENT_MODE') == 'true'
     
-    # Database Configuration - using DATABASE_URL
+    # Database Configuration - using DATABASE_URL with UTF-8 charset
     database_url = os.environ.get('DATABASE_URL') or 'mysql+pymysql://codex_zero:codex_pass@localhost/codex_db'
     # Ensure we use pymysql driver instead of MySQLdb
     if database_url.startswith('mysql://'):
         database_url = database_url.replace('mysql://', 'mysql+pymysql://', 1)
+    
+    # Add UTF-8 charset parameters for proper Unicode support
+    if '?' in database_url:
+        database_url += '&charset=utf8mb4&collation=utf8mb4_unicode_ci'
+    else:
+        database_url += '?charset=utf8mb4&collation=utf8mb4_unicode_ci'
+    
     SQLALCHEMY_DATABASE_URI = database_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # Additional database engine options for Unicode support
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+        'connect_args': {
+            'charset': 'utf8mb4',
+            'use_unicode': True,
+        }
+    }
     
     # Google OAuth Configuration
     GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')

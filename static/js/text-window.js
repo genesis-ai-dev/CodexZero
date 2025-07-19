@@ -972,13 +972,16 @@ class TextWindow {
         const textarea = document.createElement('textarea');
         textarea.className = `w-full p-4 border-0 text-base leading-7 resize-none focus:ring-0 focus:outline-none bg-white font-['Inter'] overflow-hidden`;
         
+        // SIMPLE: Just use native HTML direction detection
+        textarea.dir = 'auto';
+        
         // Set appropriate placeholder based on window type
         if (this.type === 'primary') {
             textarea.placeholder = `Edit verse ${verseData.verse} or drop text here...`;
         } else {
             textarea.placeholder = `Reference text for verse ${verseData.verse}`;
         }
-        
+
         textarea.dataset.verse = verseData.verse;
         textarea.dataset.verseIndex = verseData.index;
         textarea.dataset.reference = verseData.reference || `Verse ${verseData.verse}`;
@@ -1003,14 +1006,6 @@ class TextWindow {
         
         // PERFORMANCE: Use optimized event handlers
         this.attachOptimizedTextareaListeners(textarea);
-        
-        // LANGUAGE SERVER: Process analysis data if it exists
-        if (verseData.analysis && window.processVerseWithAnalysis) {
-            // Defer processing to allow DOM to settle
-            setTimeout(() => {
-                window.processVerseWithAnalysis(verseData);
-            }, 50);
-        }
         
         return textarea;
     }
@@ -1123,6 +1118,9 @@ class TextWindow {
             
             flagButton.onclick = () => this.openFlagModal(verseData);
             rightFragment.appendChild(flagButton);
+            
+            // Text direction is now handled automatically with dir="auto" on textareas
+            // No need for a manual toggle button
             
             // Audio download button for primary windows
             if (this.type === 'primary') {
