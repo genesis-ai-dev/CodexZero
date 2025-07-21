@@ -56,8 +56,12 @@ def admin_required(f):
             flash('Authentication required.', 'error')
             return redirect(url_for('auth.login'))
         
-        # Check admin email
-        if current_user.email != 'danieljlosey@gmail.com':
+        # Check admin email (include dev user in development mode)
+        admin_emails = ['danieljlosey@gmail.com']
+        if current_app.config.get('DEVELOPMENT_MODE'):
+            admin_emails.append('dev@codexzero.local')
+            
+        if current_user.email not in admin_emails:
             flash('Access denied. Admin privileges required.', 'error')
             return redirect(url_for('main.index'))
         
@@ -113,7 +117,6 @@ def dashboard():
                          active_users=active_users,
                          total_projects=total_projects,
                          total_files=total_files,
-                         total_translations=total_translations,
                          total_fine_tuning_jobs=total_fine_tuning_jobs,
                          recent_signups=recent_signups,
                          encode_id=encode_id)
@@ -180,7 +183,6 @@ def user_detail(encoded_user_id):
                          user=user,
                          projects=projects,
                          total_files=total_files,
-                         total_translations=total_translations,
                          total_fine_tuning=total_fine_tuning,
                          encode_id=encode_id)
 

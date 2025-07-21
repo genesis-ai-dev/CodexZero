@@ -141,7 +141,7 @@
                                     <i class="fas fa-folder mr-3"></i>
                                     Projects
                                 </a>
-                                {% if current_user.email == 'danieljlosey@gmail.com' %}
+                                {% if current_user.email == 'danieljlosey@gmail.com' or (config.DEVELOPMENT_MODE and current_user.email == 'dev@codexzero.local') %}
                                     <a href="{{ url_for('admin.dashboard') }}" class="block px-4 py-3 text-sm font-medium text-neutral-900 hover:bg-neutral-50 hover:text-blue-600 transition-colors border-b border-neutral-100">
                                         <i class="fas fa-shield-alt mr-3"></i>
                                         Admin Dashboard

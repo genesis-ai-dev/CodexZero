@@ -3,20 +3,20 @@
 {% block title %}User Management - Admin - CodexZero{% endblock %}
 
 {% block content %}
-<section class="min-h-screen paper-white">
+<section class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100">
     <!-- Header -->
-    <div class="paper-cream border-b marker-border-thin">
-        <div class="max-w-7xl mx-auto px-6 py-6">
+    <div class="bg-white border-b border-neutral-200">
+        <div class="max-w-7xl mx-auto px-6 py-8">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-6">
-                    <a href="{{ url_for('admin.dashboard') }}" class="nav-link text-sm font-medium">
+                    <a href="{{ url_for('admin.dashboard') }}" class="bg-gradient-to-r from-neutral-900 to-neutral-800 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-neutral-800 hover:to-neutral-700 transition-all duration-200">
                         <i class="fas fa-arrow-left mr-2"></i>
                         Admin Dashboard
                     </a>
-                    <div class="h-6 w-px marker-border-thin"></div>
+                    <div class="h-8 w-px bg-neutral-200"></div>
                     <div>
-                        <h1 class="text-3xl font-bold" style="color: #2d2d2d;">User Management</h1>
-                        <p class="text-sm text-neutral-700 mt-1 font-medium">{{ users.total }} total users</p>
+                        <h1 class="text-4xl font-bold text-neutral-900">User Management</h1>
+                        <p class="text-lg text-neutral-600 mt-2 font-medium">{{ users.total }} total users</p>
                     </div>
                 </div>
             </div>
@@ -24,17 +24,17 @@
     </div>
 
     <!-- Search and Filters -->
-    <div class="max-w-7xl mx-auto px-6 py-6">
-        <div class="paper-cream p-6 marker-border mb-6">
+    <div class="max-w-7xl mx-auto px-6 py-12">
+        <div class="bg-white p-8 rounded-2xl shadow-lg border border-neutral-200 mb-8">
             <form method="GET" class="flex items-center space-x-4">
                 <div class="flex-1">
                     <input type="text" 
                            name="search" 
                            value="{{ search }}" 
                            placeholder="Search by name or email..."
-                           class="w-full px-4 py-2 paper-white marker-border-thin text-neutral-900 placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                           class="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl text-neutral-900 placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:border-transparent">
                 </div>
-                <button type="submit" class="btn-marker">
+                <button type="submit" class="bg-gradient-to-r from-neutral-900 to-neutral-800 text-white px-6 py-3 rounded-xl font-medium hover:from-neutral-800 hover:to-neutral-700 transition-all duration-200">
                     <i class="fas fa-search mr-2"></i>
                     Search
                 </button>
@@ -47,11 +47,11 @@
         </div>
 
         <!-- Users List -->
-        <div class="paper-cream marker-border">
+        <div class="bg-white rounded-2xl shadow-lg border border-neutral-200">
             <!-- Header -->
-            <div class="px-6 py-4 paper-light border-b marker-border-thin">
+            <div class="px-8 py-6 border-b border-neutral-200">
                 <div class="flex items-center justify-between">
-                    <h2 class="text-xl font-bold" style="color: #2d2d2d;">Users</h2>
+                    <h2 class="text-2xl font-bold text-neutral-900">Users</h2>
                     <div class="text-sm text-neutral-600 font-medium">
                         {% if search %}
                             Search results for "{{ search }}"
@@ -66,14 +66,14 @@
             {% if users.items %}
                 <div class="divide-y divide-neutral-200">
                     {% for user in users.items %}
-                    <div class="px-6 py-4 hover:paper-light transition-colors">
+                    <div class="px-8 py-6 hover:bg-neutral-50 transition-colors">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-4">
-                                <div class="w-10 h-10 paper-white marker-border-thin flex items-center justify-center">
-                                    <i class="fas fa-user text-blue-600"></i>
+                                <div class="w-12 h-12 bg-gradient-to-r from-neutral-200 to-neutral-300 rounded-xl flex items-center justify-center">
+                                    <i class="fas fa-user text-neutral-700"></i>
                                 </div>
                                 <div>
-                                    <h3 class="font-bold" style="color: #2d2d2d;">{{ user.name }}</h3>
+                                    <h3 class="font-semibold text-neutral-900 text-lg">{{ user.name }}</h3>
                                     <p class="text-sm text-neutral-600 font-medium">
                                         {{ user.email }}
                                         {% if user.projects|length > 0 %}
@@ -93,7 +93,7 @@
                                     {% endif %}
                                 </div>
                                 <a href="{{ url_for('admin.user_detail', encoded_user_id=encode_id(user.id, 'user')) }}" 
-                                   class="px-4 py-2 paper-white marker-border-thin text-blue-600 hover:text-blue-800 hover:paper-light transition-colors font-medium">
+                                   class="bg-gradient-to-r from-neutral-900 to-neutral-800 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-neutral-800 hover:to-neutral-700 transition-all duration-200">
                                     <i class="fas fa-eye mr-2"></i>
                                     View
                                 </a>
@@ -105,7 +105,7 @@
 
                 <!-- Pagination -->
                 {% if users.pages > 1 %}
-                <div class="px-6 py-4 paper-light border-t marker-border-thin">
+                <div class="px-8 py-6 bg-neutral-50 border-t border-neutral-200 rounded-b-2xl">
                     <div class="flex items-center justify-between">
                         <div class="text-sm text-neutral-600 font-medium">
                             Showing {{ (users.page - 1) * users.per_page + 1 }} to 
@@ -116,7 +116,7 @@
                         <div class="flex items-center space-x-2">
                             {% if users.has_prev %}
                                 <a href="{{ url_for('admin.users', page=users.prev_num, search=search) }}" 
-                                   class="px-3 py-2 paper-white marker-border-thin text-neutral-700 hover:text-neutral-900 font-medium">
+                                   class="px-3 py-2 bg-white border border-neutral-200 rounded-lg text-neutral-700 hover:bg-neutral-50 font-medium transition-colors">
                                     <i class="fas fa-chevron-left"></i>
                                 </a>
                             {% endif %}
@@ -125,11 +125,11 @@
                                 {% if page_num %}
                                     {% if page_num != users.page %}
                                         <a href="{{ url_for('admin.users', page=page_num, search=search) }}" 
-                                           class="px-3 py-2 paper-white marker-border-thin text-neutral-700 hover:text-neutral-900 font-medium">
+                                           class="px-3 py-2 bg-white border border-neutral-200 rounded-lg text-neutral-700 hover:bg-neutral-50 font-medium transition-colors">
                                             {{ page_num }}
                                         </a>
                                     {% else %}
-                                        <span class="px-3 py-2 btn-marker">{{ page_num }}</span>
+                                        <span class="px-3 py-2 bg-gradient-to-r from-neutral-900 to-neutral-800 text-white rounded-lg font-medium">{{ page_num }}</span>
                                     {% endif %}
                                 {% else %}
                                     <span class="px-3 py-2 text-neutral-400">…</span>
@@ -138,7 +138,7 @@
                             
                             {% if users.has_next %}
                                 <a href="{{ url_for('admin.users', page=users.next_num, search=search) }}" 
-                                   class="px-3 py-2 paper-white marker-border-thin text-neutral-700 hover:text-neutral-900 font-medium">
+                                   class="px-3 py-2 bg-white border border-neutral-200 rounded-lg text-neutral-700 hover:bg-neutral-50 font-medium transition-colors">
                                     <i class="fas fa-chevron-right"></i>
                                 </a>
                             {% endif %}
@@ -148,11 +148,11 @@
                 {% endif %}
 
             {% else %}
-                <div class="px-6 py-12 text-center">
-                    <div class="w-16 h-16 paper-light marker-border-thin flex items-center justify-center mx-auto mb-4">
-                        <i class="fas fa-search text-neutral-400 text-xl"></i>
+                <div class="px-8 py-16 text-center">
+                    <div class="w-20 h-20 bg-gradient-to-r from-neutral-100 to-neutral-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <i class="fas fa-search text-neutral-400 text-2xl"></i>
                     </div>
-                    <h3 class="text-lg font-bold mb-2" style="color: #2d2d2d;">No users found</h3>
+                    <h3 class="text-xl font-bold mb-3 text-neutral-900">No users found</h3>
                     {% if search %}
                         <p class="text-neutral-600 mb-4 font-medium">No users match your search for "{{ search }}"</p>
                         <a href="{{ url_for('admin.users') }}" class="text-blue-600 hover:text-blue-800 font-medium">

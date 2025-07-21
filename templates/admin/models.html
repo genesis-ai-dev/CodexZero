@@ -3,20 +3,20 @@
 {% block title %}Fine-tuned Models - Admin - CodexZero{% endblock %}
 
 {% block content %}
-<section class="min-h-screen paper-white">
+<section class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100">
     <!-- Header -->
-    <div class="paper-cream border-b marker-border-thin">
-        <div class="max-w-7xl mx-auto px-6 py-6">
+    <div class="bg-white border-b border-neutral-200">
+        <div class="max-w-7xl mx-auto px-6 py-8">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-6">
-                    <a href="{{ url_for('admin.dashboard') }}" class="nav-link text-sm font-medium">
+                    <a href="{{ url_for('admin.dashboard') }}" class="bg-gradient-to-r from-neutral-900 to-neutral-800 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-neutral-800 hover:to-neutral-700 transition-all duration-200">
                         <i class="fas fa-arrow-left mr-2"></i>
                         Admin Dashboard
                     </a>
-                    <div class="h-6 w-px marker-border-thin"></div>
+                    <div class="h-8 w-px bg-neutral-200"></div>
                     <div>
-                        <h1 class="text-3xl font-bold" style="color: #2d2d2d;">Fine-tuned Models</h1>
-                        <p class="text-sm text-neutral-700 mt-1 font-medium">{{ jobs.total }} total models</p>
+                        <h1 class="text-4xl font-bold text-neutral-900">Fine-tuned Models</h1>
+                        <p class="text-lg text-neutral-600 mt-2 font-medium">{{ jobs.total }} total models</p>
                     </div>
                 </div>
             </div>
@@ -24,15 +24,15 @@
     </div>
 
     <!-- Models List -->
-    <div class="max-w-7xl mx-auto px-6 py-6">
-        <div class="paper-cream marker-border">
+    <div class="max-w-7xl mx-auto px-6 py-12">
+        <div class="bg-white p-8 rounded-2xl shadow-lg border border-neutral-200">
             {% if jobs.items %}
                 <div class="divide-y divide-neutral-200">
                     {% for job in jobs.items %}
-                    <div class="px-6 py-4 hover:paper-light transition-colors">
+                    <div class="px-8 py-6 hover:bg-neutral-50 transition-colors">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-4">
-                                <div class="w-10 h-10 paper-white marker-border-thin flex items-center justify-center">
+                                <div class="w-12 h-12 bg-gradient-to-r from-neutral-200 to-neutral-300 rounded-xl flex items-center justify-center">
                                     {% if job.status == 'completed' %}
                                     <i class="fas fa-check-circle text-green-600"></i>
                                     {% elif job.status == 'failed' %}
@@ -44,7 +44,7 @@
                                     {% endif %}
                                 </div>
                                 <div>
-                                    <h3 class="font-bold" style="color: #2d2d2d;">
+                                    <h3 class="font-semibold text-neutral-900 text-lg">
                                         {% if job.display_name %}
                                             {{ job.display_name }}
                                         {% else %}
@@ -88,8 +88,8 @@
                         </div>
                         
                         {% if job.source_file and job.target_file %}
-                        <div class="mt-3 ml-14">
-                            <div class="paper-white p-3 marker-border-thin">
+                        <div class="mt-4 ml-16">
+                            <div class="bg-neutral-50 p-4 rounded-xl border border-neutral-100">
                                 <p class="text-sm text-neutral-700 font-medium">
                                     {{ job.source_text.name }} → {{ job.target_text.name }}
                                 </p>
@@ -101,8 +101,8 @@
                         {% endif %}
                         
                         {% if job.error_message %}
-                        <div class="mt-3 ml-14">
-                            <div class="paper-white p-3 marker-border-thin border-red-200">
+                        <div class="mt-4 ml-16">
+                            <div class="bg-red-50 p-4 rounded-xl border border-red-200">
                                 <p class="text-sm text-red-600 font-medium">Error: {{ job.error_message }}</p>
                             </div>
                         </div>
@@ -113,7 +113,7 @@
 
                 <!-- Pagination -->
                 {% if jobs.pages > 1 %}
-                <div class="px-6 py-4 paper-light border-t marker-border-thin">
+                <div class="px-8 py-6 bg-neutral-50 border-t border-neutral-200 rounded-b-2xl">
                     <div class="flex items-center justify-between">
                         <div class="text-sm text-neutral-600 font-medium">
                             Showing {{ (jobs.page - 1) * jobs.per_page + 1 }} to 
@@ -124,7 +124,7 @@
                         <div class="flex items-center space-x-2">
                             {% if jobs.has_prev %}
                                 <a href="{{ url_for('admin.models', page=jobs.prev_num) }}" 
-                                   class="px-3 py-2 paper-white marker-border-thin text-neutral-700 hover:text-neutral-900 font-medium">
+                                   class="px-3 py-2 bg-white border border-neutral-200 rounded-lg text-neutral-700 hover:bg-neutral-50 font-medium transition-colors">
                                     <i class="fas fa-chevron-left"></i>
                                 </a>
                             {% endif %}
@@ -133,11 +133,11 @@
                                 {% if page_num %}
                                     {% if page_num != jobs.page %}
                                         <a href="{{ url_for('admin.models', page=page_num) }}" 
-                                           class="px-3 py-2 paper-white marker-border-thin text-neutral-700 hover:text-neutral-900 font-medium">
+                                           class="px-3 py-2 bg-white border border-neutral-200 rounded-lg text-neutral-700 hover:bg-neutral-50 font-medium transition-colors">
                                             {{ page_num }}
                                         </a>
                                     {% else %}
-                                        <span class="px-3 py-2 btn-marker">{{ page_num }}</span>
+                                        <span class="px-3 py-2 bg-gradient-to-r from-neutral-900 to-neutral-800 text-white rounded-lg font-medium">{{ page_num }}</span>
                                     {% endif %}
                                 {% else %}
                                     <span class="px-3 py-2 text-neutral-400">…</span>
@@ -146,7 +146,7 @@
                             
                             {% if jobs.has_next %}
                                 <a href="{{ url_for('admin.models', page=jobs.next_num) }}" 
-                                   class="px-3 py-2 paper-white marker-border-thin text-neutral-700 hover:text-neutral-900 font-medium">
+                                   class="px-3 py-2 bg-white border border-neutral-200 rounded-lg text-neutral-700 hover:bg-neutral-50 font-medium transition-colors">
                                     <i class="fas fa-chevron-right"></i>
                                 </a>
                             {% endif %}
@@ -155,11 +155,11 @@
                 </div>
                 {% endif %}
             {% else %}
-                <div class="px-6 py-12 text-center">
-                    <div class="w-16 h-16 paper-light marker-border-thin flex items-center justify-center mx-auto mb-4">
-                        <i class="fas fa-robot text-neutral-400 text-xl"></i>
+                <div class="px-8 py-16 text-center">
+                    <div class="w-20 h-20 bg-gradient-to-r from-neutral-100 to-neutral-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <i class="fas fa-robot text-neutral-400 text-2xl"></i>
                     </div>
-                    <h3 class="text-lg font-bold mb-2" style="color: #2d2d2d;">No models yet</h3>
+                    <h3 class="text-xl font-bold mb-3 text-neutral-900">No models yet</h3>
                     <p class="text-neutral-600 font-medium">No fine-tuned models have been created</p>
                 </div>
             {% endif %}

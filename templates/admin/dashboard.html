@@ -3,18 +3,18 @@
 {% block title %}Admin Dashboard - CodexZero{% endblock %}
 
 {% block content %}
-<section class="min-h-screen paper-white">
+<section class="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100">
     <!-- Header -->
-    <div class="paper-cream border-b marker-border-thin">
-        <div class="max-w-7xl mx-auto px-6 py-6">
+    <div class="bg-white border-b border-neutral-200">
+        <div class="max-w-7xl mx-auto px-6 py-8">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-3xl font-bold" style="color: #2d2d2d;">Admin Dashboard</h1>
-                    <p class="text-sm text-neutral-700 mt-1 font-medium">
+                    <h1 class="text-4xl font-bold text-neutral-900">Admin Dashboard</h1>
+                    <p class="text-lg text-neutral-600 mt-2 font-medium">
                         {{ total_users }} users • {{ recent_users }} new this month • {{ active_users }} active this week
                     </p>
                 </div>
-                <div class="text-sm text-neutral-600 font-medium">
+                <div class="bg-gradient-to-r from-neutral-900 to-neutral-800 text-white px-4 py-2 rounded-xl text-sm font-medium">
                     <i class="fas fa-shield-alt mr-2"></i>
                     Admin Access
                 </div>
@@ -23,23 +23,23 @@
     </div>
 
     <!-- Main Content -->
-    <div class="max-w-7xl mx-auto px-6 py-8">
+    <div class="max-w-7xl mx-auto px-6 py-12">
         
         <!-- Recent Activity and User List -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
             <!-- Recent Signups -->
-            <div class="paper-cream p-6 marker-border">
-                <h2 class="text-xl font-bold mb-4" style="color: #2d2d2d;">
+            <div class="bg-white p-8 rounded-2xl shadow-lg border border-neutral-200">
+                <h2 class="text-2xl font-bold mb-6 text-neutral-900">
                     Recent Signups
                     {% if recent_signups %}({{ recent_signups|length }}){% endif %}
                 </h2>
                 {% if recent_signups %}
                     <div class="space-y-3">
                         {% for user in recent_signups %}
-                        <div class="flex items-center justify-between paper-white p-3 marker-border-thin">
+                        <div class="flex items-center justify-between bg-neutral-50 p-4 rounded-xl border border-neutral-100">
                             <div>
-                                <p class="font-medium" style="color: #2d2d2d;">{{ user.name }}</p>
+                                <p class="font-semibold text-neutral-900">{{ user.name }}</p>
                                 <p class="text-sm text-neutral-600">{{ user.email }}</p>
                             </div>
                             <div class="text-xs text-neutral-500 font-medium">
@@ -54,27 +54,27 @@
             </div>
 
             <!-- User List -->
-            <div class="lg:col-span-2 paper-cream p-6 marker-border">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-xl font-bold" style="color: #2d2d2d;">
+            <div class="lg:col-span-2 bg-white p-8 rounded-2xl shadow-lg border border-neutral-200">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-bold text-neutral-900">
                         All Users ({{ users.total }})
                     </h2>
-                    <a href="{{ url_for('admin.users') }}" class="text-sm font-medium text-blue-600 hover:text-blue-800">
+                    <a href="{{ url_for('admin.users') }}" class="bg-gradient-to-r from-neutral-900 to-neutral-800 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-neutral-800 hover:to-neutral-700 transition-all duration-200">
                         View All
-                        <i class="fas fa-arrow-right ml-1"></i>
+                        <i class="fas fa-arrow-right ml-2"></i>
                     </a>
                 </div>
                 
                 {% if users.items %}
                     <div class="space-y-3 max-h-96 overflow-y-auto">
                         {% for user in users.items %}
-                        <div class="flex items-center justify-between paper-white p-3 marker-border-thin">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-8 h-8 paper-light marker-border-thin flex items-center justify-center">
-                                    <i class="fas fa-user text-blue-600 text-sm"></i>
+                        <div class="flex items-center justify-between bg-neutral-50 p-4 rounded-xl border border-neutral-100">
+                            <div class="flex items-center space-x-4">
+                                <div class="w-10 h-10 bg-gradient-to-r from-neutral-200 to-neutral-300 rounded-xl flex items-center justify-center">
+                                    <i class="fas fa-user text-neutral-700 text-sm"></i>
                                 </div>
                                 <div>
-                                    <p class="font-medium" style="color: #2d2d2d;">{{ user.name }}</p>
+                                    <p class="font-semibold text-neutral-900">{{ user.name }}</p>
                                     <p class="text-sm text-neutral-600">
                                         {{ user.email }}
                                         {% if user.projects|length > 0 %}
@@ -87,8 +87,8 @@
                                 <div class="text-xs text-neutral-500 text-right font-medium">
                                     <div>{{ user.created_at.strftime('%b %d, %Y') }}</div>
                                 </div>
-                                <a href="{{ url_for('admin.user_detail', encoded_user_id=encode_id(user.id, 'user')) }}" class="text-blue-600 hover:text-blue-800">
-                                    <i class="fas fa-eye"></i>
+                                <a href="{{ url_for('admin.user_detail', encoded_user_id=encode_id(user.id, 'user')) }}" class="bg-gradient-to-r from-neutral-900 to-neutral-800 text-white p-2 rounded-lg hover:from-neutral-800 hover:to-neutral-700 transition-all duration-200">
+                                    <i class="fas fa-eye text-sm"></i>
                                 </a>
                             </div>
                         </div>
@@ -106,16 +106,16 @@
         </div>
 
         <!-- Platform Overview -->
-        <div class="mt-8 paper-cream p-6 marker-border">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-xl font-bold" style="color: #2d2d2d;">Platform Activity</h2>
-                <a href="{{ url_for('admin.models') }}" class="text-sm font-medium text-blue-600 hover:text-blue-800">
+        <div class="mt-8 bg-white p-8 rounded-2xl shadow-lg border border-neutral-200">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-neutral-900">Platform Activity</h2>
+                <a href="{{ url_for('admin.models') }}" class="bg-gradient-to-r from-neutral-900 to-neutral-800 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-neutral-800 hover:to-neutral-700 transition-all duration-200">
                     View Models
-                    <i class="fas fa-arrow-right ml-1"></i>
+                    <i class="fas fa-arrow-right ml-2"></i>
                 </a>
             </div>
-            <div class="text-sm text-neutral-700 font-medium">
-                <p>Users have created {{ total_projects }} projects, uploaded {{ total_files }} files, generated {{ total_translations }} translations, and run {{ total_fine_tuning_jobs }} fine-tuning jobs.</p>
+            <div class="text-lg text-neutral-600 font-medium">
+                <p>Users have created {{ total_projects }} projects, uploaded {{ total_files }} files, and run {{ total_fine_tuning_jobs }} fine-tuning jobs.</p>
             </div>
         </div>
     </div>
