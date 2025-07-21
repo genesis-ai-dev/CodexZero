@@ -99,6 +99,9 @@ class TranslationNavigation {
     async navigateToChapter(chapter) {
         console.log(`TranslationNavigation: Navigating to chapter ${chapter} in ${this.editor.currentBook}`);
         
+        // Clear any active searches first
+        this.clearAllSearchModes();
+        
         // Show loading indicator for chapter navigation
         UIUtilities.showLoading(`Loading ${BibleConstants.getBookDisplayName(this.editor.currentBook)} ${chapter}...`);
         
@@ -132,6 +135,9 @@ class TranslationNavigation {
     
     async jumpToBook(book) {
         console.log(`TranslationNavigation: Jumping to book ${book} chapter 1`);
+        
+        // Clear any active searches first
+        this.clearAllSearchModes();
         
         // Show loading indicator for distant navigation
         UIUtilities.showLoading(`Navigating to ${BibleConstants.getBookDisplayName(book)}...`);
@@ -279,6 +285,27 @@ class TranslationNavigation {
         // Set current selection
         if (window.setChapterDropdownOption) {
             window.setChapterDropdownOption(this.editor.currentChapter, `Chapter ${this.editor.currentChapter}`);
+        }
+    }
+    
+    clearAllSearchModes() {
+        // Clear search mode from all text windows
+        for (const [windowId, textWindow] of this.editor.textWindows) {
+            if (textWindow.isSearchMode) {
+                textWindow.clearSearch();
+                
+                // Also clear the search input in the header
+                const searchInput = textWindow.element?.querySelector('.search-input');
+                if (searchInput) {
+                    searchInput.value = '';
+                }
+                
+                // Hide the clear button
+                const clearBtn = textWindow.element?.querySelector('.clear-search-btn');
+                if (clearBtn) {
+                    clearBtn.classList.add('hidden');
+                }
+            }
         }
     }
 }

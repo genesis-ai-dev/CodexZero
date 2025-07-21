@@ -141,6 +141,26 @@ textarea:focus {
     overflow: hidden;
 }
 
+/* Header Search Styles */
+.search-input {
+    transition: all 0.2s ease;
+}
+
+.search-input:focus {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 4px 8px;
+    margin: -4px -8px;
+}
+
+.search-btn:hover {
+    color: #3b82f6;
+}
+
+.clear-search-btn:hover {
+    color: #374151;
+}
+
 /* Resize Handle Styles */
 .resize-handle {
     width: 8px; /* Increased from 4px for easier grabbing */

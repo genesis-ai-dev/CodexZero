@@ -36,52 +36,79 @@ class UIUtilities {
     
     // PERFORMANCE: Auto-resize textarea based on content - optimized version
     static autoResizeTextarea(textarea) {
-        // PERFORMANCE: Use line-based calculation instead of scrollHeight
-        const lines = textarea.value.split('\n');
+        const text = textarea.value || '';
+        if (!text.trim()) {
+            textarea.style.height = '60px'; // Minimal height for empty cells
+            return;
+        }
+        
+        const lines = text.split('\n');
         const lineCount = lines.length;
         const maxLineLength = Math.max(...lines.map(line => line.length));
         
-        // Estimate height based on line count and content
-        const baseHeight = 80; // minimum height
-        const lineHeight = 24; // approximate line height
-        const padding = 32; // textarea padding
+                 const lineHeight = 24; // line height from CSS
+         const padding = 32; // 16px top + 16px bottom for better readability
+        const charWidth = 8; // approximate character width
+        const textareaWidth = textarea.offsetWidth - 32; // account for textarea padding
+        const charsPerLine = Math.floor(textareaWidth / charWidth);
         
-        // Add extra height for long lines that might wrap
-        const wrapFactor = Math.ceil(maxLineLength / 80); // assume ~80 chars per line
-        const estimatedHeight = baseHeight + (lineCount * wrapFactor * lineHeight) + padding;
+        // Calculate wrapped lines more accurately
+        let totalLines = 0;
+        lines.forEach(line => {
+            if (line.length === 0) {
+                totalLines += 1; // empty line still takes space
+            } else {
+                totalLines += Math.ceil(line.length / charsPerLine);
+            }
+        });
         
-        const newHeight = Math.min(estimatedHeight, 400); // max height limit
+        const calculatedHeight = (totalLines * lineHeight) + padding;
+        const minHeight = 60; // minimum for usability
+        const maxHeight = 300; // reduced max height
+        const newHeight = Math.max(minHeight, Math.min(calculatedHeight, maxHeight));
         
-        // Only update if significantly different to avoid layout thrashing
-        if (Math.abs(textarea.offsetHeight - newHeight) > 10) {
+        if (Math.abs(textarea.offsetHeight - newHeight) > 5) {
             textarea.style.height = newHeight + 'px';
         }
     }
 
     // PERFORMANCE: Batch auto-resize multiple textareas
     static batchAutoResizeTextareas(textareas) {
-        // Use DocumentFragment for batched operations
-        const fragment = document.createDocumentFragment();
         const updates = [];
         
         textareas.forEach(textarea => {
-            const lines = textarea.value.split('\n');
-            const lineCount = lines.length;
-            const maxLineLength = Math.max(...lines.map(line => line.length));
+            const text = textarea.value || '';
+            if (!text.trim()) {
+                updates.push({ textarea, height: 60 });
+                return;
+            }
             
-            const baseHeight = 80;
-            const lineHeight = 24;
-            const padding = 32;
-            const wrapFactor = Math.ceil(maxLineLength / 80);
-            const estimatedHeight = baseHeight + (lineCount * wrapFactor * lineHeight) + padding;
-            const newHeight = Math.min(estimatedHeight, 400);
+            const lines = text.split('\n');
+                         const lineHeight = 24;
+             const padding = 32;
+            const charWidth = 8;
+            const textareaWidth = textarea.offsetWidth - 32;
+            const charsPerLine = Math.floor(textareaWidth / charWidth);
             
-            if (Math.abs(textarea.offsetHeight - newHeight) > 10) {
+            let totalLines = 0;
+            lines.forEach(line => {
+                if (line.length === 0) {
+                    totalLines += 1;
+                } else {
+                    totalLines += Math.ceil(line.length / charsPerLine);
+                }
+            });
+            
+            const calculatedHeight = (totalLines * lineHeight) + padding;
+            const minHeight = 60;
+            const maxHeight = 300;
+            const newHeight = Math.max(minHeight, Math.min(calculatedHeight, maxHeight));
+            
+            if (Math.abs(textarea.offsetHeight - newHeight) > 5) {
                 updates.push({ textarea, height: newHeight });
             }
         });
         
-        // Apply all updates at once
         updates.forEach(({ textarea, height }) => {
             textarea.style.height = height + 'px';
         });

@@ -704,6 +704,98 @@ def _generate_translation_with_examples(text, target_language, examples, source_
 
 # Legacy translation routes removed - everything now uses unified Text schema
 
+@translation.route('/project/<int:project_id>/search/<text_id>')
+@login_required
+def search_parallel_passages(project_id, text_id):
+    """Search for parallel passages using ContextQuery"""
+    require_project_access(project_id, 'viewer')
+    
+    query = request.args.get('q', '').strip()
+    if not query or len(query) < 3:
+        return jsonify({'verses': []})
+    
+    try:
+        actual_text_id = int(text_id.replace('text_', ''))
+        
+        from utils.text_manager import TextManager
+        text_manager = TextManager(actual_text_id)
+        verses_data = text_manager.get_non_empty_verses()
+        
+        if not verses_data:
+            return jsonify({'verses': []})
+        
+        from ai.contextquery import DatabaseContextQuery
+        cq = DatabaseContextQuery(verses_data, verses_data)
+        results = cq.search_by_text(query, top_k=50, min_examples=5, coverage_threshold=0.8)
+        
+        from utils.translation_manager import VerseReferenceManager
+        vrm = VerseReferenceManager()
+        
+        search_results = []
+        for verse_index, source_text, target_text, coverage_score in results:
+            reference = vrm.get_verse_reference(verse_index - 1)
+            search_results.append({
+                'verse': verse_index,
+                'reference': reference or f"Verse {verse_index}",
+                'target_text': target_text,
+                'source_text': target_text,
+                'index': verse_index - 1,
+                'coverage_score': round(coverage_score, 3),
+                'analysis': {"suggestions": []}
+            })
+        
+        return jsonify({
+            'verses': search_results,
+            'query': query,
+            'total_results': len(search_results)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e), 'verses': []}), 500
+
+
+@translation.route('/project/<int:project_id>/translation/<text_id>/verses-by-indices', methods=['POST'])
+@login_required
+def get_verses_by_indices(project_id, text_id):
+    """Get specific verses by their indices for cross-window sync"""
+    require_project_access(project_id, 'viewer')
+    
+    data = request.get_json()
+    verse_indices = data.get('verse_indices', [])
+    
+    if not verse_indices:
+        return jsonify({'verses': []})
+    
+    try:
+        actual_text_id = int(text_id.replace('text_', ''))
+        
+        from utils.text_manager import TextManager
+        text_manager = TextManager(actual_text_id)
+        verses_text = text_manager.get_verses(verse_indices)
+        
+        from utils.translation_manager import VerseReferenceManager
+        vrm = VerseReferenceManager()
+        
+        verses_data = []
+        for i, verse_index in enumerate(verse_indices):
+            verse_text = verses_text[i] if i < len(verses_text) else ''
+            reference = vrm.get_verse_reference(verse_index)
+            
+            verses_data.append({
+                'verse': verse_index + 1,
+                'reference': reference or f"Verse {verse_index + 1}",
+                'target_text': verse_text,
+                'source_text': verse_text,
+                'index': verse_index,
+                'analysis': {"suggestions": []}
+            })
+        
+        return jsonify({'verses': verses_data})
+        
+    except Exception as e:
+        return jsonify({'error': str(e), 'verses': []}), 500
+
+
 @translation.route('/project/<int:project_id>/texts')
 @login_required
 def list_all_texts(project_id):

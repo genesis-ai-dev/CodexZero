@@ -172,9 +172,19 @@ window.populateBookDropdown = function(books) {
         option.className = 'px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 cursor-pointer border-b border-neutral-100 last:border-b-0';
         option.textContent = book.name;
         option.addEventListener('click', () => {
+            // Update display
             document.getElementById('goto-book-text').textContent = book.name;
             dropdown.classList.add('hidden');
             document.getElementById('goto-book-chevron').style.transform = 'rotate(0deg)';
+            
+            // Store the book value and trigger navigation
+            const button = document.getElementById('goto-book-button');
+            button.dataset.value = book.value;
+            
+            // Trigger navigation via translation editor
+            if (window.translationEditor && window.translationEditor.navigation) {
+                window.translationEditor.navigation.jumpToBook(book.value);
+            }
         });
         dropdown.appendChild(option);
     });
@@ -190,9 +200,19 @@ window.populateChapterDropdown = function(chapters) {
         option.className = 'px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 cursor-pointer border-b border-neutral-100 last:border-b-0';
         option.textContent = chapter.name;
         option.addEventListener('click', () => {
+            // Update display
             document.getElementById('goto-chapter-text').textContent = chapter.name;
             dropdown.classList.add('hidden');
             document.getElementById('goto-chapter-chevron').style.transform = 'rotate(0deg)';
+            
+            // Store the chapter value and trigger navigation
+            const button = document.getElementById('goto-chapter-button');
+            button.dataset.value = chapter.value;
+            
+            // Trigger navigation via translation editor
+            if (window.translationEditor && window.translationEditor.navigation) {
+                window.translationEditor.navigation.navigateToChapter(chapter.value);
+            }
         });
         dropdown.appendChild(option);
     });

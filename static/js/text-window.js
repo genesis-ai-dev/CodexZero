@@ -8,6 +8,8 @@ class TextWindow {
         this.targetLanguage = targetLanguage; 
         this.element = null;
         this.audioManager = new AudioManager(id);
+        this.isSearchMode = false;
+        this.originalData = null;
         
         // PERFORMANCE: Simple rendering - no virtual scrolling
         
@@ -69,34 +71,46 @@ class TextWindow {
                </button>`;
         
         header.innerHTML = `
-            <div class="flex items-center">
-                <i class="fas fa-edit mr-2"></i>
-                <span>${this.title}</span>
+            <div class="flex items-center flex-1 mr-3">
+                <div class="flex-1 flex items-center bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-white hover:border-gray-300 transition-all duration-200">
+                    <i class="fas fa-search text-gray-400 text-sm mr-2"></i>
+                    <input type="text" 
+                           class="search-input flex-1 bg-transparent border-0 outline-none text-sm font-medium placeholder:text-gray-400 placeholder:opacity-70 text-gray-700" 
+                           placeholder="${this.title}" 
+                           data-window-id="${this.id}">
+                    <button class="clear-search-btn ml-2 text-gray-400 hover:text-gray-600 hidden transition-colors duration-200">
+                        <i class="fas fa-times text-sm"></i>
+                    </button>
+                </div>
             </div>
             <div class="flex items-center gap-2">
                 ${closeButton}
             </div>
         `;
         
-        const rightContainer = header.querySelector('div:last-child');
-        rightContainer.insertBefore(downloadButton, rightContainer.firstChild);
-        rightContainer.insertBefore(plusButton, rightContainer.firstChild);
+        const rightContainer = header.children[1]; // Second div is the button container
+        console.log('Right container:', rightContainer); // Debug log
         
-        // Add language server toggle button for all windows
+        // Insert buttons to position plus and sync next to close button
+        // Order will be: other buttons, sync, plus, close
+        if (this.type === 'primary' && window.translationEditor?.canEdit) {
+            rightContainer.insertBefore(playAllButton, rightContainer.firstChild);
+        }
+        
         if (window.languageServer && typeof window.languageServer.createToggleButton === 'function') {
             const languageServerToggle = window.languageServer.createToggleButton(this.id);
             rightContainer.insertBefore(languageServerToggle, rightContainer.firstChild);
         }
         
-        // Only add sync toggle for non-primary windows
-        if (this.type !== 'primary') {
-            rightContainer.insertBefore(syncToggle, rightContainer.firstChild);
-        }
+        rightContainer.insertBefore(downloadButton, rightContainer.firstChild);
         
-        // Only add play all button for primary windows with audio capability
-        if (this.type === 'primary' && window.translationEditor?.canEdit) {
-            rightContainer.insertBefore(playAllButton, rightContainer.firstChild);
+        // Insert sync and plus buttons right before the close button
+        if (this.type !== 'primary') {
+            rightContainer.insertBefore(syncToggle, rightContainer.lastChild);
         }
+        rightContainer.insertBefore(plusButton, rightContainer.lastChild);
+        
+        this.setupHeaderSearchListeners(header);
         
         header.addEventListener('dragstart', (e) => {
             const windowData = {
@@ -116,6 +130,55 @@ class TextWindow {
         return header;
     }
     
+    setupHeaderSearchListeners(header) {
+        const searchInput = header.querySelector('.search-input');
+        const clearBtn = header.querySelector('.clear-search-btn');
+        
+        const performSearch = async () => {
+            const query = searchInput.value.trim();
+            if (!query || query.length < 3) return;
+            
+            try {
+                const projectId = window.translationEditor.projectId;
+                const response = await fetch(
+                    `/project/${projectId}/search/${this.id}?q=${encodeURIComponent(query)}`
+                );
+                const data = await response.json();
+                
+                if (data.verses && data.verses.length > 0) {
+                    this.showSearchResults(data.verses, query);
+                    clearBtn.classList.remove('hidden');
+                } else {
+                    this.showNoResults(query);
+                }
+            } catch (error) {
+                console.error('Search error:', error);
+            }
+        };
+        
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
+        
+        clearBtn.addEventListener('click', () => {
+            this.clearSearch();
+            clearBtn.classList.add('hidden');
+            searchInput.value = '';
+        });
+        
+        searchInput.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+        
+        searchInput.addEventListener('focus', (e) => {
+            e.stopPropagation();
+            header.draggable = false;
+        });
+        
+        searchInput.addEventListener('blur', () => {
+            header.draggable = true;
+        });
+    }
 
 
     createDownloadButton() {
@@ -553,29 +616,148 @@ class TextWindow {
         const content = document.createElement('div');
         content.className = 'flex-1 overflow-y-auto overflow-x-hidden p-4 leading-tight text-sm bg-white';
         content.setAttribute('data-window-content', 'true');
-        
-        // CRITICAL: Ensure proper scroll container setup for flex layouts
         content.style.minHeight = '0';
         content.style.flex = '1';
         
-        // Add purpose section
         const purposeSection = this.createPurposeSection();
         content.appendChild(purposeSection);
         
-        // Check if virtual scrolling is available
         if (window.translationEditor?.virtualScrollManager) {
-            // Use virtual scrolling for infinite scroll
             this.setupVirtualScrolling(content);
         } else {
-            // Fallback to traditional rendering
             if (!this.data?.verses) {
                 content.innerHTML += '<div class="text-neutral-400 text-center py-8">No verses loaded</div>';
-                return content;
+            } else {
+                this.renderAllVerses(content);
             }
-            this.renderAllVerses(content);
         }
         
         return content;
+    }
+    
+
+    
+    showSearchResults(verses, query) {
+        if (!this.originalData) {
+            this.originalData = { ...this.data };
+        }
+        
+        this.data = {
+            verses: verses,
+            book: 'Search Results',
+            chapter: `"${query}"`
+        };
+        this.isSearchMode = true;
+        this.renderSearchResults();
+        this.syncSearchToOtherWindows(verses);
+    }
+    
+    showNoResults(query) {
+        const container = this.element.querySelector('[data-window-content]');
+        container.innerHTML = `
+            <div class="text-center py-12">
+                <i class="fas fa-search text-4xl text-gray-300 mb-4"></i>
+                <p class="text-gray-500">No results found for "${query}"</p>
+                <p class="text-sm text-gray-400 mt-2">Try different search terms</p>
+            </div>
+        `;
+    }
+    
+    renderSearchResults() {
+        const container = this.element.querySelector('[data-window-content]');
+        container.innerHTML = '';
+        
+        const header = document.createElement('div');
+        header.className = 'mb-4 p-3 bg-blue-50 rounded-lg border';
+        header.innerHTML = `
+            <div class="flex items-center gap-2 text-blue-700">
+                <i class="fas fa-search"></i>
+                <span class="font-medium">Search Results: ${this.data.verses.length} passages found</span>
+            </div>
+        `;
+        container.appendChild(header);
+        
+        this.data.verses.forEach(verseData => {
+            const verseElement = this.createVerseElement(verseData, false);
+            container.appendChild(verseElement);
+        });
+        
+        requestAnimationFrame(() => {
+            const textareas = container.querySelectorAll('textarea');
+            UIUtilities.batchAutoResizeTextareas(textareas);
+        });
+    }
+    
+    clearSearch() {
+        if (this.originalData) {
+            this.data = this.originalData;
+            this.originalData = null;
+        }
+        this.isSearchMode = false;
+        
+        const container = this.element.querySelector('[data-window-content]');
+        container.innerHTML = '';
+        
+        const purposeSection = this.createPurposeSection();
+        container.appendChild(purposeSection);
+        
+        if (window.translationEditor?.virtualScrollManager) {
+            this.setupVirtualScrolling(container);
+        } else {
+            this.renderAllVerses(container);
+        }
+        
+        this.clearSearchFromOtherWindows();
+    }
+    
+    syncSearchToOtherWindows(searchResults) {
+        const verseIndices = searchResults.map(v => v.index);
+        const query = this.data.chapter.replace(/"/g, '') || 'search';
+        
+        for (const [windowId, textWindow] of window.translationEditor.textWindows) {
+            if (windowId !== this.id) {
+                textWindow.showCorrespondingVerses(verseIndices, query);
+            }
+        }
+    }
+    
+    async showCorrespondingVerses(verseIndices, query) {
+        if (!this.originalData) {
+            this.originalData = { ...this.data };
+        }
+        
+        try {
+            const projectId = window.translationEditor.projectId;
+            const response = await fetch(
+                `/project/${projectId}/translation/${this.id}/verses-by-indices`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ verse_indices: verseIndices })
+                }
+            );
+            const data = await response.json();
+            
+            if (data.verses) {
+                this.data = {
+                    verses: data.verses,
+                    book: 'Corresponding Verses',
+                    chapter: `"${query}"`
+                };
+                this.isSearchMode = true;
+                this.renderSearchResults();
+            }
+        } catch (error) {
+            console.error('Error loading corresponding verses:', error);
+        }
+    }
+    
+    clearSearchFromOtherWindows() {
+        for (const [windowId, textWindow] of window.translationEditor.textWindows) {
+            if (windowId !== this.id && textWindow.isSearchMode) {
+                textWindow.clearSearch();
+            }
+        }
     }
     
     setupProgressiveLoading(container) {
@@ -950,10 +1132,19 @@ class TextWindow {
         textarea.value = verseData.target_text || verseData.source_text || '';
         textarea.draggable = false;
         
-        // PERFORMANCE: Set proper height immediately based on content
-        const lines = (textarea.value || '').split('\n').length;
-        const minHeight = Math.max(80, lines * 24 + 32); // 24px per line + padding
-        textarea.style.height = minHeight + 'px';
+        // Set proper height immediately based on content
+        const text = textarea.value || '';
+        if (!text.trim()) {
+            textarea.style.height = '60px';
+        } else {
+            const lines = text.split('\n');
+            const totalLines = lines.reduce((count, line) => {
+                return count + (line.length === 0 ? 1 : Math.ceil(line.length / 80));
+            }, 0);
+                         const calculatedHeight = (totalLines * 24) + 32;
+            const finalHeight = Math.max(60, Math.min(calculatedHeight, 300));
+            textarea.style.height = finalHeight + 'px';
+        }
         
         // Disable editing only for viewers (not reference windows - they should be editable)
         if (window.translationEditor && !window.translationEditor.canEdit) {
