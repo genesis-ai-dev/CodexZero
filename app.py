@@ -19,6 +19,7 @@ from routes.members import members
 from routes.flags import flags
 from routes.notifications import notifications
 from routes.language_server import language_server
+from routes.export import export_bp
 from ai.bot import Chatbot
 
 
@@ -87,6 +88,7 @@ def create_app():
     app.register_blueprint(flags)
     app.register_blueprint(notifications)
     app.register_blueprint(language_server)
+    app.register_blueprint(export_bp)
     
     # Static file serving routes
     @app.route('/static/<path:filename>')

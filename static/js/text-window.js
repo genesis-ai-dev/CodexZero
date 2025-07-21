@@ -130,25 +130,15 @@ class TextWindow {
         const downloadDropdown = document.createElement('div');
         downloadDropdown.className = 'absolute top-full right-0 bg-white border border-neutral-200 rounded-xl py-2 hidden z-50 shadow-xl min-w-36';
         
-        const txtButton = document.createElement('button');
-        txtButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center';
-        txtButton.innerHTML = '<i class="fas fa-file-alt mr-2 text-gray-500"></i>Download as TXT';
-        txtButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.downloadChapter('txt');
-            downloadDropdown.classList.add('hidden');
-        });
-        
         const usfmButton = document.createElement('button');
         usfmButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center';
         usfmButton.innerHTML = '<i class="fas fa-code mr-2 text-gray-500"></i>Download as USFM';
         usfmButton.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.downloadChapter('usfm');
+            this.downloadFile('usfm');
             downloadDropdown.classList.add('hidden');
         });
         
-        downloadDropdown.appendChild(txtButton);
         downloadDropdown.appendChild(usfmButton);
         
         // Add audio download options for primary windows
@@ -206,6 +196,49 @@ class TextWindow {
         downloadDropdown.classList.add('download-dropdown');
         
         return downloadContainer;
+    }
+
+    async downloadFile(format) {
+        const projectId = window.location.pathname.split('/')[2];
+        
+        const editor = window.translationEditor;
+        const book = editor?.currentBook;
+        const chapter = editor?.currentChapter;
+        
+        let url = `/project/${projectId}/export/${this.id}/${format}`;
+        
+        if (book && chapter) {
+            url += `?book=${encodeURIComponent(book)}&chapter=${encodeURIComponent(chapter)}`;
+        }
+        
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            
+            const contentDisposition = response.headers.get('content-disposition');
+            let filename = `${this.title}.${format}`;
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+                if (filenameMatch && filenameMatch.length > 1) {
+                    filename = filenameMatch[1];
+                }
+            }
+            
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+        } catch (error) {
+            console.error('Download failed:', error);
+            alert('Failed to download file.');
+        }
     }
 
     createPlusButton() {
@@ -431,132 +464,11 @@ class TextWindow {
     }
 
     downloadChapter(format) {
-        if (!this.data?.verses || this.data.verses.length === 0) {
-            alert('No verses available to download');
-            return;
-        }
-
-        let content = '';
-        let filename = '';
-        
-        // Get chapter info from the translation editor if available
-        const editor = window.translationEditor;
-        const book = editor?.currentBook || 'Unknown';
-        const chapter = editor?.currentChapter || '1';
-        const safeName = this.title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
-        
-        if (format === 'txt') {
-            // Simple text format - one verse per line
-            content = this.data.verses.map(verse => {
-                const text = verse.target_text || verse.source_text || '';
-                return text.trim();
-            }).filter(text => text.length > 0).join('\n');
-            
-            filename = `${safeName}_${book}_${chapter}.txt`;
-        } else if (format === 'usfm') {
-            // USFM format
-            const bookCode = this.getBookCode(book);
-            content = `\\id ${bookCode.toUpperCase()}\n\\c ${chapter}\n`;
-            
-            this.data.verses.forEach(verse => {
-                const text = verse.target_text || verse.source_text || '';
-                if (text.trim()) {
-                    content += `\\v ${verse.verse} ${text.trim()}\n`;
-                }
-            });
-            
-            filename = `${safeName}_${book}_${chapter}.usfm`;
-        }
-        
-        if (!content.trim()) {
-            alert('No content available to download');
-            return;
-        }
-        
-        // Create and trigger download
-        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        // This method is no longer needed
     }
 
     getBookCode(bookName) {
-        // Simple book name to USFM code mapping
-        const bookCodes = {
-            'Genesis': 'GEN',
-            'Exodus': 'EXO',
-            'Leviticus': 'LEV',
-            'Numbers': 'NUM',
-            'Deuteronomy': 'DEU',
-            'Joshua': 'JOS',
-            'Judges': 'JDG',
-            'Ruth': 'RUT',
-            '1 Samuel': '1SA',
-            '2 Samuel': '2SA',
-            '1 Kings': '1KI',
-            '2 Kings': '2KI',
-            '1 Chronicles': '1CH',
-            '2 Chronicles': '2CH',
-            'Ezra': 'EZR',
-            'Nehemiah': 'NEH',
-            'Esther': 'EST',
-            'Job': 'JOB',
-            'Psalms': 'PSA',
-            'Proverbs': 'PRO',
-            'Ecclesiastes': 'ECC',
-            'Song of Solomon': 'SNG',
-            'Isaiah': 'ISA',
-            'Jeremiah': 'JER',
-            'Lamentations': 'LAM',
-            'Ezekiel': 'EZK',
-            'Daniel': 'DAN',
-            'Hosea': 'HOS',
-            'Joel': 'JOL',
-            'Amos': 'AMO',
-            'Obadiah': 'OBA',
-            'Jonah': 'JON',
-            'Micah': 'MIC',
-            'Nahum': 'NAM',
-            'Habakkuk': 'HAB',
-            'Zephaniah': 'ZEP',
-            'Haggai': 'HAG',
-            'Zechariah': 'ZEC',
-            'Malachi': 'MAL',
-            'Matthew': 'MAT',
-            'Mark': 'MRK',
-            'Luke': 'LUK',
-            'John': 'JHN',
-            'Acts': 'ACT',
-            'Romans': 'ROM',
-            '1 Corinthians': '1CO',
-            '2 Corinthians': '2CO',
-            'Galatians': 'GAL',
-            'Ephesians': 'EPH',
-            'Philippians': 'PHP',
-            'Colossians': 'COL',
-            '1 Thessalonians': '1TH',
-            '2 Thessalonians': '2TH',
-            '1 Timothy': '1TI',
-            '2 Timothy': '2TI',
-            'Titus': 'TIT',
-            'Philemon': 'PHM',
-            'Hebrews': 'HEB',
-            'James': 'JAS',
-            '1 Peter': '1PE',
-            '2 Peter': '2PE',
-            '1 John': '1JN',
-            '2 John': '2JN',
-            '3 John': '3JN',
-            'Jude': 'JUD',
-            'Revelation': 'REV'
-        };
-        
-        return bookCodes[bookName] || bookName.substring(0, 3).toUpperCase();
+        // This method is no longer needed
     }
     
     async downloadAudioFiles(type) {
