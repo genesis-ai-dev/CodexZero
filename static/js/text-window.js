@@ -693,6 +693,7 @@ class TextWindow {
         // Enhanced sync: Sync to a specific verse index, or find the currently visible verse
         let currentVisibleVerse = null;
         let verseIndex = targetVerseIndex;
+        let sourceRelativePosition = null;
         
         if (verseIndex === null) {
             // Fallback to finding the currently visible verse
@@ -712,6 +713,17 @@ class TextWindow {
             return;
         }
         
+        // Calculate the exact Y position of the source verse within its container viewport
+        if (currentVisibleVerse) {
+            const containerScrollTop = sourceContainer.scrollTop;
+            const verseOffsetTop = currentVisibleVerse.offsetTop;
+            
+            // Calculate the exact Y coordinate where the verse appears in the viewport
+            sourceRelativePosition = verseOffsetTop - containerScrollTop;
+            
+            console.log(`Source verse at Y position: ${sourceRelativePosition}px within viewport (verse offset: ${verseOffsetTop}px, scroll: ${containerScrollTop}px)`);
+        }
+        
         const targetVerseNumber = currentVisibleVerse?.dataset.verse || verseIndex;
         const targetReference = currentVisibleVerse?.dataset.reference || `Verse ${targetVerseNumber}`;
         
@@ -722,7 +734,7 @@ class TextWindow {
             if (textWindow.id !== this.id && textWindow.syncEnabled !== false) {
                 const otherContainer = textWindow.element?.querySelector('[data-window-content]');
                 if (otherContainer && otherContainer.offsetParent) {
-                    this.syncToVerseIndex(otherContainer, verseIndex, targetReference, textWindow.id);
+                    this.syncToVerseIndex(otherContainer, verseIndex, targetReference, textWindow.id, sourceRelativePosition);
                 }
             }
         });
@@ -756,24 +768,38 @@ class TextWindow {
         return closestElement;
     }
     
-    async syncToVerseIndex(container, verseIndex, reference, windowId) {
+    async syncToVerseIndex(container, verseIndex, reference, windowId, sourceRelativePosition) {
         // Try to find the target verse by index in the reference window
         const targetVerse = container.querySelector(`[data-verse-index="${verseIndex}"]`);
         
         if (targetVerse) {
-            // Verse found - jump directly to it
-            const targetTop = targetVerse.offsetTop - 50; // Small offset for better visibility
+            // Verse found - position it based on source relative position
+            let targetTop;
+            
+            if (sourceRelativePosition !== null && sourceRelativePosition !== undefined) {
+                // Position the target verse at the exact same Y coordinate as the source verse
+                const verseOffsetTop = targetVerse.offsetTop;
+                
+                // Calculate target scroll position to place verse at same Y position within viewport
+                targetTop = verseOffsetTop - sourceRelativePosition;
+                
+                console.log(`Synced ${windowId} to verse index ${verseIndex} at Y position ${sourceRelativePosition}px (verse offset: ${verseOffsetTop}px)`);
+            } else {
+                // Fallback to old behavior with small offset
+                targetTop = targetVerse.offsetTop - 50;
+                console.log(`Synced ${windowId} to verse index ${verseIndex} (found locally, fallback positioning)`);
+            }
+            
             container.scrollTop = Math.max(0, targetTop);
-            console.log(`Synced ${windowId} to verse index ${verseIndex} (found locally)`);
         } else {
             // Verse not found - need to load the correct chapter/book content
             console.log(`Verse index ${verseIndex} not found in ${windowId}, loading appropriate content`);
             
-            await this.loadContentForVerseIndex(container, verseIndex, reference, windowId);
+            await this.loadContentForVerseIndex(container, verseIndex, reference, windowId, sourceRelativePosition);
         }
     }
     
-    async loadContentForVerseIndex(container, verseIndex, reference, windowId) {
+    async loadContentForVerseIndex(container, verseIndex, reference, windowId, sourceRelativePosition) {
         try {
             // First, get the book/chapter info for this verse index
             const verseInfo = await this.getVerseInfo(verseIndex);
@@ -794,15 +820,29 @@ class TextWindow {
                 setTimeout(() => {
                     const targetVerse = container.querySelector(`[data-verse-index="${verseIndex}"]`);
                     if (targetVerse) {
-                        const targetTop = targetVerse.offsetTop - 50;
+                        let targetTop;
+                        
+                        if (sourceRelativePosition !== null && sourceRelativePosition !== undefined) {
+                            // Position the target verse at the exact same Y coordinate as the source verse
+                            const verseOffsetTop = targetVerse.offsetTop;
+                            
+                            // Calculate target scroll position to place verse at same Y position within viewport
+                            targetTop = verseOffsetTop - sourceRelativePosition;
+                            
+                            console.log(`Successfully synced ${windowId} to verse index ${verseIndex} after loading at Y position ${sourceRelativePosition}px (verse offset: ${verseOffsetTop}px)`);
+                        } else {
+                            // Fallback to old behavior
+                            targetTop = targetVerse.offsetTop - 50;
+                            console.log(`Successfully synced ${windowId} to verse index ${verseIndex} after loading (fallback positioning)`);
+                        }
+                        
                         container.scrollTop = Math.max(0, targetTop);
-                        console.log(`Successfully synced ${windowId} to verse index ${verseIndex} after loading`);
                     } else {
                         console.log(`Verse index ${verseIndex} still not found after loading ${verseInfo.book} ${verseInfo.chapter}`);
                         // Try using the virtual scroll manager's direct verse scrolling
                         setTimeout(() => {
                             if (window.translationEditor.virtualScrollManager.scrollToVerseIndex) {
-                                window.translationEditor.virtualScrollManager.scrollToVerseIndex(windowId, verseIndex);
+                                window.translationEditor.virtualScrollManager.scrollToVerseIndex(windowId, verseIndex, sourceRelativePosition);
                             }
                         }, 500);
                     }

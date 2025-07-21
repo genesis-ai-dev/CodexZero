@@ -474,7 +474,7 @@ class VirtualScrollManager {
         });
     }
     
-    scrollToVerseIndex(windowId, verseIndex) {
+    scrollToVerseIndex(windowId, verseIndex, sourceRelativePosition = null) {
         const container = this.containers.get(windowId);
         if (!container) return;
         
@@ -482,7 +482,19 @@ class VirtualScrollManager {
         requestAnimationFrame(() => {
             const verseElement = container.querySelector(`[data-verse-index="${verseIndex}"]`);
             if (verseElement) {
-                verseElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                if (sourceRelativePosition !== null && sourceRelativePosition !== undefined) {
+                    // Position the target verse at the exact same Y coordinate as the source verse
+                    const verseOffsetTop = verseElement.offsetTop;
+                    
+                    // Calculate target scroll position to place verse at same Y position within viewport
+                    const targetTop = verseOffsetTop - sourceRelativePosition;
+                    
+                    container.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+                    console.log(`VirtualScrollManager: Scrolled to verse ${verseIndex} at Y position ${sourceRelativePosition}px (verse offset: ${verseOffsetTop}px)`);
+                } else {
+                    // Fallback to default scrollIntoView behavior
+                    verseElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
             } else {
                 // Estimate position if element not found
                 const estimatedTop = verseIndex * this.VERSE_HEIGHT;
