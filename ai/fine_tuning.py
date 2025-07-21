@@ -6,6 +6,7 @@ from typing import Dict, List, Tuple, Optional, Any
 from openai import OpenAI
 from models import Project, Text, FineTuningJob, db
 from storage import get_storage
+from models import FineTuningJob
 
 
 import time
@@ -124,9 +125,20 @@ class FineTuningService:
             'max_context': 200000,
             'type': 'base'
         }
-        
-        # Add fine-tuned models with custom names (exclude hidden models)
-        from models import FineTuningJob
+        models["groq/moonshotai/kimi-k2-instruct"] = {
+            'name': 'Kimi K2 Instruct',
+            'description': 'Fast and cost-effective translation model.',
+            'cost_per_1k_tokens': 0.005,
+            'max_context': 131000,
+            'type': 'base'
+        }
+        models["cerebras/qwen-3-235b-a22b"] = {
+            'name': 'Qwen 3 235B',
+            'description': 'Fast and cost-effective thinking model.',
+            'cost_per_1k_tokens': 0.005,
+            'max_context': 131000,
+            'type': 'base'
+        }
         completed_jobs = FineTuningJob.query.filter_by(
             status='completed',
             hidden=False  # Exclude hidden models

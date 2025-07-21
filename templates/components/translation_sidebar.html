@@ -142,10 +142,21 @@ window.populateModelDropdown = function(models) {
         const option = document.createElement('div');
         option.className = 'px-4 py-3 text-sm text-neutral-700 hover:bg-neutral-50 cursor-pointer border-b border-neutral-100 last:border-b-0';
         option.textContent = model.name;
+        option.dataset.value = model.value;
         option.addEventListener('click', () => {
+            // Update display
             document.getElementById('translation-model-text').textContent = model.name;
             dropdown.classList.add('hidden');
             document.getElementById('translation-model-chevron').style.transform = 'rotate(0deg)';
+            
+            // Store the model value and trigger the change
+            const button = document.getElementById('translation-model-button');
+            button.dataset.value = model.value;
+            
+            // Trigger model change via translation UI
+            if (window.translationEditor && window.translationEditor.ui) {
+                window.translationEditor.ui.setTranslationModel(model.value);
+            }
         });
         dropdown.appendChild(option);
     });
@@ -193,6 +204,15 @@ window.setBookDropdownOption = function(value, text) {
 
 window.setChapterDropdownOption = function(value, text) {
     document.getElementById('goto-chapter-text').textContent = text;
+};
+
+window.setModelDropdownOption = function(value, text) {
+    const button = document.getElementById('translation-model-button');
+    const textElement = document.getElementById('translation-model-text');
+    if (button && textElement) {
+        button.dataset.value = value;
+        textElement.textContent = text;
+    }
 };
 </script>
 {% endmacro %} 
