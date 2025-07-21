@@ -7,6 +7,7 @@ class AdvancedLanguageServer {
         this.analysisTimeouts = new Map(); // verseIndex -> timeout ID
         this.currentTooltip = null; // Store current tooltip element
         this.tooltipHideTimeout = null; // Delay hiding tooltip
+        this.tooltipMaxTimeout = null; // Maximum time limit for tooltip
 
     }
     
@@ -488,7 +489,7 @@ class AdvancedLanguageServer {
                 // Delay hiding to allow moving to tooltip
                 this.tooltipHideTimeout = setTimeout(() => {
                     this.hideSuggestionTooltip();
-                }, 300);
+                }, 500);
             }
         }, true);
         
@@ -984,10 +985,21 @@ class AdvancedLanguageServer {
                 clearTimeout(this.tooltipHideTimeout);
                 this.tooltipHideTimeout = null;
             }
+            
+            // Reset the 7-second max timeout when user hovers over tooltip
+            if (this.tooltipMaxTimeout) {
+                clearTimeout(this.tooltipMaxTimeout);
+                this.tooltipMaxTimeout = setTimeout(() => {
+                    this.hideSuggestionTooltip();
+                }, 7000);
+            }
         });
         
         tooltip.addEventListener('mouseleave', () => {
-            this.hideSuggestionTooltip();
+            // Delay hiding when leaving tooltip
+            this.tooltipHideTimeout = setTimeout(() => {
+                this.hideSuggestionTooltip();
+            }, 500);
         });
         
         // Position the tooltip
@@ -995,6 +1007,11 @@ class AdvancedLanguageServer {
         this.positionTooltip(tooltip, element);
         
         this.currentTooltip = tooltip;
+        
+        // Set maximum time limit of 7 seconds
+        this.tooltipMaxTimeout = setTimeout(() => {
+            this.hideSuggestionTooltip();
+        }, 7000);
     }
     
     createSimpleTooltip(suggestion, element) {
@@ -1017,6 +1034,11 @@ class AdvancedLanguageServer {
         this.positionTooltip(tooltip, element);
         
         this.currentTooltip = tooltip;
+        
+        // Set maximum time limit of 7 seconds
+        this.tooltipMaxTimeout = setTimeout(() => {
+            this.hideSuggestionTooltip();
+        }, 7000);
     }
     
     positionTooltip(tooltip, element) {
@@ -1049,10 +1071,19 @@ class AdvancedLanguageServer {
             this.tooltipHideTimeout = null;
         }
         
+        if (this.tooltipMaxTimeout) {
+            clearTimeout(this.tooltipMaxTimeout);
+            this.tooltipMaxTimeout = null;
+        }
+        
         if (this.currentTooltip) {
             this.currentTooltip.remove();
             this.currentTooltip = null;
         }
+        
+        // Additional safety: remove any orphaned tooltips that might exist
+        const orphanedTooltips = document.querySelectorAll('.language-suggestion-tooltip');
+        orphanedTooltips.forEach(tooltip => tooltip.remove());
     }
     
     replaceWordInText(originalWord, correctedWord, verseIndex) {
@@ -1464,7 +1495,7 @@ class AdvancedLanguageServer {
                 // Delay hiding to allow moving to tooltip
                 this.tooltipHideTimeout = setTimeout(() => {
                     this.hideSuggestionTooltip();
-                }, 300);
+                }, 500);
             }
         }, true);
         
