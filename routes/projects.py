@@ -192,7 +192,7 @@ def view_project(project_id):
             'name': text.name,
             'verse_count': verse_count,
             'created_at': text.created_at,
-            'purpose_description': text.description
+            'description': text.description
         }
         
         all_texts.append(text_data)

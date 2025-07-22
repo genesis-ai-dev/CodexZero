@@ -1270,6 +1270,9 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // Extract numeric ID from text_ prefix if present
+        const numericId = translationId.toString().replace('text_', '');
+        
         // All translations are now unified Text records
         // Visual feedback
         purposeInput.style.opacity = '0.6';
@@ -1277,7 +1280,7 @@ document.addEventListener('DOMContentLoaded', function() {
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
         
-        fetch(`/project/${projectId}/texts/${translationId}/purpose`, {
+        fetch(`/project/${projectId}/texts/${numericId}/purpose`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

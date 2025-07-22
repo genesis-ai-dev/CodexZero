@@ -465,14 +465,14 @@ def update_file_purpose(project_id, file_id):
     if len(purpose_description) > 1000:
         return jsonify({'error': 'Purpose description must be 1000 characters or less'}), 400
     
-    project_file.purpose_description = purpose_description if purpose_description else None
+    project_file.description = purpose_description if purpose_description else None
     
     db.session.commit()
     
     return jsonify({
         'success': True,
         'message': 'File purpose updated successfully',
-        'purpose_description': project_file.purpose_description
+        'purpose_description': project_file.description
     })
 
 @files.route('/uploads/<path:filename>')

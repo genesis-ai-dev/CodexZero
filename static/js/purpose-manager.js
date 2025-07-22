@@ -65,8 +65,9 @@ class PurposeManager {
         try {
             // PERFORMANCE: Inline endpoint logic instead of separate method
             const isTranslation = type === 'translation' || id.startsWith('text_');
+            const numericId = isTranslation ? id.toString().replace('text_', '') : id;
             const url = isTranslation 
-                ? `/project/${projectId}/texts/${id}/purpose`
+                ? `/project/${projectId}/texts/${numericId}/purpose`
                 : `/project/${projectId}/files/${id}/purpose`;
             const requestBody = isTranslation
                 ? { description: purposeDescription }
