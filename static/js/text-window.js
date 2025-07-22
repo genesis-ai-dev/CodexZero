@@ -60,10 +60,8 @@ class TextWindow {
         header.draggable = true;
         header.setAttribute('data-window-header', 'true');
         
-        const downloadButton = this.createDownloadButton();
+        const moreButton = this.createMoreButton();
         const plusButton = this.createPlusButton();
-        const playAllButton = this.createPlayAllButton();
-        const syncToggle = this.createSyncToggle();
         const closeButton = `<button class="text-red-600 rounded p-1 close-text-btn" 
                        data-text-id="${this.id}" 
                        title="Remove this text">
@@ -89,26 +87,10 @@ class TextWindow {
         `;
         
         const rightContainer = header.children[1]; // Second div is the button container
-        console.log('Right container:', rightContainer); // Debug log
         
-        // Insert buttons to position plus and sync next to close button
-        // Order will be: other buttons, sync, plus, close
-        if (this.type === 'primary' && window.translationEditor?.canEdit) {
-            rightContainer.insertBefore(playAllButton, rightContainer.firstChild);
-        }
-        
-        if (window.languageServer && typeof window.languageServer.createToggleButton === 'function') {
-            const languageServerToggle = window.languageServer.createToggleButton(this.id);
-            rightContainer.insertBefore(languageServerToggle, rightContainer.firstChild);
-        }
-        
-        rightContainer.insertBefore(downloadButton, rightContainer.firstChild);
-        
-        // Insert sync and plus buttons right before the close button
-        if (this.type !== 'primary') {
-            rightContainer.insertBefore(syncToggle, rightContainer.lastChild);
-        }
+        // Insert buttons in the desired order: more, close, plus
         rightContainer.insertBefore(plusButton, rightContainer.lastChild);
+        rightContainer.insertBefore(moreButton, rightContainer.firstChild);
         
         this.setupHeaderSearchListeners(header);
         
@@ -181,67 +163,54 @@ class TextWindow {
     }
 
 
-    createDownloadButton() {
-        const downloadContainer = document.createElement('div');
-        downloadContainer.className = 'relative inline-block';
+    createMoreButton() {
+        const moreContainer = document.createElement('div');
+        moreContainer.className = 'relative inline-block';
         
-        const downloadToggle = document.createElement('button');
-        downloadToggle.className = 'text-gray-600 rounded p-1';
-        downloadToggle.title = 'Download chapter';
-        downloadToggle.innerHTML = '<i class="fas fa-download text-xs"></i>';
+        const moreToggle = document.createElement('button');
+        moreToggle.className = 'text-gray-600 rounded p-1';
+        moreToggle.title = 'More options';
+        moreToggle.innerHTML = '<i class="fas fa-bars text-xs"></i>';
         
-        const downloadDropdown = document.createElement('div');
-        downloadDropdown.className = 'absolute top-full right-0 bg-white border border-neutral-200 rounded-xl py-2 hidden z-50 shadow-xl min-w-36';
+        const moreDropdown = document.createElement('div');
+        moreDropdown.className = 'absolute top-full right-0 bg-white border border-neutral-200 rounded-xl py-2 hidden z-50 shadow-xl min-w-48';
         
-        const usfmButton = document.createElement('button');
-        usfmButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center';
-        usfmButton.innerHTML = '<i class="fas fa-code mr-2 text-gray-500"></i>Download as USFM';
-        usfmButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.downloadFile('usfm');
-            downloadDropdown.classList.add('hidden');
-        });
-        
-        downloadDropdown.appendChild(usfmButton);
-        
-        // Add audio download options for primary windows
-        if (this.type === 'primary' && window.translationEditor?.canEdit) {
-            // Separator
-            const separator = document.createElement('hr');
-            separator.className = 'my-2 border-gray-200';
-            downloadDropdown.appendChild(separator);
-            
-            // Individual audio files button
-            const audioIndividualButton = document.createElement('button');
-            audioIndividualButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center';
-            audioIndividualButton.innerHTML = '<i class="fas fa-volume-up mr-2 text-gray-500"></i>Download Audio Files';
-            audioIndividualButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.downloadAudioFiles('individual');
-                downloadDropdown.classList.add('hidden');
-            });
-            
-            // Spliced audio button
-            const audioSplicedButton = document.createElement('button');
-            audioSplicedButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center';
-            audioSplicedButton.innerHTML = '<i class="fas fa-music mr-2 text-gray-500"></i>Download Spliced Audio';
-            audioSplicedButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.downloadAudioFiles('spliced');
-                downloadDropdown.classList.add('hidden');
-            });
-            
-            downloadDropdown.appendChild(audioIndividualButton);
-            downloadDropdown.appendChild(audioSplicedButton);
+        // Sync toggle (for non-primary windows)
+        if (this.type !== 'primary') {
+            const syncButton = this.createSyncDropdownItem();
+            moreDropdown.appendChild(syncButton);
         }
         
-        downloadToggle.addEventListener('click', (e) => {
+        // Language server button
+        if (window.languageServer && typeof window.languageServer.createToggleButton === 'function') {
+            const languageServerItem = this.createLanguageServerDropdownItem();
+            moreDropdown.appendChild(languageServerItem);
+        }
+        
+        // Play all button (for primary windows with edit permissions)
+        if (this.type === 'primary' && window.translationEditor?.canEdit) {
+            const playAllItem = this.createPlayAllDropdownItem();
+            moreDropdown.appendChild(playAllItem);
+        }
+        
+        // Download/Export options
+        const downloadSection = this.createDownloadDropdownSection();
+        if (downloadSection.childNodes.length > 0) {
+            if (moreDropdown.children.length > 0) {
+                const separator = document.createElement('hr');
+                separator.className = 'my-2 border-gray-200';
+                moreDropdown.appendChild(separator);
+            }
+            moreDropdown.appendChild(downloadSection);
+        }
+        
+        moreToggle.addEventListener('click', (e) => {
             e.stopPropagation();
-            downloadDropdown.classList.toggle('hidden');
+            moreDropdown.classList.toggle('hidden');
             
             // Close other dropdowns
-            document.querySelectorAll('.download-dropdown:not(.hidden)').forEach(other => {
-                if (other !== downloadDropdown) {
+            document.querySelectorAll('.more-dropdown:not(.hidden), .download-dropdown:not(.hidden)').forEach(other => {
+                if (other !== moreDropdown) {
                     other.classList.add('hidden');
                 }
             });
@@ -249,16 +218,159 @@ class TextWindow {
         
         // Close dropdown when clicking outside
         document.addEventListener('click', (e) => {
-            if (!downloadContainer.contains(e.target)) {
-                downloadDropdown.classList.add('hidden');
+            if (!moreContainer.contains(e.target)) {
+                moreDropdown.classList.add('hidden');
             }
         });
         
-        downloadContainer.appendChild(downloadToggle);
-        downloadContainer.appendChild(downloadDropdown);
-        downloadDropdown.classList.add('download-dropdown');
+        moreContainer.appendChild(moreToggle);
+        moreContainer.appendChild(moreDropdown);
+        moreDropdown.classList.add('more-dropdown');
         
-        return downloadContainer;
+        return moreContainer;
+    }
+
+    createSyncDropdownItem() {
+        const syncItem = document.createElement('button');
+        syncItem.className = 'w-full text-left px-4 py-2 text-sm flex items-center hover:bg-gray-50';
+        
+        // Initialize sync state (default to true for better UX for reference windows)
+        if (this.syncEnabled === undefined) {
+            this.syncEnabled = localStorage.getItem(`sync-${this.id}`) !== 'false';
+        }
+        
+        const updateSyncItem = () => {
+            if (this.syncEnabled) {
+                syncItem.innerHTML = '<i class="fas fa-link mr-2"></i>Sync Scrolling';
+                syncItem.className = 'w-full text-left px-4 py-2 text-sm flex items-center hover:bg-gray-50 text-blue-600';
+                syncItem.title = 'Sync scrolling enabled - Will follow primary when clicked';
+            } else {
+                syncItem.innerHTML = '<i class="fas fa-unlink mr-2"></i>Sync Scrolling';
+                syncItem.className = 'w-full text-left px-4 py-2 text-sm flex items-center hover:bg-gray-50 text-gray-500';
+                syncItem.title = 'Sync scrolling disabled - Will not follow primary';
+            }
+        };
+        
+        updateSyncItem();
+        
+        syncItem.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.syncEnabled = !this.syncEnabled;
+            localStorage.setItem(`sync-${this.id}`, this.syncEnabled.toString());
+            updateSyncItem();
+            
+            // If sync was just enabled, trigger an immediate sync to catch up
+            if (this.syncEnabled) {
+                const primaryWindow = window.translationEditor?.textWindows?.get(window.translationEditor?.primaryTextId);
+                if (primaryWindow && primaryWindow.type === 'primary') {
+                    const primaryContainer = primaryWindow.element?.querySelector('[data-window-content]');
+                    if (primaryContainer) {
+                        primaryWindow.syncOtherWindowsToThis(primaryContainer);
+                    }
+                }
+            }
+            
+            // Close dropdown
+            syncItem.closest('.more-dropdown').classList.add('hidden');
+        });
+        
+        return syncItem;
+    }
+
+    createLanguageServerDropdownItem() {
+        const languageServerItem = document.createElement('button');
+        languageServerItem.className = 'w-full text-left px-4 py-2 text-sm flex items-center hover:bg-gray-50';
+        
+        const updateLanguageServerItem = () => {
+            // Use the proper method to check if language server is enabled for this window
+            const isEnabled = window.languageServer.isEnabledForWindow(this.id);
+            
+            if (isEnabled) {
+                languageServerItem.innerHTML = '<i class="fas fa-spell-check mr-2"></i>Spellcheck';
+                languageServerItem.className = 'w-full text-left px-4 py-2 text-sm flex items-center hover:bg-gray-50 text-blue-600';
+            } else {
+                languageServerItem.innerHTML = '<i class="fas fa-spell-check mr-2"></i>Spellcheck';
+                languageServerItem.className = 'w-full text-left px-4 py-2 text-sm flex items-center hover:bg-gray-50 text-gray-500';
+            }
+        };
+        
+        updateLanguageServerItem();
+        
+        languageServerItem.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Use the proper toggle method
+            window.languageServer.toggleWindow(this.id);
+            
+            // Update the visual state after toggle
+            updateLanguageServerItem();
+            
+            languageServerItem.closest('.more-dropdown').classList.add('hidden');
+        });
+        
+        return languageServerItem;
+    }
+
+    createPlayAllDropdownItem() {
+        const playAllItem = document.createElement('button');
+        playAllItem.className = 'w-full text-left px-4 py-2 text-sm flex items-center hover:bg-gray-50';
+        playAllItem.innerHTML = '<i class="fas fa-play-circle mr-2 text-gray-500"></i>Play all audio';
+        playAllItem.title = 'Play all audio in sequence';
+        
+        // State management
+        playAllItem._isPlaying = false;
+        playAllItem._currentIndex = 0;
+        playAllItem._audioQueue = [];
+        
+        playAllItem.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.togglePlayAll(playAllItem);
+            playAllItem.closest('.more-dropdown').classList.add('hidden');
+        });
+        
+        return playAllItem;
+    }
+
+    createDownloadDropdownSection() {
+        const downloadSection = document.createDocumentFragment();
+        
+        const usfmButton = document.createElement('button');
+        usfmButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center hover:bg-gray-50';
+        usfmButton.innerHTML = '<i class="fas fa-download mr-2 text-gray-500"></i>USFM';
+        usfmButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.downloadFile('usfm');
+            usfmButton.closest('.more-dropdown').classList.add('hidden');
+        });
+        
+        downloadSection.appendChild(usfmButton);
+        
+        // Add audio download options for primary windows
+        if (this.type === 'primary' && window.translationEditor?.canEdit) {
+            // Individual audio files button
+            const audioIndividualButton = document.createElement('button');
+            audioIndividualButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center hover:bg-gray-50';
+            audioIndividualButton.innerHTML = '<i class="fas fa-volume-up mr-2 text-gray-500"></i>Download Audio Files';
+            audioIndividualButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.downloadAudioFiles('individual');
+                audioIndividualButton.closest('.more-dropdown').classList.add('hidden');
+            });
+            
+            // Spliced audio button
+            const audioSplicedButton = document.createElement('button');
+            audioSplicedButton.className = 'w-full text-left px-4 py-2 text-sm flex items-center hover:bg-gray-50';
+            audioSplicedButton.innerHTML = '<i class="fas fa-music mr-2 text-gray-500"></i>Download Spliced Audio';
+            audioSplicedButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.downloadAudioFiles('spliced');
+                audioSplicedButton.closest('.more-dropdown').classList.add('hidden');
+            });
+            
+            downloadSection.appendChild(audioIndividualButton);
+            downloadSection.appendChild(audioSplicedButton);
+        }
+        
+        return downloadSection;
     }
 
     async downloadFile(format) {
@@ -318,83 +430,12 @@ class TextWindow {
         return plusButton;
     }
 
-    createSyncToggle() {
-        const syncToggle = document.createElement('button');
-        syncToggle.className = 'text-gray-600 rounded p-1 sync-toggle-btn';
-        syncToggle.title = 'Catch up to primary translation when clicked';
-        
-        // Initialize sync state (default to true for better UX for reference windows)
-        if (this.syncEnabled === undefined) {
-            this.syncEnabled = localStorage.getItem(`sync-${this.id}`) !== 'false';
-        }
-        
-        const updateSyncButton = () => {
-            if (this.syncEnabled) {
-                syncToggle.innerHTML = '<i class="fas fa-link text-xs text-blue-600"></i>';
-                syncToggle.classList.add('text-blue-600');
-                syncToggle.classList.remove('text-gray-600');
-                syncToggle.title = 'Catch up enabled - Will follow primary when clicked';
-            } else {
-                syncToggle.innerHTML = '<i class="fas fa-unlink text-xs"></i>';
-                syncToggle.classList.remove('text-blue-600');
-                syncToggle.classList.add('text-gray-600');
-                syncToggle.title = 'Catch up disabled - Will not follow primary';
-            }
-        };
-        
-        updateSyncButton();
-
-        syncToggle.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.syncEnabled = !this.syncEnabled;
-            localStorage.setItem(`sync-${this.id}`, this.syncEnabled.toString());
-            updateSyncButton();
-            
-            // Show brief feedback
-            const originalTitle = syncToggle.title;
-            syncToggle.title = this.syncEnabled ? 'Catch up enabled!' : 'Catch up disabled!';
-            setTimeout(() => {
-                syncToggle.title = originalTitle;
-            }, 1000);
-            
-            // If sync was just enabled, trigger an immediate sync to catch up
-            if (this.syncEnabled) {
-                const primaryWindow = window.translationEditor?.textWindows?.get(window.translationEditor?.primaryTextId);
-                if (primaryWindow && primaryWindow.type === 'primary') {
-                    const primaryContainer = primaryWindow.element?.querySelector('[data-window-content]');
-                    if (primaryContainer) {
-                        primaryWindow.syncOtherWindowsToThis(primaryContainer);
-                    }
-                }
-            }
-        });
-
-        return syncToggle;
-    }
-
     openTextSelectionModal() {
         const isPrimary = this.type === 'primary';
         window.translationEditor.ui.showTextSelectionModal(isPrimary);
     }
 
-    createPlayAllButton() {
-        const playAllButton = document.createElement('button');
-        playAllButton.className = 'text-gray-600 rounded p-1 play-all-btn';
-        playAllButton.title = 'Play all audio in sequence';
-        playAllButton.innerHTML = '<i class="fas fa-play-circle text-xs"></i>';
-        
-        // State management
-        playAllButton._isPlaying = false;
-        playAllButton._currentIndex = 0;
-        playAllButton._audioQueue = [];
 
-        playAllButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.togglePlayAll(playAllButton);
-        });
-
-        return playAllButton;
-    }
 
     async togglePlayAll(button) {
         if (button._isPlaying) {
@@ -1050,31 +1091,29 @@ class TextWindow {
 
     
     createVerseElement(verseData, isVirtualized = false) {
-        // PERFORMANCE: Use pooled elements
+        // Modern verse cell container
         const verseWrapper = document.createElement('div');
-        verseWrapper.className = 'verse-cell relative mb-4 border border-stone-300 rounded-sm overflow-hidden bg-white';
+        verseWrapper.className = 'verse-cell relative mb-4 bg-white border border-gray-200/60 rounded-xl shadow-sm focus-within:border-blue-300/80 focus-within:shadow-lg transition-all duration-200 overflow-hidden';
         verseWrapper.dataset.verse = verseData.verse;
         verseWrapper.dataset.verseCell = 'true';
         
-        // PERFORMANCE: Create navigation bar with pooled elements
+        // Modern header with gradient background
         const navBar = document.createElement('div');
-        navBar.className = 'flex items-center justify-between px-3 py-0.5 bg-gray-50 border-b border-gray-200 min-h-[22px]';
+        navBar.className = 'relative flex items-center px-4 py-2 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200/50 min-h-[40px] focus-within:from-blue-50 focus-within:to-blue-100 transition-all duration-200';
         
         // Left side: Audio controls container
         const leftControlsContainer = document.createElement('div');
         leftControlsContainer.className = 'flex items-center gap-1';
         
-        // Center: Verse label
+        // Center: Modern verse label (absolutely positioned for perfect centering)
         const verseLabel = document.createElement('div');
-        const labelClasses = this.type === 'primary' ? 
-            'text-red-600 bg-red-50' : 
-            'text-blue-600 bg-blue-50';
-        verseLabel.className = `text-xs font-semibold px-2 py-1 rounded-sm ${labelClasses} absolute left-1/2 transform -translate-x-1/2`;
+        const labelType = this.type === 'primary' ? 'primary' : 'secondary';
+        verseLabel.className = `verse-label ${labelType} absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2`;
         verseLabel.textContent = verseData.reference;
         
         // Right side: Other controls container
         const controlsContainer = document.createElement('div');
-        controlsContainer.className = 'flex items-center gap-1';
+        controlsContainer.className = 'flex items-center gap-1 ml-auto';
         
         navBar.appendChild(leftControlsContainer);
         navBar.appendChild(verseLabel);
@@ -1109,7 +1148,7 @@ class TextWindow {
     
     createOptimizedTextarea(verseData) {
         const textarea = document.createElement('textarea');
-        textarea.className = `auto-resize-textarea w-full p-4 border-0 text-base leading-7 focus:ring-0 focus:outline-none bg-white font-['Inter']`;
+        textarea.className = `auto-resize-textarea w-full px-5 py-4 border-0 text-base leading-relaxed text-gray-900 font-normal tracking-wide resize-none overflow-hidden bg-white focus:outline-none focus:bg-gray-50/30 transition-colors duration-200 placeholder:text-gray-400 placeholder:italic placeholder:opacity-80`;
         
         // SIMPLE: Just use native HTML direction detection
         textarea.dir = 'auto';
@@ -1240,8 +1279,8 @@ class TextWindow {
         // History button for all users (viewers can see history)
         if (window.translationEditor) {
             const historyButton = document.createElement('button');
-            historyButton.className = 'w-6 h-6 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm hover:text-gray-600 history-btn';
-            historyButton.innerHTML = '<i class="fas fa-history text-xs"></i>';
+            historyButton.className = 'verse-control-btn history-btn';
+            historyButton.innerHTML = '<i class="fas fa-history"></i>';
             historyButton.title = 'View edit history';
             historyButton.setAttribute('data-verse-index', verseData.index);
             
@@ -1250,8 +1289,8 @@ class TextWindow {
             
             // Flag button for all users
             const flagButton = document.createElement('button');
-            flagButton.className = 'w-6 h-6 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm hover:text-gray-600 flag-btn';
-            flagButton.innerHTML = '<i class="fas fa-flag text-xs"></i>';
+            flagButton.className = 'verse-control-btn flag-btn';
+            flagButton.innerHTML = '<i class="fas fa-flag"></i>';
             flagButton.title = 'View/Add flags';
             flagButton.setAttribute('data-verse-index', verseData.index);
             
@@ -1260,25 +1299,6 @@ class TextWindow {
             
             // Text direction is now handled automatically with dir="auto" on textareas
             // No need for a manual toggle button
-            
-            // Audio download button for primary windows
-            if (this.type === 'primary') {
-                const audioDownloadButton = document.createElement('button');
-                audioDownloadButton.className = 'w-6 h-6 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm hover:text-gray-600 audio-download-btn';
-                audioDownloadButton.innerHTML = '<i class="fas fa-download text-xs"></i>';
-                audioDownloadButton.title = 'Download verse audio';
-                audioDownloadButton.style.display = 'none'; // Hidden by default, shown when audio exists
-                
-                audioDownloadButton.onclick = (e) => {
-                    e.stopPropagation();
-                    this.downloadVerseAudio(verseData, verseWrapper);
-                };
-                
-                rightFragment.appendChild(audioDownloadButton);
-                
-                // Store reference for later visibility control
-                verseWrapper._audioDownloadButton = audioDownloadButton;
-            }
         }
         
         // Only add editing controls for editors

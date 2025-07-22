@@ -131,6 +131,134 @@ textarea:focus {
     max-width: 100%; /* But constrain width */
 }
 
+/* Modern verse cell styling */
+.verse-cell {
+    flex-shrink: 0;
+    max-width: 100%;
+}
+
+/* Modern verse label styling - fixed positioning */
+.verse-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 6px;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgb(255 255 255 / 0.3);
+}
+
+.verse-label.primary {
+    background: linear-gradient(135deg, rgb(254 242 242) 0%, rgb(254 226 226) 100%);
+    color: rgb(185 28 28);
+    border-color: rgb(252 165 165 / 0.5);
+}
+
+.verse-label.secondary {
+    background: linear-gradient(135deg, rgb(239 246 255) 0%, rgb(219 234 254) 100%);
+    color: rgb(29 78 216);
+    border-color: rgb(147 197 253 / 0.5);
+}
+
+/* Control buttons styling */
+.verse-control-btn {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    color: rgb(156 163 175);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    font-size: 12px;
+}
+
+.verse-control-btn:hover {
+    background: rgb(243 244 246);
+    color: rgb(75 85 99);
+}
+
+.verse-control-btn:active {
+    transform: scale(0.95);
+}
+
+/* Modern textarea styling */
+.verse-cell .auto-resize-textarea {
+    border: none;
+    border-radius: 0;
+    background: white;
+    padding: 20px;
+    font-size: 15px;
+    line-height: 1.6;
+    color: rgb(17 24 39);
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    resize: none;
+    overflow: hidden;
+    min-height: 80px;
+    transition: background-color 0.2s ease;
+}
+
+.verse-cell .auto-resize-textarea:focus {
+    outline: none;
+    background: rgb(249 250 251 / 0.3);
+}
+
+.verse-cell .auto-resize-textarea::placeholder {
+    color: rgb(156 163 175);
+    font-style: italic;
+    opacity: 0.8;
+}
+
+/* Hover effects for the entire cell */
+.verse-cell .verse-control-btn {
+    opacity: 0.6;
+    transition: opacity 0.2s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+
+.verse-cell:hover .verse-control-btn {
+    opacity: 1;
+}
+
+/* Focus state improvements */
+.verse-cell:focus-within .verse-cell-header {
+    background: linear-gradient(to right, rgb(239 246 255), rgb(232 242 254));
+}
+
+/* Mobile responsiveness */
+@media (max-width: 640px) {
+    .verse-cell {
+        border-radius: 8px;
+        margin-bottom: 12px;
+    }
+    
+    .verse-cell-header {
+        padding: 6px 12px;
+        min-height: 36px;
+    }
+    
+    .verse-label {
+        font-size: 10px;
+        padding: 3px 6px;
+    }
+    
+    .verse-control-btn {
+        width: 24px;
+        height: 24px;
+        font-size: 10px;
+    }
+    
+    .verse-cell .auto-resize-textarea {
+        padding: 16px;
+        font-size: 14px;
+        min-height: 70px;
+    }
+}
+
 /* Clean scrollbars */
 [data-window-content]::-webkit-scrollbar {
     width: 8px;

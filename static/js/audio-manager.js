@@ -304,21 +304,9 @@ class AudioManager {
         if (hasAudio) {
             elements.playBtn.style.display = 'flex';
             elements.tuningBtn.style.display = 'flex';
-            
-            // Show verse download button if it exists
-            const verseWrapper = audioControls.closest('[data-verse-cell]');
-            if (verseWrapper && verseWrapper._audioDownloadButton) {
-                verseWrapper._audioDownloadButton.style.display = 'flex';
-            }
         } else {
             elements.playBtn.style.display = 'none';
             elements.tuningBtn.style.display = 'none';
-            
-            // Hide verse download button if it exists
-            const verseWrapper = audioControls.closest('[data-verse-cell]');
-            if (verseWrapper && verseWrapper._audioDownloadButton) {
-                verseWrapper._audioDownloadButton.style.display = 'none';
-            }
         }
     }
     

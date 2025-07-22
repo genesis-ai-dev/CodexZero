@@ -3,19 +3,19 @@
 <!-- This template is kept for reference but not actively used -->
 
 <template id="verse-cell-template">
-    <div class="verse-cell relative mb-4 border border-stone-300 rounded-sm overflow-hidden bg-white" data-verse-cell>
-        <div class="verse-cell-header flex items-center justify-between px-3 py-0.5 bg-gray-50 border-b border-gray-200 min-h-[22px]">
+    <div class="verse-cell relative mb-4 bg-white border border-gray-200/60 rounded-xl shadow-sm focus-within:border-blue-300/80 focus-within:shadow-lg transition-all duration-200 overflow-hidden" data-verse-cell>
+        <div class="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200/50 min-h-[40px] focus-within:from-blue-50 focus-within:to-blue-100 transition-all duration-200">
             <div class="flex items-center gap-1">
                 <!-- Audio controls container -->
             </div>
-            <span class="verse-number text-xs font-semibold px-2 py-1 rounded-sm bg-blue-50 text-blue-600">Verse {number}</span>
+            <div class="verse-label secondary">Verse {number}</div>
             <div class="flex items-center gap-1">
                 <!-- Action buttons container -->
             </div>
         </div>
         <div class="verse-cell-content">
             <textarea 
-                class="auto-resize-textarea w-full p-4 border-0 text-base leading-7 focus:ring-0 focus:outline-none bg-white font-['Inter']"
+                class="auto-resize-textarea w-full px-5 py-4 border-0 text-base leading-relaxed text-gray-900 font-normal tracking-wide resize-none overflow-hidden bg-white focus:outline-none focus:bg-gray-50/30 transition-colors duration-200 placeholder:text-gray-400 placeholder:italic placeholder:opacity-80"
                 placeholder="Enter verse translation..."
                 data-verse-index="{index}"
                 data-verse="{number}">

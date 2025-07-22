@@ -658,24 +658,24 @@ class FlagManager {
         // Clear existing content
         this.elements.flagVerseCellContainer.innerHTML = '';
         
-        // Use the same verse cell structure as TextWindow
+        // Modern verse cell structure
         const verseWrapper = document.createElement('div');
-        verseWrapper.className = 'verse-cell relative border border-stone-300 rounded-sm overflow-hidden bg-white mb-4';
+        verseWrapper.className = 'verse-cell relative bg-white border border-gray-200/60 rounded-xl shadow-sm focus-within:border-blue-300/80 focus-within:shadow-lg transition-all duration-200 overflow-hidden mb-4';
         verseWrapper.dataset.verse = this.currentVerseData.verse;
         verseWrapper.dataset.verseCell = 'true';
         verseWrapper.dataset.verseIndex = this.currentVerseData.index;
         
-        // Create navigation bar (same as text-window.js)
+        // Modern header
         const navBar = document.createElement('div');
-        navBar.className = 'flex items-center justify-between px-3 py-0.5 bg-gray-50 border-b border-gray-200 min-h-[22px]';
+        navBar.className = 'flex items-center justify-between px-4 py-2 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200/50 min-h-[40px] focus-within:from-blue-50 focus-within:to-blue-100 transition-all duration-200';
         
-        // Left side: Audio controls container (if editing is enabled)
+        // Left side: Audio controls container
         const leftControlsContainer = document.createElement('div');
         leftControlsContainer.className = 'flex items-center gap-1';
         
-        // Center: Verse label
+        // Center: Modern verse label
         const verseLabel = document.createElement('div');
-        verseLabel.className = 'text-xs font-semibold px-2 py-1 rounded-sm text-red-600 bg-red-50 absolute left-1/2 transform -translate-x-1/2';
+        verseLabel.className = 'verse-label primary';
         verseLabel.textContent = this.currentVerseData.reference;
         
         // Right side: Controls container
@@ -689,7 +689,7 @@ class FlagManager {
         
         // Create textarea (same as text-window.js)
         const textarea = document.createElement('textarea');
-        textarea.className = 'auto-resize-textarea w-full p-4 border-0 text-base leading-7 focus:ring-0 focus:outline-none bg-white font-[\'Inter\']';
+        textarea.className = 'auto-resize-textarea w-full px-5 py-4 border-0 text-base leading-relaxed text-gray-900 font-normal tracking-wide resize-none overflow-hidden bg-white focus:outline-none focus:bg-gray-50/30 transition-colors duration-200 placeholder:text-gray-400 placeholder:italic placeholder:opacity-80';
         textarea.dir = 'auto'; // Use native HTML direction detection
         textarea.placeholder = `Edit verse ${this.currentVerseData.verse} or drop text here...`;
         textarea.dataset.verse = this.currentVerseData.verse;
@@ -768,32 +768,21 @@ class FlagManager {
         
         // History button (same as text-window.js)
         const historyButton = document.createElement('button');
-        historyButton.className = 'w-6 h-6 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm hover:text-gray-600';
-        historyButton.innerHTML = '<i class="fas fa-history text-xs"></i>';
+        historyButton.className = 'verse-control-btn';
+        historyButton.innerHTML = '<i class="fas fa-history"></i>';
         historyButton.title = 'View edit history';
         historyButton.onclick = () => this.showVerseHistory();
         rightFragment.appendChild(historyButton);
         
         // Refresh button - fetch latest from database
         const refreshButton = document.createElement('button');
-        refreshButton.className = 'w-6 h-6 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm hover:text-gray-600';
-        refreshButton.innerHTML = '<i class="fas fa-sync text-xs"></i>';
+        refreshButton.className = 'verse-control-btn';
+        refreshButton.innerHTML = '<i class="fas fa-sync"></i>';
         refreshButton.title = 'Refresh verse content from database';
         refreshButton.onclick = () => this.refreshVerseContent();
         rightFragment.appendChild(refreshButton);
         
-        // Audio download button (same as text-window.js)
-        const audioDownloadButton = document.createElement('button');
-        audioDownloadButton.className = 'w-6 h-6 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm hover:text-gray-600';
-        audioDownloadButton.innerHTML = '<i class="fas fa-download text-xs"></i>';
-        audioDownloadButton.title = 'Download verse audio';
-        audioDownloadButton.style.display = 'none';
-        audioDownloadButton.onclick = (e) => {
-            e.stopPropagation();
-            this.downloadVerseAudio(verseWrapper);
-        };
-        rightFragment.appendChild(audioDownloadButton);
-        verseWrapper._audioDownloadButton = audioDownloadButton;
+
         
         // Add editing controls if user can edit
         if (window.translationEditor?.canEdit) {
