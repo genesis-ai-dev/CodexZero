@@ -200,8 +200,7 @@ class VirtualScrollManager {
                 const verseElement = textWindow.createVerseElement(verseData, true);
                 verseElement.dataset.verseIndex = verseData.index;
                 
-                // Setup textarea auto-resize
-                this.setupTextareaAutoResize(verseElement);
+
                 
                 fragment.appendChild(verseElement);
                 renderedVerses.add(verseData.index);
@@ -210,11 +209,7 @@ class VirtualScrollManager {
             // STEP 6: Insert all content at once
             container.appendChild(fragment);
             
-            // STEP 7: Auto-resize textareas after DOM insertion
-            requestAnimationFrame(() => {
-                const textareas = container.querySelectorAll('textarea');
-                UIUtilities.batchAutoResizeTextareas(textareas);
-            });
+
             
             // Store chapter start index for reference
             if (data.verses.length > 0) {
@@ -412,8 +407,7 @@ class VirtualScrollManager {
             const verseElement = textWindow.createVerseElement(verseData, true);
             verseElement.dataset.verseIndex = verseData.index;
             
-            // Ensure textareas auto-resize to content
-            this.setupTextareaAutoResize(verseElement);
+
             
             fragment.appendChild(verseElement);
             renderedVerses.add(verseData.index);
@@ -425,25 +419,7 @@ class VirtualScrollManager {
         }
     }
     
-    setupTextareaAutoResize(verseElement) {
-        const textareas = verseElement.querySelectorAll('textarea');
-        textareas.forEach(textarea => {
-            // Set initial height based on content using existing utility
-            UIUtilities.autoResizeTextarea(textarea);
-            
-            // Add event listeners for auto-resize
-            textarea.addEventListener('input', () => {
-                UIUtilities.autoResizeTextarea(textarea);
-            });
-            
-            textarea.addEventListener('paste', () => {
-                // Delay resize to allow paste to complete
-                setTimeout(() => {
-                    UIUtilities.autoResizeTextarea(textarea);
-                }, 10);
-            });
-        });
-    }
+
     
     insertVersesInOrder(container, fragment, verses) {
         if (!verses.length) return;
@@ -467,11 +443,7 @@ class VirtualScrollManager {
             container.appendChild(fragment);
         }
         
-        // After insertion, ensure all textareas in the new content are properly sized
-        requestAnimationFrame(() => {
-            const newTextareas = container.querySelectorAll('textarea');
-            UIUtilities.batchAutoResizeTextareas(newTextareas);
-        });
+        
     }
     
     scrollToVerseIndex(windowId, verseIndex, sourceRelativePosition = null) {

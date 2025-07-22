@@ -265,7 +265,6 @@ class AdvancedLanguageServer {
         const computedStyle = getComputedStyle(originalTextarea);
         contentDiv.style.cssText = `
             width: ${computedStyle.width};
-            height: ${computedStyle.height};
             padding: ${computedStyle.padding};
             margin: ${computedStyle.margin};
             border: ${computedStyle.border};
@@ -279,7 +278,6 @@ class AdvancedLanguageServer {
             color: ${computedStyle.color};
             resize: none;
             outline: none;
-            overflow-y: auto;
             white-space: pre-wrap;
             word-wrap: break-word;
             min-height: ${computedStyle.minHeight};
@@ -386,7 +384,6 @@ class AdvancedLanguageServer {
         const computedStyle = getComputedStyle(originalTextarea);
         contentDiv.style.cssText = `
             width: ${computedStyle.width};
-            height: ${computedStyle.height};
             padding: ${computedStyle.padding};
             margin: ${computedStyle.margin};
             border: ${computedStyle.border};
@@ -400,7 +397,6 @@ class AdvancedLanguageServer {
             color: ${computedStyle.color};
             resize: none;
             outline: none;
-            overflow-y: auto;
             white-space: pre-wrap;
             word-wrap: break-word;
             min-height: ${computedStyle.minHeight};

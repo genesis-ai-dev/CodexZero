@@ -983,7 +983,7 @@ class TranslationEditor {
         const textareas = textWindow.element.querySelectorAll('textarea');
         if (textareas.length > 0) {
             requestAnimationFrame(() => {
-                UIUtilities.batchAutoResizeTextareas(textareas);
+                // Auto-resize handled by CSS field-sizing-content class
                 textareas.forEach(textarea => this.addTextareaListeners(textarea));
             });
         }

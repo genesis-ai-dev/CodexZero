@@ -68,9 +68,21 @@ body.translation-page {
     overflow-y: auto;
 }
 
-/* Simple textarea styling */
-textarea {
+
+
+
+/* Auto-resize textareas */
+.auto-resize-textarea {
     resize: none;
+    min-height: 60px;
+    overflow: hidden;
+    box-sizing: border-box;
+    transition: height 0.1s ease-out;
+}
+
+/* Simple textarea styling - only apply to textareas without auto-resize */
+textarea:not(.auto-resize-textarea) {
+    resize: vertical;
     width: 100%;
     min-height: 80px;
 }

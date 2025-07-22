@@ -682,10 +682,7 @@ class TextWindow {
             container.appendChild(verseElement);
         });
         
-        requestAnimationFrame(() => {
-            const textareas = container.querySelectorAll('textarea');
-            UIUtilities.batchAutoResizeTextareas(textareas);
-        });
+        
     }
     
     clearSearch() {
@@ -1112,7 +1109,7 @@ class TextWindow {
     
     createOptimizedTextarea(verseData) {
         const textarea = document.createElement('textarea');
-        textarea.className = `w-full p-4 border-0 text-base leading-7 resize-none focus:ring-0 focus:outline-none bg-white font-['Inter'] overflow-hidden`;
+        textarea.className = `auto-resize-textarea w-full p-4 border-0 text-base leading-7 focus:ring-0 focus:outline-none bg-white font-['Inter']`;
         
         // SIMPLE: Just use native HTML direction detection
         textarea.dir = 'auto';
@@ -1132,20 +1129,6 @@ class TextWindow {
         textarea.value = verseData.target_text || verseData.source_text || '';
         textarea.draggable = false;
         
-        // Set proper height immediately based on content
-        const text = textarea.value || '';
-        if (!text.trim()) {
-            textarea.style.height = '60px';
-        } else {
-            const lines = text.split('\n');
-            const totalLines = lines.reduce((count, line) => {
-                return count + (line.length === 0 ? 1 : Math.ceil(line.length / 80));
-            }, 0);
-                         const calculatedHeight = (totalLines * 24) + 32;
-            const finalHeight = Math.max(60, Math.min(calculatedHeight, 300));
-            textarea.style.height = finalHeight + 'px';
-        }
-        
         // Disable editing only for viewers (not reference windows - they should be editable)
         if (window.translationEditor && !window.translationEditor.canEdit) {
             textarea.disabled = true;
@@ -1157,6 +1140,11 @@ class TextWindow {
         
         // PERFORMANCE: Use optimized event handlers
         this.attachOptimizedTextareaListeners(textarea);
+        
+        // Trigger auto-resize for initial content
+        if (window.autoResize && textarea.value) {
+            requestAnimationFrame(() => window.autoResize(textarea));
+        }
         
         return textarea;
     }
@@ -1174,7 +1162,7 @@ class TextWindow {
             hasChanges = (newValue !== currentValue);
             console.log(`💾 Input event on verse ${textarea.dataset.verseIndex}: "${currentValue}" → "${newValue}", hasChanges: ${wasChanged} → ${hasChanges}`);
             currentValue = newValue;
-            // NOTE: Height auto-resize is handled by virtual-scroll-manager.js to avoid conflicts
+
         }, { passive: true });
         
         // AUTO-SAVE: Save when user moves to different cell or leaves the textarea

@@ -689,7 +689,7 @@ class FlagManager {
         
         // Create textarea (same as text-window.js)
         const textarea = document.createElement('textarea');
-        textarea.className = 'w-full p-4 border-0 text-base leading-7 resize-none focus:ring-0 focus:outline-none bg-white font-[\'Inter\'] overflow-hidden';
+        textarea.className = 'auto-resize-textarea w-full p-4 border-0 text-base leading-7 focus:ring-0 focus:outline-none bg-white font-[\'Inter\']';
         textarea.dir = 'auto'; // Use native HTML direction detection
         textarea.placeholder = `Edit verse ${this.currentVerseData.verse} or drop text here...`;
         textarea.dataset.verse = this.currentVerseData.verse;
@@ -700,10 +700,10 @@ class FlagManager {
         // Load verse content
         await this.loadVerseContent(textarea);
         
-        // Set proper height based on content
-        const lines = (textarea.value || '').split('\n').length;
-        const minHeight = Math.max(80, lines * 24 + 32);
-        textarea.style.height = minHeight + 'px';
+        // Trigger auto-resize for initial content
+        if (window.autoResize && textarea.value) {
+            requestAnimationFrame(() => window.autoResize(textarea));
+        }
         
         // Disable editing for viewers
         if (window.translationEditor && !window.translationEditor.canEdit) {
@@ -748,6 +748,7 @@ class FlagManager {
             const newValue = e.target.value;
             hasChanges = (newValue !== currentValue);
             currentValue = newValue;
+
         }, { passive: true });
         
         textarea.addEventListener('blur', () => {
@@ -910,10 +911,7 @@ class FlagManager {
                 // Fetch fresh content
                 await this.loadVerseContent(textarea);
                 
-                // Update textarea height after loading content
-                if (window.UIUtilities) {
-                    UIUtilities.autoResizeTextarea(textarea);
-                }
+        
                 
                 // Show success feedback
                 textarea.style.borderColor = '#10b981';
