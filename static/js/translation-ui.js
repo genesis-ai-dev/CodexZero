@@ -353,9 +353,35 @@ class TranslationUI {
             }
         });
 
+        // Add USFM import button handler
+        const usfmImportBtn = document.getElementById('usfm-import-btn');
+        const newUsfmImportBtn = usfmImportBtn ? usfmImportBtn.cloneNode(true) : null;
+        if (usfmImportBtn && newUsfmImportBtn) {
+            usfmImportBtn.parentNode.replaceChild(newUsfmImportBtn, usfmImportBtn);
+            
+            newUsfmImportBtn.addEventListener('click', () => {
+                // Check if user can edit before allowing USFM import
+                if (window.translationEditor && !window.translationEditor.canEdit) {
+                    alert('Editor access required to import USFM files. You can only view existing translations.');
+                    return;
+                }
+                
+                const projectId = window.translationEditor?.projectId;
+                if (projectId) {
+                    window.location.href = `/project/${projectId}/usfm-import`;
+                }
+            });
+        }
+
         newCancelBtn.addEventListener('click', () => {
             modal.classList.add('hidden');
-            newSelect.value = '';
+            if (button) {
+                button.dataset.value = '';
+                const textElement = document.getElementById('text-select-text');
+                if (textElement) {
+                    textElement.textContent = 'Choose a text...';
+                }
+            }
             newAddBtn.classList.add('hidden');
             newNewTranslationBtn.classList.remove('hidden');
         });
@@ -363,7 +389,13 @@ class TranslationUI {
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
                 modal.classList.add('hidden');
-                newSelect.value = '';
+                if (button) {
+                    button.dataset.value = '';
+                    const textElement = document.getElementById('text-select-text');
+                    if (textElement) {
+                        textElement.textContent = 'Choose a text...';
+                    }
+                }
                 newAddBtn.classList.add('hidden');
                 newNewTranslationBtn.classList.remove('hidden');
             }
@@ -615,10 +647,12 @@ class WindowResizer {
         this.leftPane.style.flexBasis = `${leftPercent}%`;
         this.leftPane.style.flexGrow = '0';
         this.leftPane.style.flexShrink = '0';
+        this.leftPane.style.maxWidth = `${leftPercent}%`; // Ensure it doesn't exceed this width
         
         this.rightPane.style.flexBasis = `${rightPercent}%`;
         this.rightPane.style.flexGrow = '0';
         this.rightPane.style.flexShrink = '0';
+        this.rightPane.style.maxWidth = `${rightPercent}%`; // Ensure it doesn't exceed this width
         
         console.log(`WindowResizer: Applied widths - Left: ${leftPercent}%, Right: ${rightPercent}%`);
     }
@@ -650,15 +684,21 @@ class WindowResizer {
             }
             // Reset to default Tailwind classes on mobile and restore tab behavior
             if (this.leftPane) {
-                this.leftPane.classList.add('md:w-1/2', 'w-full');
+                this.leftPane.classList.add('md:flex-1', 'w-full');
                 this.leftPane.style.width = '';
+                this.leftPane.style.flexBasis = '';
+                this.leftPane.style.flexGrow = '';
                 this.leftPane.style.flexShrink = '';
+                this.leftPane.style.maxWidth = '';
                 // Let the tab system control visibility on mobile
             }
             if (this.rightPane) {
-                this.rightPane.classList.add('md:w-1/2', 'w-full');
+                this.rightPane.classList.add('md:flex-1', 'w-full');
                 this.rightPane.style.width = '';
+                this.rightPane.style.flexBasis = '';
+                this.rightPane.style.flexGrow = '';
                 this.rightPane.style.flexShrink = '';
+                this.rightPane.style.maxWidth = '';
             }
         } else {
             if (this.handle) {
