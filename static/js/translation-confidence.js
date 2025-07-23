@@ -362,6 +362,9 @@ class TranslationConfidence {
             const project = await translationEditor.getProjectInfo();
             const settings = translationEditor.ui.getTranslationSettings();
             
+            // Get the current translation that we're refining
+            const currentTranslation = this.verseConfidenceData[verseIndex]?.translation || '';
+            
             const requestBody = {
                 text: sourceText,
                 source_file_id: sourceWindow.id,
@@ -371,7 +374,8 @@ class TranslationConfidence {
                 temperature: settings.temperature,
                 use_examples: settings.useExamples,
                 refinement_prompt: refinementPrompt,
-                current_verse_index: verseIndex
+                current_verse_index: verseIndex,
+                current_translation: currentTranslation
             };
             
             const response = await fetch('/translate', {

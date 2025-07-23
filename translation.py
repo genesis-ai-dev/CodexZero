@@ -112,7 +112,7 @@ def _get_translation_examples(project_id, source_text_id, target_text_id, query_
             
             if verse and verse.refinement_prompt:
                 # Include refinement prompt with the example
-                example_with_refinement = f"{target_text.strip()}\n[Refinement: {verse.refinement_prompt}]"
+                example_with_refinement = f"{target_text.strip()}\n\t[Refinement: {verse.refinement_prompt}]"
                 examples.append(example_with_refinement)
             else:
                 examples.append(target_text.strip())
@@ -128,7 +128,7 @@ def _get_translation_examples(project_id, source_text_id, target_text_id, query_
 
 def translate_text(project_id: int, text: str, model: Optional[str] = None, temperature: float = 0.2, 
                   source_file_id: Optional[str] = None, target_file_id: Optional[str] = None,
-                  refinement_prompt: Optional[str] = None) -> Dict[str, Any]:
+                  refinement_prompt: Optional[str] = None, current_translation: Optional[str] = None) -> Dict[str, Any]:
     """
     Translate text using the specified model and project settings.
     Returns translation with metadata including confidence and examples used.
@@ -163,22 +163,40 @@ def translate_text(project_id: int, text: str, model: Optional[str] = None, temp
     if instructions:
         system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
     
-    if refinement_prompt:
-        system_prompt += f"\n\nImportant refinement for this specific verse:\n{refinement_prompt}"
-    
     # Create user prompt with examples if available
     if examples:
         context_parts = ["TRANSLATION EXAMPLES:"]
         context_parts.extend(examples)
         context_parts.append("")
         context_parts.append("Following the style and patterns shown in the examples above:")
-        context_parts.append(f"Translate this text: {text}")
+        context_parts.append("")
+        
+        # Add refinement and current translation if this is a refinement request
+        if refinement_prompt and current_translation:
+            context_parts.append("Current translation:")
+            context_parts.append(current_translation)
+            context_parts.append("")
+            context_parts.append(f"Using this refinement: {refinement_prompt}")
+            context_parts.append("Update the current translation based on the refinement.")
+        elif refinement_prompt:
+            context_parts.append(f"Important refinement for this specific verse: {refinement_prompt}")
+            context_parts.append("")
+            context_parts.append(f"Translate this text: {text}")
+        else:
+            context_parts.append(f"Translate this text: {text}")
+        
         context_parts.append("")
         context_parts.append("Provide your final translation inside <translation></translation> tags.")
         
         user_prompt = '\n'.join(context_parts)
     else:
-        user_prompt = f"Translate this text: {text}\n\nProvide your final translation inside <translation></translation> tags."
+        # When no examples, handle refinement cases
+        if refinement_prompt and current_translation:
+            user_prompt = f"Current translation:\n{current_translation}\n\nUsing this refinement: {refinement_prompt}\nUpdate the current translation based on the refinement.\n\nProvide your final translation inside <translation></translation> tags."
+        elif refinement_prompt:
+            user_prompt = f"Important refinement for this specific verse: {refinement_prompt}\n\nTranslate this text: {text}\n\nProvide your final translation inside <translation></translation> tags."
+        else:
+            user_prompt = f"Translate this text: {text}\n\nProvide your final translation inside <translation></translation> tags."
 
     chatbot = Chatbot(temperature=temperature)
     response = chatbot.chat_sync(user_prompt, system_prompt, model=model)
@@ -376,6 +394,7 @@ def translate():
         # Refinement prompt for current verse
         refinement_prompt = data.get('refinement_prompt', '').strip()
         current_verse_index = data.get('current_verse_index')
+        current_translation = data.get('current_translation', '').strip()
         
         if not text_to_translate:
             return jsonify({'success': False, 'error': 'No text provided'})
@@ -434,7 +453,8 @@ def translate():
             [source_info],
             model=translation_model,
             temperature=temperature,
-            refinement_prompt=final_refinement
+            refinement_prompt=final_refinement,
+            current_translation=current_translation
         )
         
         # Calculate confidence metrics
@@ -641,7 +661,7 @@ def _calculate_translation_confidence(translation, examples):
         }
     }
 
-def _generate_translation_with_examples(text, target_language, examples, source_descriptions, model=None, temperature=0.7, refinement_prompt=None):
+def _generate_translation_with_examples(text, target_language, examples, source_descriptions, model=None, temperature=0.7, refinement_prompt=None, current_translation=None):
     """Generates a translation using the AI with examples, matching fine-tuning structure exactly."""
     
     # Get project info to create the exact same system prompt as fine-tuning
@@ -661,15 +681,9 @@ def _generate_translation_with_examples(text, target_language, examples, source_
         
         if instructions:
             system_prompt += f"\n\nSpecific translation instructions:\n{instructions}"
-            
-        if refinement_prompt:
-            system_prompt += f"\n\nImportant refinement for this specific verse:\n{refinement_prompt}"
     else:
         # Fallback system prompt if project not available
         system_prompt = f"You are an expert Bible translator specializing in {target_language} translation. Translate biblical text accurately while maintaining the meaning and tone of the original text."
-        
-        if refinement_prompt:
-            system_prompt += f"\n\nImportant refinement for this specific verse:\n{refinement_prompt}"
     
     # Use exact same user prompt structure as fine-tuning
     if examples:
@@ -678,14 +692,34 @@ def _generate_translation_with_examples(text, target_language, examples, source_
         context_parts.extend(examples)
         context_parts.append("")
         context_parts.append("Following the style and patterns shown in the examples above:")
-        context_parts.append(f"Translate this text: {text}")
+        context_parts.append("")
+        
+        # Add refinement and current translation if this is a refinement request
+        if refinement_prompt and current_translation:
+            context_parts.append("Current translation:")
+            context_parts.append(current_translation)
+            context_parts.append("")
+            context_parts.append(f"Using this refinement: {refinement_prompt}")
+            context_parts.append("Update the current translation based on the refinement.")
+        elif refinement_prompt:
+            context_parts.append(f"Important refinement for this specific verse: {refinement_prompt}")
+            context_parts.append("")
+            context_parts.append(f"Translate this text: {text}")
+        else:
+            context_parts.append(f"Translate this text: {text}")
+        
         context_parts.append("")
         context_parts.append("Provide your final translation inside <translation></translation> tags.")
         
         user_prompt = '\n'.join(context_parts)
     else:
-        # When no examples, use the exact same structure as fine-tuning
-        user_prompt = f"Translate this text: {text}\n\nProvide your final translation inside <translation></translation> tags."
+        # When no examples, handle refinement cases
+        if refinement_prompt and current_translation:
+            user_prompt = f"Current translation:\n{current_translation}\n\nUsing this refinement: {refinement_prompt}\nUpdate the current translation based on the refinement.\n\nProvide your final translation inside <translation></translation> tags."
+        elif refinement_prompt:
+            user_prompt = f"Important refinement for this specific verse: {refinement_prompt}\n\nTranslate this text: {text}\n\nProvide your final translation inside <translation></translation> tags."
+        else:
+            user_prompt = f"Translate this text: {text}\n\nProvide your final translation inside <translation></translation> tags."
 
     chatbot = Chatbot(temperature=temperature)
     response = chatbot.chat_sync(user_prompt, system_prompt, model=model)
