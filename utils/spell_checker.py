@@ -95,9 +95,10 @@ class SpellChecker:
                 if total > 0 and overlap / total >= 0.4:  # 40% character overlap
                     candidates.update(words)
         
-        # Method 2: Prefix matching
-        if len(normalized_target) >= 3:
-            prefix = normalized_target[:3]
+        # Method 2: Prefix matching - allow any length
+        if len(normalized_target) >= 1:  # Allow single character prefixes
+            prefix_len = min(len(normalized_target), 2)  # Use 1-2 character prefixes
+            prefix = normalized_target[:prefix_len]
             candidates.update(self.char_index.get(f"prefix_{prefix}", set()))
         
         # Method 3: Length-based filtering (±2 characters)
@@ -112,7 +113,7 @@ class SpellChecker:
     
     def get_suggestions(self, unknown_word: str, max_suggestions: int = 5) -> List[Tuple[str, float]]:
         """Get top N most similar words with similarity scores"""
-        if not unknown_word or len(unknown_word) < 1:
+        if not unknown_word:  # Only check if word exists, not length
             return []
         
         # Check cache first
@@ -131,14 +132,14 @@ class SpellChecker:
         
         suggestions = []
         # More generous edit distance for better suggestions
-        max_edit_distance = max(2, min(4, len(normalized_target) // 2 + 1))
+        max_edit_distance = max(1, min(4, len(normalized_target) // 2 + 1))
         
         for candidate in candidates:
             normalized_candidate = self._normalize_word(candidate)
             
-            # More generous length filtering
+            # More generous length filtering - allow any length difference
             length_diff = abs(len(normalized_candidate) - len(normalized_target))
-            if length_diff > max_edit_distance + 1:
+            if length_diff > max_edit_distance + 2:  # More generous allowance
                 continue
             
             # Calculate edit distance
