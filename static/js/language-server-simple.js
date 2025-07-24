@@ -1243,13 +1243,9 @@ class AdvancedLanguageServer {
     }
 
     extractUniqueWords(text) {
-        // Extract all words (3+ letters, only alphabetic characters)
-        const wordMatches = text.match(/\b[a-zA-Z]{3,}\b/g);
-        if (!wordMatches) return [];
-        
-        // Return unique words, normalized to lowercase
-        const uniqueWords = [...new Set(wordMatches.map(word => word.toLowerCase()))];
-        return uniqueWords;
+        // Extract all words - any Unicode letters, no length restrictions
+        const words = text.match(/[\p{L}\p{M}]+/gu) || [];
+        return [...new Set(words.map(word => word.trim()))].filter(Boolean);
     }
 
     removeSuggestionHighlighting(suggestion, verseIndex) {
