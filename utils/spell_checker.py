@@ -21,7 +21,16 @@ class SpellChecker:
         """Normalize word for consistent comparison"""
         if not word:
             return ""
-        return unicodedata.normalize('NFC', word.strip()).lower()
+        
+        # Normalize to NFC (canonical composed form)
+        normalized = unicodedata.normalize('NFC', word.strip())
+        
+        # Use case folding which is more language-agnostic than lowercase
+        try:
+            return normalized.casefold()
+        except:
+            # Fallback if casefold fails
+            return normalized.lower()
     
     def _build_character_index(self) -> Dict[str, Set[str]]:
         """Build index of words by their character sets for fast filtering"""
@@ -29,14 +38,14 @@ class SpellChecker:
         
         for word in self.dictionary_words:
             normalized = self._normalize_word(word)
-            if len(normalized) >= 3:  # Only index words with 3+ characters
+            if normalized:  # Only check that word exists after normalization
                 # Create character set signature
                 char_set = frozenset(normalized)
                 char_index[char_set].add(word)
                 
                 # Also index by first few characters for prefix matching
-                if len(normalized) >= 3:
-                    prefix = normalized[:3]
+                if len(normalized) >= 2:  # More inclusive minimum for prefix matching
+                    prefix = normalized[:2]
                     char_index[f"prefix_{prefix}"].add(word)
         
         return char_index

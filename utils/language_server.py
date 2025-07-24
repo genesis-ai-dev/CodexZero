@@ -33,11 +33,21 @@ class LanguageServerService:
         """Normalize word for consistent comparison across Unicode encodings"""
         if not word:
             return ""
-        # Normalize to NFC (canonical composed form) and convert to lowercase
-        return unicodedata.normalize('NFC', word.strip()).lower()
+        
+        # Normalize to NFC (canonical composed form)
+        normalized = unicodedata.normalize('NFC', word.strip())
+        
+        # Only apply case folding for scripts that have case distinctions
+        # This is more language-agnostic than forcing lowercase
+        try:
+            # Case folding is more sophisticated than lowercase for Unicode
+            return normalized.casefold()
+        except:
+            # Fallback if casefold fails for any reason
+            return normalized.lower()
     
     def _extract_words(self, text: str) -> List[tuple]:
-        """Extract words from text using Unicode-aware regex patterns"""
+        """Extract words from text using simple, language-agnostic approach"""
         if not text:
             return []
         
@@ -46,122 +56,30 @@ class LanguageServerService:
         
         words = []
         
-        # Pattern 1: Unicode letter sequences (most languages)
-        # \p{L} matches any Unicode letter, including accented characters
-        # This supports Latin, Cyrillic, Greek, Arabic, Hebrew, etc.
-        letter_pattern = r'[\p{L}\p{M}]{3,}'
-        
-        # Pattern 2: CJK ideographs (Chinese, Japanese, Korean)
-        # These languages don't use spaces between words, so each character is significant
-        cjk_pattern = r'[\p{Han}\p{Hiragana}\p{Katakana}]+'
-        
         try:
-            # Use the regex module for Unicode property support
+            # Use regex module for better Unicode support if available
             import regex
             
-            # Find letter-based words (3+ characters for non-CJK scripts)
-            for match in regex.finditer(letter_pattern, normalized_text):
-                word = match.group()
-                if len(word) >= 3:  # Minimum length for most scripts
-                    words.append((word, match.start(), match.end()))
+            # Simple pattern: any sequence of Unicode letters and marks
+            # No minimum length requirement - let users decide what's valid
+            pattern = r'[\p{L}\p{M}]+'
             
-            # Find CJK characters/words (each character is meaningful)
-            for match in regex.finditer(cjk_pattern, normalized_text):
-                word = match.group()
-                # For CJK, we check individual characters or short sequences
-                if len(word) >= 1:  # CJK characters are meaningful individually
-                    words.append((word, match.start(), match.end()))
-                    
-        except ImportError:
-            # Fallback to standard re module with basic Unicode support
-            # This covers most common cases but may miss some edge cases
-            
-            # Enhanced pattern that works with standard re module
-            # Covers Latin, Cyrillic, Greek, Arabic, Hebrew, and many others
-            unicode_ranges = [
-                r'\u0041-\u005A',  # Latin uppercase
-                r'\u0061-\u007A',  # Latin lowercase  
-                r'\u00C0-\u00D6',  # Latin-1 supplement uppercase
-                r'\u00D8-\u00F6',  # Latin-1 supplement uppercase continued
-                r'\u00F8-\u00FF',  # Latin-1 supplement lowercase
-                r'\u0100-\u017F',  # Latin Extended-A
-                r'\u0180-\u024F',  # Latin Extended-B
-                r'\u0370-\u03FF',  # Greek and Coptic
-                r'\u0400-\u04FF',  # Cyrillic
-                r'\u0590-\u05FF',  # Hebrew
-                r'\u0600-\u06FF',  # Arabic
-                r'\u0750-\u077F',  # Arabic Supplement
-                r'\u08A0-\u08FF',  # Arabic Extended-A
-                r'\u0900-\u097F',  # Devanagari
-                r'\u0980-\u09FF',  # Bengali
-                r'\u0A00-\u0A7F',  # Gurmukhi
-                r'\u0A80-\u0AFF',  # Gujarati
-                r'\u0B00-\u0B7F',  # Oriya
-                r'\u0B80-\u0BFF',  # Tamil
-                r'\u0C00-\u0C7F',  # Telugu
-                r'\u0C80-\u0CFF',  # Kannada
-                r'\u0D00-\u0D7F',  # Malayalam
-                r'\u0E00-\u0E7F',  # Thai
-                r'\u0E80-\u0EFF',  # Lao
-                r'\u1000-\u109F',  # Myanmar
-                r'\u1100-\u11FF',  # Hangul Jamo
-                r'\u1200-\u137F',  # Ethiopic
-                r'\u13A0-\u13FF',  # Cherokee
-                r'\u1400-\u167F',  # Unified Canadian Aboriginal Syllabics
-                r'\u1680-\u169F',  # Ogham
-                r'\u16A0-\u16FF',  # Runic
-                r'\u1700-\u171F',  # Tagalog
-                r'\u1720-\u173F',  # Hanunoo
-                r'\u1740-\u175F',  # Buhid
-                r'\u1760-\u177F',  # Tagbanwa
-                r'\u1780-\u17FF',  # Khmer
-                r'\u1800-\u18AF',  # Mongolian
-                r'\u1900-\u194F',  # Limbu
-                r'\u1950-\u197F',  # Tai Le
-                r'\u19E0-\u19FF',  # Khmer Symbols
-                r'\u1D00-\u1D7F',  # Phonetic Extensions
-                r'\u1D80-\u1DBF',  # Phonetic Extensions Supplement
-                r'\u1E00-\u1EFF',  # Latin Extended Additional
-                r'\u1F00-\u1FFF',  # Greek Extended
-                r'\u2C00-\u2C5F',  # Glagolitic
-                r'\u2C60-\u2C7F',  # Latin Extended-C
-                r'\u2C80-\u2CFF',  # Coptic
-                r'\u2D00-\u2D2F',  # Georgian Supplement
-                r'\u2D30-\u2D7F',  # Tifinagh
-                r'\u2D80-\u2DDF',  # Ethiopic Extended
-                r'\u2DE0-\u2DFF',  # Cyrillic Extended-A
-                r'\u2E00-\u2E7F',  # Supplemental Punctuation
-                r'\u3040-\u309F',  # Hiragana
-                r'\u30A0-\u30FF',  # Katakana
-                r'\u3100-\u312F',  # Bopomofo
-                r'\u3130-\u318F',  # Hangul Compatibility Jamo
-                r'\u31A0-\u31BF',  # Bopomofo Extended
-                r'\u31F0-\u31FF',  # Katakana Phonetic Extensions
-                r'\u3400-\u4DBF',  # CJK Extension A
-                r'\u4E00-\u9FFF',  # CJK Unified Ideographs
-                r'\uAC00-\uD7AF',  # Hangul Syllables
-                r'\uF900-\uFAFF',  # CJK Compatibility Ideographs
-                r'\uFE30-\uFE4F',  # CJK Compatibility Forms
-                r'\uFF00-\uFFEF',  # Halfwidth and Fullwidth Forms
-            ]
-            
-            # Combining marks (diacritics)
-            combining_marks = r'\u0300-\u036F\u1AB0-\u1AFF\u1DC0-\u1DFF\u20D0-\u20FF\uFE20-\uFE2F'
-            
-            # Create comprehensive Unicode word pattern
-            unicode_pattern = f'[{"".join(unicode_ranges)}{combining_marks}]{{3,}}'
-            
-            # Find words using the comprehensive pattern
-            for match in re.finditer(unicode_pattern, normalized_text):
+            for match in regex.finditer(pattern, normalized_text):
                 word = match.group()
                 words.append((word, match.start(), match.end()))
+                
+        except ImportError:
+            # Fallback: use standard re with basic Unicode word boundary
+            # This is less precise but still inclusive
+            import re
             
-            # Also find CJK characters using basic Unicode ranges
-            cjk_basic_pattern = r'[\u3400-\u4DBF\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]+'
-            for match in re.finditer(cjk_basic_pattern, normalized_text):
+            # Match sequences of word characters (letters, digits, underscores)
+            # Plus common Unicode letter ranges
+            pattern = r'[\w\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF\u0590-\u05FF\u0600-\u06FF\u0900-\u097F\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]+'
+            
+            for match in re.finditer(pattern, normalized_text):
                 word = match.group()
-                if len(word) >= 1:  # CJK characters are meaningful individually
-                    words.append((word, match.start(), match.end()))
+                words.append((word, match.start(), match.end()))
         
         return words
 
@@ -234,61 +152,57 @@ class LanguageServerService:
         normalized_word = self._normalize_word(word)
         if not normalized_word:
             return False
-            
-        # Check if already exists (using normalized form)
-        existing = ProjectDictionary.query.filter_by(
+        
+        # Ensure dictionary cache is loaded
+        self._ensure_dictionary()
+        
+        # Check if normalized word already exists in our cache
+        if normalized_word in self.approved_words:
+            return False  # Word already exists (in normalized form)
+        
+        # Store the original word as entered by user
+        entry = ProjectDictionary(
             project_id=self.project_id,
-            word=word  # Store original form but check normalized
-        ).first()
+            word=word,  # Store the original word as entered by user
+            added_by=user_id
+        )
+        db.session.add(entry)
+        db.session.commit()
         
-        if not existing:
-            entry = ProjectDictionary(
-                project_id=self.project_id,
-                word=word,  # Store the original word as entered by user
-                added_by=user_id
-            )
-            db.session.add(entry)
-            db.session.commit()
-            
-            # Update cache if loaded (use normalized form for lookup)
-            if self.approved_words is not None:
-                self.approved_words.add(normalized_word)
-            
-            # Update spell checker
-            if self.spell_checker is not None:
-                self.spell_checker.update_dictionary({word})
-            
-            return True
+        # Update cache if loaded (use normalized form for lookup)
+        if self.approved_words is not None:
+            self.approved_words.add(normalized_word)
         
-        return False  # Word already existed
+        # Update spell checker
+        if self.spell_checker is not None:
+            self.spell_checker.update_dictionary({word})
+        
+        return True
 
     def add_words_to_dictionary_bulk(self, words: List[str], user_id: int) -> int:
         """Add multiple words to project dictionary efficiently"""
         if not words:
             return 0
         
-        # Get existing words to avoid duplicates
-        existing_words = set()
-        if words:
-            existing_entries = ProjectDictionary.query.filter(
-                ProjectDictionary.project_id == self.project_id,
-                ProjectDictionary.word.in_(words)
-            ).all()
-            existing_words = {entry.word for entry in existing_entries}
+        # Ensure dictionary cache is loaded for normalization checks
+        self._ensure_dictionary()
         
-        # Create new entries for words that don't exist
+        # Create new entries for words that don't exist (using normalized comparison)
         new_entries = []
         added_words = []
         
         for word in words:
             word = word.strip()
-            if word and len(word) >= 3 and word not in existing_words:
-                new_entries.append(ProjectDictionary(
-                    project_id=self.project_id,
-                    word=word,
-                    added_by=user_id
-                ))
-                added_words.append(word)
+            if word:  # Only check that word exists, no length requirements
+                normalized_word = self._normalize_word(word)
+                # Check if normalized form already exists in cache
+                if normalized_word not in self.approved_words:
+                    new_entries.append(ProjectDictionary(
+                        project_id=self.project_id,
+                        word=word,
+                        added_by=user_id
+                    ))
+                    added_words.append(word)
         
         # Bulk insert new entries
         if new_entries:
