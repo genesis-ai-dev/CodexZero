@@ -797,8 +797,8 @@ class FlagManager {
             
             // Sparkle button (AI translate)
             const sparkleButton = document.createElement('button');
-            sparkleButton.className = 'w-7 h-7 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm';
-            sparkleButton.innerHTML = '<i class="fas fa-magic text-sm"></i>';
+            sparkleButton.className = 'w-7 h-7 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-sm';
+            sparkleButton.innerHTML = '<i class="fas fa-language text-sm"></i>';
             sparkleButton.title = 'Translate this verse with AI';
             sparkleButton.onclick = (e) => this.handleSparkleClick(e, textarea, sparkleButton);
             rightFragment.appendChild(sparkleButton);
@@ -1002,7 +1002,7 @@ class FlagManager {
             sparkleButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
             sparkleButton.style.color = '#dc2626';
             setTimeout(() => {
-                sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+                sparkleButton.innerHTML = '<i class="fas fa-language"></i>';
                 sparkleButton.style.color = '';
             }, 1000);
             return;

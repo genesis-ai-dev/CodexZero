@@ -1487,6 +1487,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
+    // Clean up confidence panels on page unload/navigation
+    window.addEventListener('beforeunload', () => {
+        if (editor.confidence) {
+            editor.confidence.cleanupAllConfidencePanels();
+        }
+    });
 
 });
 </script>

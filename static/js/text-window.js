@@ -1310,8 +1310,8 @@ class TextWindow {
                 
                 // PERFORMANCE: Create sparkle button on the right side
                 const sparkleButton = document.createElement('button');
-                sparkleButton.className = 'w-7 h-7 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 rounded-sm sparkle-translate-btn';
-                sparkleButton.innerHTML = '<i class="fas fa-magic text-sm"></i>';
+                sparkleButton.className = 'w-7 h-7 bg-transparent border-0 cursor-pointer flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-sm sparkle-translate-btn';
+                sparkleButton.innerHTML = '<i class="fas fa-language text-sm"></i>';
                 sparkleButton.title = 'Translate this verse with AI';
                 sparkleButton.setAttribute('data-verse', verseData.verse);
                 sparkleButton.setAttribute('data-verse-index', verseData.index);
@@ -1562,7 +1562,7 @@ class TextWindow {
             sparkleButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
             sparkleButton.style.color = '#dc2626';
             setTimeout(() => {
-                sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+                sparkleButton.innerHTML = '<i class="fas fa-language"></i>';
                 sparkleButton.style.color = '';
             }, 1000);
             return;
@@ -1589,7 +1589,7 @@ class TextWindow {
             sparkleButton.innerHTML = '<i class="fas fa-check"></i>';
             sparkleButton.style.color = '#10b981';
             setTimeout(() => {
-                sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+                sparkleButton.innerHTML = '<i class="fas fa-language"></i>';
                 sparkleButton.style.color = '';
             }, 1000);
             
@@ -1598,7 +1598,7 @@ class TextWindow {
             sparkleButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
             sparkleButton.style.color = '#dc2626';
             setTimeout(() => {
-                sparkleButton.innerHTML = '<i class="fas fa-magic"></i>';
+                sparkleButton.innerHTML = '<i class="fas fa-language"></i>';
                 sparkleButton.style.color = '';
             }, 1000);
         }

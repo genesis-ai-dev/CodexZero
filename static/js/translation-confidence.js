@@ -1,4 +1,20 @@
-// Translation Confidence Display System
+// Translation Confidence Display System - SIMPLIFIED
+// 
+// Clean approach: Simple confidence panel above the textarea:
+// 1. Set the textarea value immediately to the AI translation
+// 2. Create a minimal confidence panel showing color-coded segments
+// 3. Keep textarea fully editable and compatible with language server
+// 4. Auto-save the translation immediately (no accept/reject needed)
+// 5. Panel stays visible until manually closed (no auto-hide)
+// 6. Allow users to edit immediately while seeing confidence feedback
+//
+// This provides:
+// - Immediate editability (no confusion about non-editable state)
+// - Clean visual confidence feedback (intuitive color coding)
+// - Language server compatibility (no overlay interference)
+// - Automatic saving (leverages existing version history)
+// - Simplified UX (minimal text, just the essentials)
+//
 class TranslationConfidence {
     constructor() {
         this.verseConfidenceData = {};
@@ -15,86 +31,162 @@ class TranslationConfidence {
             };
         }
 
-        const originalContent = textarea.value;
-        const confidenceDiv = this.createConfidenceDiv(textarea);
-        const buttonOverlay = this.createButtonOverlay(confidenceDiv, textarea, translation, originalContent, verseIndex, translationEditor);
-        const refinementArea = this.createRefinementArea(textarea, translation, verseIndex, translationEditor);
+        // Set the textarea value immediately
+        textarea.value = translation;
         
-        this.renderConfidenceSegments(confidenceDiv, confidence.segments);
-        this.replaceTextareaWithConfidence(textarea, confidenceDiv, buttonOverlay, refinementArea);
+        // Create confidence panel above the textarea
+        const confidencePanel = this.createConfidencePanel(confidence.segments, verseIndex);
         
-        // Store confidence data
+        // Insert confidence panel above the textarea
+        textarea.parentElement.insertBefore(confidencePanel, textarea);
+        
+        // Store confidence data for potential cleanup
         this.verseConfidenceData[verseIndex] = {
             translation: translation,
-            confidence: confidence
+            confidence: confidence,
+            panel: confidencePanel
         };
-    }
-    
-    createConfidenceDiv(textarea) {
-        const div = document.createElement('div');
-        div.className = 'w-full min-h-20 p-3 pt-6 border border-neutral-300 rounded-lg text-lg leading-relaxed relative z-0 bg-white';
-        div.style.minHeight = textarea.style.minHeight || '80px';
-        return div;
-    }
-    
-    createButtonOverlay(confidenceDiv, textarea, translation, originalContent, verseIndex, translationEditor) {
-        const overlay = document.createElement('div');
-        overlay.className = 'absolute inset-0 pointer-events-none z-40';
         
-        const container = document.createElement('div');
-        container.className = 'absolute top-2 right-2 flex space-x-2 pointer-events-auto';
+        // Mark textarea as having confidence panel for later cleanup
+        textarea.dataset.hasConfidencePanel = 'true';
         
-        const acceptBtn = this.createButton('✓', 'Accept translation', 'bg-green-500', () => {
-            this.acceptTranslation(confidenceDiv, textarea, translation, verseIndex, translationEditor);
-            overlay.remove();
-        });
-        
-        const rejectBtn = this.createButton('✗', 'Reject translation', 'bg-red-500', () => {
-            this.rejectTranslation(confidenceDiv, textarea, originalContent, verseIndex, translationEditor);
-            overlay.remove();
-        });
-        
-        container.appendChild(acceptBtn);
-        container.appendChild(rejectBtn);
-        overlay.appendChild(container);
-        
-        return overlay;
-    }
-    
-    updateButtonOverlay(confidenceDiv, textarea, newTranslation, verseIndex, translationEditor) {
-        // Find the existing button overlay
-        const existingOverlay = confidenceDiv.parentElement.querySelector('.absolute.inset-0');
-        if (existingOverlay) {
-            // Find the accept button and update its click handler
-            const acceptBtn = existingOverlay.querySelector('button[title="Accept translation"]');
-            if (acceptBtn) {
-                // Remove old event listeners by cloning the button
-                const newAcceptBtn = acceptBtn.cloneNode(true);
-                
-                // Add new event listener with updated translation
-                newAcceptBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.acceptTranslation(confidenceDiv, textarea, newTranslation, verseIndex, translationEditor);
-                    existingOverlay.remove();
+        // Auto-save the translation immediately since user can edit it
+        if (translationEditor.saveSystem) {
+            const targetWindow = this.getTextWindowForTextarea(textarea, translationEditor);
+            const averageConfidence = this.calculateAverageConfidence(confidence);
+            
+            // Save with AI metadata
+            setTimeout(() => {
+                translationEditor.saveVerse(verseIndex, translation, targetWindow?.id, {
+                    source: 'ai_translation',
+                    confidence: averageConfidence,
+                    comment: 'AI translation with confidence panel'
+                }).catch(error => {
+                    console.error('Error auto-saving AI translation:', error);
                 });
-                
-                // Replace the old button with the new one
-                acceptBtn.parentNode.replaceChild(newAcceptBtn, acceptBtn);
-            }
+            }, 100);
+        }
+        
+        // Panel stays visible - no auto-hide functionality
+    }
+    
+    createConfidencePanel(segments, verseIndex) {
+        const panel = document.createElement('div');
+        panel.className = 'confidence-panel mb-2 p-3 bg-blue-50 border border-blue-200 rounded-lg shadow-sm';
+        panel.style.cssText = `
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border: 1px solid #93c5fd;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+            transition: opacity 0.3s ease-in-out;
+            position: relative;
+        `;
+        
+        // Simple close button in top-right corner
+        const closeButton = document.createElement('button');
+        closeButton.className = 'absolute top-2 right-2 text-blue-500 hover:text-blue-700 text-sm';
+        closeButton.innerHTML = '<i class="fas fa-times"></i>';
+        closeButton.onclick = () => panel.remove();
+        
+        // Confidence content area - simplified, no header or extra text
+        const content = document.createElement('div');
+        content.className = 'confidence-segments text-base leading-relaxed';
+        
+        // Render confidence segments
+        this.renderConfidenceSegmentsInPanel(content, segments);
+        
+        panel.appendChild(closeButton);
+        panel.appendChild(content);
+        
+        return panel;
+    }
+    
+    renderConfidenceSegmentsInPanel(content, segments) {
+        content.innerHTML = '';
+        
+        segments.forEach(segment => {
+            const span = document.createElement('span');
+            span.textContent = segment.text;
+            span.className = 'confidence-segment';
+            
+            const colors = this.getConfidenceColors(segment.confidence);
+            const confidencePercent = Math.round(segment.confidence * 100);
+            
+            Object.assign(span.style, {
+                backgroundColor: colors.background,
+                color: colors.text,
+                padding: '2px 4px',
+                borderRadius: '4px',
+                margin: '0 1px',
+                display: 'inline',
+                cursor: 'help'
+            });
+            
+            // Add detailed tooltip
+            span.title = `Confidence: ${confidencePercent}%\nClick to see details`;
+            
+            // Add the original tooltip listeners for source information
+            this.addTooltipListeners(span, segment);
+            
+            // Add click handler for detailed confidence info
+            span.addEventListener('click', () => {
+                this.showSegmentDetails(segment, span);
+            });
+            
+            content.appendChild(span);
+        });
+        
+        // Legend removed - confidence colors are intuitive
+    }
+    
+    // fadeOutConfidencePanel method removed - no auto-hide functionality needed
+    
+    showSegmentDetails(segment, span) {
+        // Use the existing confidence tooltip instead of a modal for consistency
+        const sources = segment.sources || segment.matching_examples || [];
+        if (window.confidenceTooltip) {
+            // Force show the tooltip with a longer delay
+            window.confidenceTooltip.show(span, segment.confidence, sources, segment.text);
+            
+            // Keep it visible for longer
+            setTimeout(() => {
+                if (window.confidenceTooltip) {
+                    window.confidenceTooltip.hide();
+                }
+            }, 5000);
+        } else {
+            // Fallback modal if tooltip isn't available
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg p-6 max-w-md mx-4">
+                    <h3 class="text-lg font-bold mb-3">Confidence Details</h3>
+                    <div class="space-y-2">
+                        <p><strong>Text:</strong> "${segment.text}"</p>
+                        <p><strong>Confidence:</strong> ${Math.round(segment.confidence * 100)}%</p>
+                        <p><strong>Sources:</strong> ${sources.length} similar examples</p>
+                    </div>
+                    <button class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700" onclick="this.parentElement.parentElement.remove()">
+                        Close
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.remove();
+            });
         }
     }
     
-    createButton(text, title, colorClasses, onClick) {
-        const button = document.createElement('button');
-        button.className = `w-6 h-6 ${colorClasses} text-white text-xs rounded-full flex items-center justify-center shadow-lg`;
-        button.textContent = text;
-        button.title = title;
-        button.addEventListener('click', (e) => {
-            e.stopPropagation();
-            onClick();
-        });
-        return button;
-    }
+    // Note: Accept/reject buttons removed - translation is immediately editable
+    // and auto-saved with confidence metadata. Panel cleanup happens on page reload.
+    
+    // Button overlay methods removed - no longer needed since translations are immediately editable
+    
+    // createButton method removed - no longer needed without accept/reject buttons
     
     createRefinementArea(textarea, translation, verseIndex, translationEditor) {
         const refinementContainer = document.createElement('div');
@@ -180,31 +272,13 @@ class TranslationConfidence {
         return refinementContainer;
     }
     
-    renderConfidenceSegments(confidenceDiv, segments) {
-        // Clear existing content first
-        confidenceDiv.innerHTML = '';
-        
-        segments.forEach(segment => {
-            const span = document.createElement('span');
-            span.textContent = segment.text;
-            span.className = 'confidence-segment';
-            
-            const colors = this.getConfidenceColors(segment.confidence);
-            Object.assign(span.style, {
-                color: colors.text,
-                backgroundColor: colors.background,
-                padding: '1px 2px',
-                borderRadius: '3px'
-            });
-            
-            this.addTooltipListeners(span, segment);
-            confidenceDiv.appendChild(span);
-        });
-    }
+    // renderConfidenceSegments method removed - replaced with renderConfidenceSegmentsAsOverlay
     
     addTooltipListeners(span, segment) {
         span.addEventListener('mouseenter', () => {
-            window.confidenceTooltip?.show(span, segment.confidence, segment.sources || [], segment.text);
+            // Use matching_examples if sources is not available (new API format)
+            const sources = segment.sources || segment.matching_examples || [];
+            window.confidenceTooltip?.show(span, segment.confidence, sources, segment.text);
         });
         
         span.addEventListener('mouseleave', () => {
@@ -212,53 +286,9 @@ class TranslationConfidence {
         });
     }
     
-    replaceTextareaWithConfidence(textarea, confidenceDiv, buttonOverlay, refinementArea) {
-        textarea.style.display = 'none';
-        textarea.parentElement.insertBefore(confidenceDiv, textarea.nextSibling);
-        
-        // Insert refinement area after confidence div
-        if (refinementArea) {
-            confidenceDiv.parentElement.insertBefore(refinementArea, confidenceDiv.nextSibling);
-            textarea.refinementArea = refinementArea;
-        }
-        
-        textarea.parentElement.insertBefore(buttonOverlay, textarea.nextSibling);
-        textarea.confidenceDiv = confidenceDiv;
-    }
+    // replaceTextareaWithConfidence method removed - textarea stays editable with confidence overlay behind it
 
-    async acceptTranslation(confidenceDiv, textarea, translation, verseIndex, translationEditor) {
-        this.cleanupConfidenceDisplay(confidenceDiv, textarea, verseIndex);
-        textarea.value = translation;
-        
-        // Find the target window that contains this textarea
-        const targetWindow = this.getTextWindowForTextarea(textarea, translationEditor);
-        const targetId = targetWindow?.id;
-        
-        // Save the translation directly with AI source tracking (no need to buffer first)
-        try {
-            const confidence = this.verseConfidenceData[verseIndex]?.confidence;
-            const averageConfidence = this.calculateAverageConfidence(confidence);
-            
-            await translationEditor.saveVerse(verseIndex, translation, targetId, {
-                source: 'ai_translation',
-                confidence: averageConfidence,
-                comment: 'AI translation accepted by user'
-            });
-            
-            // Track this save to prevent duplicates in the save system
-            if (translationEditor.saveSystem) {
-                translationEditor.saveSystem.recentSaves.set(verseIndex, {
-                    text: translation,
-                    timestamp: Date.now()
-                });
-            }
-            
-            // Remove from unsaved changes since it's now saved
-            translationEditor.unsavedChanges.delete(verseIndex);
-        } catch (error) {
-            console.error('Error saving accepted translation:', error);
-        }
-    }
+    // acceptTranslation method removed - translations auto-save immediately when received
     
     calculateAverageConfidence(confidence) {
         if (!confidence?.segments?.length) return null;
@@ -276,39 +306,28 @@ class TranslationConfidence {
         return null;
     }
     
-    rejectTranslation(confidenceDiv, textarea, originalContent, verseIndex, translationEditor) {
-        this.cleanupConfidenceDisplay(confidenceDiv, textarea, verseIndex);
-        textarea.value = originalContent; // Restore original content
-        
-        // Track this restoration in the save system to prevent duplicate saves
-        if (translationEditor.saveSystem) {
-            translationEditor.saveSystem.recentSaves.set(verseIndex, {
-                text: originalContent,
-                timestamp: Date.now()
-            });
-        }
-        
-        textarea.focus();
-    }
+    // rejectTranslation method removed - users can edit directly, version history tracks changes
     
-    cleanupConfidenceDisplay(confidenceDiv, textarea, verseIndex) {
-        if (confidenceDiv && confidenceDiv.parentElement) {
-            // Remove any button overlays first
-            const overlays = confidenceDiv.parentElement.querySelectorAll('.absolute.inset-0');
-            overlays.forEach(overlay => overlay.remove());
+    cleanupConfidencePanel(verseIndex) {
+        const data = this.verseConfidenceData[verseIndex];
+        if (data?.panel && data.panel.parentElement) {
+            // Remove the confidence panel
+            data.panel.remove();
             
-            // Remove refinement area if it exists
-            if (textarea.refinementArea && textarea.refinementArea.parentElement) {
-                textarea.refinementArea.remove();
-                delete textarea.refinementArea;
+            // Find the textarea and clean up any panel markers
+            const textarea = document.querySelector(`textarea[data-has-confidence-panel="true"][data-verse-index="${verseIndex}"]`);
+            if (textarea) {
+                delete textarea.dataset.hasConfidencePanel;
             }
-            
-            // Replace confidence div with textarea
-            confidenceDiv.parentElement.replaceChild(textarea, confidenceDiv);
-            textarea.style.display = '';
-            textarea.style.visibility = '';
         }
         delete this.verseConfidenceData[verseIndex];
+    }
+    
+    // Clean up all confidence panels (useful for page reload or navigation)
+    cleanupAllConfidencePanels() {
+        Object.keys(this.verseConfidenceData).forEach(verseIndex => {
+            this.cleanupConfidencePanel(parseInt(verseIndex));
+        });
     }
 
     
@@ -387,45 +406,52 @@ class TranslationConfidence {
             const data = await response.json();
             
             if (data.success) {
-                // Find the current confidence div and refinement area
-                const currentConfidenceDiv = textarea.confidenceDiv;
-                const currentRefinementArea = textarea.refinementArea;
+                // Update the textarea value with the refined translation
+                textarea.value = data.translation;
                 
-                if (currentConfidenceDiv) {
-                    // Update the confidence segments with the new translation
-                    this.renderConfidenceSegments(currentConfidenceDiv, data.confidence?.segments || [{
-                        text: data.translation,
-                        confidence: 0.2,
-                        matching_examples: []
-                    }]);
+                // Update the confidence panel with new segments
+                const confidenceData = this.verseConfidenceData[verseIndex];
+                if (confidenceData?.panel) {
+                    const content = confidenceData.panel.querySelector('.confidence-segments');
+                    if (content) {
+                        this.renderConfidenceSegmentsInPanel(content, data.confidence?.segments || [{
+                            text: data.translation,
+                            confidence: 0.2,
+                            matching_examples: []
+                        }]);
+                    }
                     
                     // Update stored confidence data
-                    this.verseConfidenceData[verseIndex] = {
-                        translation: data.translation,
-                        confidence: data.confidence
-                    };
+                    confidenceData.translation = data.translation;
+                    confidenceData.confidence = data.confidence;
+                }
+                
+                // Auto-save the refined translation
+                const targetWindow = this.getTextWindowForTextarea(textarea, translationEditor);
+                const averageConfidence = this.calculateAverageConfidence(data.confidence);
+                
+                translationEditor.saveVerse(verseIndex, data.translation, targetWindow?.id, {
+                    source: 'ai_refined',
+                    confidence: averageConfidence,
+                    comment: 'Refined AI translation'
+                }).catch(error => {
+                    console.error('Error saving refined translation:', error);
+                });
+                
+                // Clear and reset the refinement area
+                const currentRefinementArea = textarea.refinementArea;
+                if (currentRefinementArea) {
+                    const refinementTextarea = currentRefinementArea.querySelector('textarea');
+                    const refineButton = currentRefinementArea.querySelector('button');
                     
-                    // Update the accept button to use the new translation
-                    this.updateButtonOverlay(currentConfidenceDiv, textarea, data.translation, verseIndex, translationEditor);
+                    if (refinementTextarea) {
+                        refinementTextarea.value = '';
+                        refinementTextarea.disabled = false;
+                    }
                     
-                    // Clear the refinement textarea since the refinement has been applied
-                    if (currentRefinementArea) {
-                        const refinementTextarea = currentRefinementArea.querySelector('textarea');
-                        if (refinementTextarea) {
-                            refinementTextarea.value = '';
-                        }
-                        
-                        // Re-enable and reset the refine button
-                        const refineButton = currentRefinementArea.querySelector('button');
-                        if (refineButton) {
-                            refineButton.disabled = true;
-                            refineButton.textContent = 'Refine Translation';
-                        }
-                        
-                        // Re-enable the refinement textarea
-                        if (refinementTextarea) {
-                            refinementTextarea.disabled = false;
-                        }
+                    if (refineButton) {
+                        refineButton.disabled = true;
+                        refineButton.textContent = 'Refine Translation';
                     }
                 }
             } else {
