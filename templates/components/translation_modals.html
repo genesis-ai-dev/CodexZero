@@ -51,56 +51,131 @@
 
 <!-- Text Selection Modal -->
 <div id="text-selection-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-    <div class="bg-white border border-neutral-200 rounded-2xl shadow-xl p-8 w-full max-w-lg mx-4">
-        <div class="mb-6">
-            <h3 id="text-selection-modal-title" class="text-2xl font-bold text-neutral-900 mb-2 tracking-tight">Load Text</h3>
-            <p id="text-selection-modal-subtitle" class="text-sm text-neutral-600 font-medium">Select a text to load</p>
+    <div class="bg-white border border-neutral-200 rounded-2xl shadow-xl w-full max-w-2xl mx-4">
+        <!-- Header -->
+        <div class="p-6 border-b border-neutral-200">
+            <h3 id="text-selection-modal-title" class="text-2xl font-bold text-neutral-900 tracking-tight">Load Text</h3>
+            <p id="text-selection-modal-subtitle" class="text-sm text-neutral-600 mt-1">Choose how you want to add text</p>
         </div>
-        <div class="space-y-6">
-            <div>
-                <label for="text-select-button" id="text-selection-modal-label" class="block text-sm font-medium text-neutral-700 mb-3">
-                    Select Text to Load
-                </label>
-                <!-- Custom Text Dropdown -->
-                <div class="relative">
-                    <button id="text-select-button" class="w-full p-4 bg-white border border-neutral-200 rounded-xl text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between hover:bg-neutral-50 hover:border-neutral-300 shadow-sm" type="button">
-                        <span id="text-select-text" class="flex-1 truncate">Choose a text...</span>
-                        <i class="fas fa-chevron-down text-neutral-400 transition-transform duration-200 ml-2" id="text-select-chevron"></i>
-                    </button>
-                    <div id="text-select-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-xl shadow-lg hidden max-h-60 overflow-y-auto">
-                        <div class="p-4 text-sm text-neutral-500 text-center">Loading texts...</div>
+        
+        <!-- Tabs -->
+        <div class="flex border-b border-neutral-200">
+            <button id="tab-load" class="tab-button flex-1 px-6 py-4 text-sm font-medium border-b-2 border-blue-500 text-blue-600 bg-blue-50" onclick="switchTab('load')">
+                <i class="fas fa-folder-open mr-2"></i>Load Existing
+            </button>
+            <button id="tab-create" class="tab-button flex-1 px-6 py-4 text-sm font-medium border-b-2 border-transparent text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50" onclick="switchTab('create')">
+                <i class="fas fa-plus mr-2"></i>Create Blank
+            </button>
+            <button id="tab-import" class="tab-button flex-1 px-6 py-4 text-sm font-medium border-b-2 border-transparent text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50" onclick="goToUsfmImporter()">
+                <i class="fas fa-file-import mr-2"></i>Import USFM
+            </button>
+        </div>
+        
+        <!-- Tab Content -->
+        <div class="p-6">
+            <!-- Load Existing Tab -->
+            <div id="content-load" class="tab-content">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-700 mb-2">Select Text</label>
+                        <div class="relative">
+                            <button id="text-select-button" class="w-full p-3 bg-white border border-neutral-200 rounded-lg text-left text-neutral-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between hover:bg-neutral-50">
+                                <span id="text-select-text" class="flex-1 truncate">Choose a text...</span>
+                                <i class="fas fa-chevron-down text-neutral-400" id="text-select-chevron"></i>
+                            </button>
+                            <div id="text-select-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto">
+                                <div class="p-4 text-sm text-neutral-500 text-center">Loading texts...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="text-info" class="hidden p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div id="text-details" class="text-sm text-blue-900 font-medium"></div>
                     </div>
                 </div>
             </div>
             
-            <div id="text-info" class="hidden p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                <div id="text-details" class="text-sm text-blue-900 font-medium">Loading...</div>
+            <!-- Create Blank Tab -->
+            <div id="content-create" class="tab-content hidden">
+                <div class="space-y-4">
+                    <div>
+                        <label for="new-translation-name" class="block text-sm font-medium text-neutral-700 mb-2">Translation Name</label>
+                        <input type="text" id="new-translation-name" class="w-full p-3 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="My Translation">
+                    </div>
+                    <div>
+                        <label for="target-language" class="block text-sm font-medium text-neutral-700 mb-2">Target Language</label>
+                        <input type="text" id="target-language" class="w-full p-3 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="e.g., Spanish, French, Swahili">
+                    </div>
+                </div>
             </div>
-            
-            <div class="flex flex-col space-y-3 pt-4">
-                <div class="flex justify-end space-x-3">
-                    <button type="button" id="cancel-text-selection" class="px-6 py-3 border border-neutral-200 rounded-xl text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition-all duration-200 font-medium">
-                        Cancel
-                    </button>
-                    <button type="button" id="add-text-btn" class="hidden px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105">
-                        <i class="fas fa-download mr-2"></i>Load Existing
-                    </button>
-                    <button type="button" id="new-translation-btn" class="px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105">
-                        <i class="fas fa-plus mr-2"></i>Create New
-                    </button>
-                </div>
-                <div class="flex justify-center">
-                    <button type="button" id="usfm-import-btn" class="px-8 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105">
-                        <i class="fas fa-file-import mr-2"></i>Import USFM Files
-                    </button>
-                </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="p-6 border-t border-neutral-200 flex justify-between">
+            <button type="button" id="cancel-text-selection" class="px-6 py-2 border border-neutral-200 rounded-lg text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 font-medium">
+                Cancel
+            </button>
+            <div class="space-x-3">
+                <button type="button" id="add-text-btn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                    Load Text
+                </button>
+                <button type="button" id="create-translation-btn" class="hidden px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                    Create Blank Translation
+                </button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-// Custom dropdown functionality for text selection modal
+// USFM importer redirect function
+window.goToUsfmImporter = function() {
+    if (!window.translationEditor?.canEdit) {
+        alert('Editor access required to import USFM files.');
+        return;
+    }
+    
+    const projectId = window.translationEditor?.projectId;
+    if (projectId) {
+        // Close modal first
+        document.getElementById('text-selection-modal')?.classList.add('hidden');
+        // Navigate to USFM importer
+        window.location.href = `/project/${projectId}/usfm-import`;
+    }
+};
+
+// Simple tab switching function
+window.switchTab = function(activeTab) {
+    const tabs = ['load', 'create'];
+    const buttons = ['add-text-btn', 'create-translation-btn'];
+    
+    tabs.forEach((tab, index) => {
+        const tabButton = document.getElementById(`tab-${tab}`);
+        const content = document.getElementById(`content-${tab}`);
+        const actionButton = document.getElementById(buttons[index]);
+        
+        if (tab === activeTab) {
+            // Activate this tab
+            tabButton?.classList.add('border-blue-500', 'text-blue-600', 'bg-blue-50');
+            tabButton?.classList.remove('border-transparent', 'text-neutral-600');
+            content?.classList.remove('hidden');
+            actionButton?.classList.remove('hidden');
+        } else {
+            // Deactivate other tabs
+            tabButton?.classList.remove('border-blue-500', 'text-blue-600', 'bg-blue-50');
+            tabButton?.classList.add('border-transparent', 'text-neutral-600');
+            content?.classList.add('hidden');
+            actionButton?.classList.add('hidden');
+        }
+    });
+};
+
+// Legacy function for compatibility
+function initializeTextSelectionTabs() {
+    // Tab switching is now handled by onclick attributes
+    // This function is kept for compatibility
+}
+
+// Custom dropdown functionality for text selection modal  
 function initializeTextSelectionDropdown() {
     const button = document.getElementById('text-select-button');
     const dropdown = document.getElementById('text-select-dropdown');
@@ -129,6 +204,55 @@ function initializeTextSelectionDropdown() {
             chevron.style.transform = 'rotate(0deg)';
         }
     });
+}
+
+// File upload functionality
+function initializeFileUpload() {
+    const fileInput = document.getElementById('usfm-file-input');
+    const browseBtn = document.getElementById('browse-files-btn');
+    const dropZone = browseBtn.parentElement;
+    const fileList = document.getElementById('file-list');
+    
+    if (browseBtn) {
+        browseBtn.addEventListener('click', () => fileInput.click());
+    }
+    
+    if (fileInput) {
+        fileInput.addEventListener('change', handleFileSelection);
+    }
+    
+    if (dropZone) {
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-purple-400', 'bg-purple-50');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-purple-400', 'bg-purple-50');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-purple-400', 'bg-purple-50');
+            fileInput.files = e.dataTransfer.files;
+            handleFileSelection();
+        });
+    }
+    
+    function handleFileSelection() {
+        const files = Array.from(fileInput.files);
+        if (files.length > 0) {
+            fileList.classList.remove('hidden');
+            fileList.innerHTML = files.map(file => 
+                `<div class="flex items-center justify-between p-2 bg-neutral-50 rounded">
+                    <span class="text-sm">${file.name}</span>
+                    <span class="text-xs text-neutral-500">${(file.size/1024).toFixed(1)}KB</span>
+                </div>`
+            ).join('');
+            
+            document.getElementById('import-usfm-btn').classList.remove('hidden');
+        }
+    }
 }
 
 // Helper functions for text selection dropdown
@@ -162,10 +286,6 @@ window.setTextDropdownOption = function(value, text, metadata = {}) {
     // Close dropdown
     dropdown.classList.add('hidden');
     chevron.style.transform = 'rotate(0deg)';
-    
-    // Trigger change event for compatibility
-    const event = new CustomEvent('change', { detail: { value: value, metadata: metadata } });
-    button.dispatchEvent(event);
 };
 
 window.populateTextDropdown = function(texts) {
@@ -201,6 +321,8 @@ window.populateTextDropdown = function(texts) {
 // Initialize when modal is shown
 document.addEventListener('DOMContentLoaded', () => {
     initializeTextSelectionDropdown();
+    initializeTextSelectionTabs();
+    initializeFileUpload();
     
     // Character counter for purpose field
     const purposeField = document.getElementById('translation-purpose');

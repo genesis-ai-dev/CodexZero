@@ -21,7 +21,7 @@ def generate_tts(project_id, text_id, verse_index):
     
     data = request.get_json()
     text = data.get('text', '').strip()
-    voice = data.get('voice', 'onyx')
+    voice = 'onyx'  # Fixed to onyx voice
     instructions = data.get('instructions', '').strip()
     
     client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -161,7 +161,7 @@ def generate_tts_iteration(project_id, text_id, verse_index):
     
     data = request.get_json()
     text = data.get('text', '').strip()
-    voice = data.get('voice', 'onyx')
+    voice = 'onyx'  # Fixed to onyx voice
     instructions = data.get('instructions', '').strip()
     
     client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))

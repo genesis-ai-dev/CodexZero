@@ -245,164 +245,143 @@ class TranslationUI {
 
     showTextSelectionModal(isPrimary) {
         const modal = document.getElementById('text-selection-modal');
-        const button = document.getElementById('text-select-button');
-        const addBtn = document.getElementById('add-text-btn');
-        const newTranslationBtn = document.getElementById('new-translation-btn');
-        const cancelBtn = document.getElementById('cancel-text-selection');
-        const textInfo = document.getElementById('text-info');
-
-        if (!modal || !button || !addBtn || !cancelBtn || !newTranslationBtn) return;
+        if (!modal) return;
 
         modal.dataset.isPrimary = isPrimary.toString();
         
         // Update modal text based on whether it's primary (target) or reference (source)
         const modalTitle = document.getElementById('text-selection-modal-title');
         const modalSubtitle = document.getElementById('text-selection-modal-subtitle');
-        const modalLabel = document.getElementById('text-selection-modal-label');
         
         if (isPrimary) {
             if (modalTitle) modalTitle.textContent = 'Load Target Translation';
-            if (modalSubtitle) modalSubtitle.textContent = 'Select or create the translation you want to work on';
-            if (modalLabel) modalLabel.textContent = 'Select Target Translation';
+            if (modalSubtitle) modalSubtitle.textContent = 'Create or load the translation you want to work on';
         } else {
             if (modalTitle) modalTitle.textContent = 'Load Reference Text';
-            if (modalSubtitle) modalSubtitle.textContent = 'Select a source text to translate from or compare against';
-            if (modalLabel) modalLabel.textContent = 'Select Reference/Source Text';
+            if (modalSubtitle) modalSubtitle.textContent = 'Load a source text to translate from or compare against';
         }
         
         modal.classList.remove('hidden');
         
-        // Reset dropdown and hide buttons
-        const textElement = document.getElementById('text-select-text');
-        if (textElement) {
-            textElement.textContent = 'Choose a text...';
-        }
-        button.dataset.value = '';
-        button.dataset.metadata = '';
-        addBtn.classList.add('hidden');
-        if (textInfo) {
-            textInfo.classList.add('hidden');
-        }
-
-        const newAddBtn = addBtn.cloneNode(true);
-        const newNewTranslationBtn = newTranslationBtn.cloneNode(true);
-        const newCancelBtn = cancelBtn.cloneNode(true);
+        // Reset all tabs and forms
+        this.resetModalTabs();
         
-        addBtn.parentNode.replaceChild(newAddBtn, addBtn);
-        newTranslationBtn.parentNode.replaceChild(newNewTranslationBtn, newTranslationBtn);
-        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        // Initialize tab functionality first
+        if (typeof initializeTextSelectionTabs === 'function') {
+            initializeTextSelectionTabs();
+        }
         
-        // Show New Translation button by default (no text selected initially)  
-        newNewTranslationBtn.classList.remove('hidden');
+        // Always default to "Load Existing" tab
+        setTimeout(() => {
+            if (typeof window.switchTab === 'function') {
+                window.switchTab('load');
+            }
+        }, 100);
         
         // Populate the dropdown with available texts
-        this.populateTextSelection(button);
+        this.populateTextSelection();
         
-        button.focus();
-
-        // Show/hide buttons based on selection
-        button.addEventListener('change', (e) => {
-            const selectedValue = e.detail?.value || button.dataset.value;
-            if (selectedValue) {
-                newAddBtn.classList.remove('hidden');
-                newNewTranslationBtn.classList.add('hidden');
-            } else {
-                newAddBtn.classList.add('hidden');
-                newNewTranslationBtn.classList.remove('hidden');
-                
-                // Update button text based on user permissions
-                if (window.translationEditor && !window.translationEditor.canEdit) {
-                    newNewTranslationBtn.textContent = 'View Only Mode';
-                    newNewTranslationBtn.disabled = true;
-                    newNewTranslationBtn.style.opacity = '0.5';
-                    newNewTranslationBtn.title = 'Editor access required to create translations';
-                } else {
-                    newNewTranslationBtn.textContent = '+ New Translation';
-                    newNewTranslationBtn.disabled = false;
-                    newNewTranslationBtn.style.opacity = '1';
-                    newNewTranslationBtn.title = '';
-                }
-            }
-        });
-
-        newAddBtn.addEventListener('click', async () => {
-            const selectedValue = button.dataset.value;
+        // Set up event handlers (only once)
+        this.setupModalEventHandlers(isPrimary);
+    }
+    
+    resetModalTabs() {
+        // Reset dropdown
+        const textElement = document.getElementById('text-select-text');
+        const button = document.getElementById('text-select-button');
+        const textInfo = document.getElementById('text-info');
+        
+        if (textElement) textElement.textContent = 'Choose a text...';
+        if (button) {
+            button.dataset.value = '';
+            button.dataset.metadata = '';
+        }
+        if (textInfo) textInfo.classList.add('hidden');
+        
+        // Reset create form
+        const nameInput = document.getElementById('new-translation-name');
+        const languageInput = document.getElementById('target-language');
+        if (nameInput) nameInput.value = '';
+        if (languageInput) languageInput.value = '';
+        
+        // Reset file upload
+        const fileInput = document.getElementById('usfm-file-input');
+        const fileList = document.getElementById('file-list');
+        if (fileInput) fileInput.value = '';
+        if (fileList) fileList.classList.add('hidden');
+        
+        // Hide action buttons (except Load Text which is default)
+        document.getElementById('create-translation-btn')?.classList.add('hidden');
+    }
+    
+    setupModalEventHandlers(isPrimary) {
+        // Don't replace the modal - just set up handlers if they don't exist
+        if (this._modalHandlersSetup) return;
+        this._modalHandlersSetup = true;
+        
+        const modal = document.getElementById('text-selection-modal');
+        
+        // Load existing text handler
+        const addBtn = document.getElementById('add-text-btn');
+        addBtn?.addEventListener('click', async () => {
+            const button = document.getElementById('text-select-button');
+            const selectedValue = button?.dataset.value;
             if (selectedValue) {
                 await window.translationEditor.loadText(selectedValue, isPrimary);
                 modal.classList.add('hidden');
-                document.getElementById('text-info').classList.add('hidden');
             }
         });
-
-        newNewTranslationBtn.addEventListener('click', () => {
-            // Check if user can edit before allowing new translation creation
-            if (window.translationEditor && !window.translationEditor.canEdit) {
-                alert('Editor access required to create new translations. You can only view existing translations.');
+        
+        // Create new translation handler
+        const createBtn = document.getElementById('create-translation-btn');
+        createBtn?.addEventListener('click', async () => {
+            if (!window.translationEditor?.canEdit) {
+                alert('Editor access required to create new translations.');
                 return;
             }
             
-            const newTranslationModal = document.getElementById('new-translation-modal');
-            newTranslationModal.dataset.isPrimary = isPrimary.toString();
+            const nameInput = document.getElementById('new-translation-name');
+            const languageInput = document.getElementById('target-language');
+            const name = nameInput?.value.trim();
+            const language = languageInput?.value.trim();
             
-            modal.classList.add('hidden');
-            newTranslationModal.classList.remove('hidden');
+            if (!name) {
+                alert('Please enter a translation name.');
+                nameInput?.focus();
+                return;
+            }
             
-            const nameInput = document.getElementById('translation-name');
-            if (nameInput) {
-                setTimeout(() => nameInput.focus(), 10);
+            try {
+                const result = await window.translationEditor.createNewTranslation(name, language);
+                if (result && result.success) {
+                    await window.translationEditor.loadText(result.textId, isPrimary);
+                    modal.classList.add('hidden');
+                } else {
+                    alert(result?.error || 'Failed to create translation.');
+                }
+            } catch (error) {
+                console.error('Error creating translation:', error);
+                alert('Failed to create translation. Please try again.');
             }
         });
+        
 
-        // Add USFM import button handler
-        const usfmImportBtn = document.getElementById('usfm-import-btn');
-        const newUsfmImportBtn = usfmImportBtn ? usfmImportBtn.cloneNode(true) : null;
-        if (usfmImportBtn && newUsfmImportBtn) {
-            usfmImportBtn.parentNode.replaceChild(newUsfmImportBtn, usfmImportBtn);
-            
-            newUsfmImportBtn.addEventListener('click', () => {
-                // Check if user can edit before allowing USFM import
-                if (window.translationEditor && !window.translationEditor.canEdit) {
-                    alert('Editor access required to import USFM files. You can only view existing translations.');
-                    return;
-                }
-                
-                const projectId = window.translationEditor?.projectId;
-                if (projectId) {
-                    window.location.href = `/project/${projectId}/usfm-import`;
-                }
-            });
-        }
-
-        newCancelBtn.addEventListener('click', () => {
+        
+        // Cancel handler
+        const cancelBtn = document.getElementById('cancel-text-selection');
+        cancelBtn?.addEventListener('click', () => {
             modal.classList.add('hidden');
-            if (button) {
-                button.dataset.value = '';
-                const textElement = document.getElementById('text-select-text');
-                if (textElement) {
-                    textElement.textContent = 'Choose a text...';
-                }
-            }
-            newAddBtn.classList.add('hidden');
-            newNewTranslationBtn.classList.remove('hidden');
         });
-
+        
+        // Click outside to close
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
                 modal.classList.add('hidden');
-                if (button) {
-                    button.dataset.value = '';
-                    const textElement = document.getElementById('text-select-text');
-                    if (textElement) {
-                        textElement.textContent = 'Choose a text...';
-                    }
-                }
-                newAddBtn.classList.add('hidden');
-                newNewTranslationBtn.classList.remove('hidden');
             }
         });
     }
 
-    populateTextSelection(buttonOrSelect) {
+    populateTextSelection() {
         // Get text metadata from the editor
         const textMetadata = window.translationEditor?.textMetadata;
         if (!textMetadata) {

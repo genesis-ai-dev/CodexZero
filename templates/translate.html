@@ -708,11 +708,24 @@ class TranslationEditor {
         this.navigation.updateChapterTitle();
     }
     
-    async createNewTranslation() {
-        const name = document.getElementById('translation-name').value.trim();
-        const purpose = document.getElementById('translation-purpose').value.trim();
+    async createNewTranslation(name = null, targetLanguage = null) {
+        // If no parameters provided, read from DOM (legacy behavior)
+        if (!name) {
+            name = document.getElementById('translation-name')?.value.trim();
+        }
+        if (!targetLanguage) {
+            targetLanguage = document.getElementById('translation-purpose')?.value.trim();
+        }
         
-        if (!name || !purpose) return;
+        // For new modal, try the new input IDs
+        if (!name) {
+            name = document.getElementById('new-translation-name')?.value.trim();
+        }
+        if (!targetLanguage) {
+            targetLanguage = document.getElementById('target-language')?.value.trim();
+        }
+        
+        if (!name) return { success: false, error: 'Translation name is required' };
         
         try {
             const response = await fetch(`/project/${this.projectId}/translations`, {
@@ -720,35 +733,40 @@ class TranslationEditor {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ name: name, purpose: purpose })
+                body: JSON.stringify({ 
+                    name: name, 
+                    purpose: targetLanguage || `Translation into ${targetLanguage || 'target language'}`
+                })
             });
             
             const data = await response.json();
             
             if (data.success) {
-                document.getElementById('new-translation-modal').classList.add('hidden');
-                document.getElementById('new-translation-form').reset();
+                // Hide both old and new modals
+                document.getElementById('new-translation-modal')?.classList.add('hidden');
+                document.getElementById('text-selection-modal')?.classList.add('hidden');
+                
+                // Reset forms
+                document.getElementById('new-translation-form')?.reset();
                 
                 await this.refreshTextMetadata();
                 
                 if (data.translation && data.translation.id) {
-                    const newTranslationModal = document.getElementById('new-translation-modal');
-                    const isPrimary = newTranslationModal.dataset.isPrimary === 'true';
-                    
-                    // Use the ID directly from the backend - it's already in the correct format (text_30)
-                    const translationId = data.translation.id;
-                    await this.loadText(translationId, isPrimary);
-                    
-                    delete newTranslationModal.dataset.isPrimary;
+                    return {
+                        success: true,
+                        textId: data.translation.id,
+                        translation: data.translation
+                    };
                 } else {
                     this.loadAllTexts();
+                    return { success: true };
                 }
             } else {
-                alert('Error: ' + (data.error || 'Failed to create translation'));
+                return { success: false, error: data.error || 'Failed to create translation' };
             }
         } catch (error) {
             console.error('Error creating translation:', error);
-            alert('Failed to create translation');
+            return { success: false, error: 'Failed to create translation' };
         }
     }
     
