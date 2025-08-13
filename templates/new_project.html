@@ -88,14 +88,14 @@
                     <!-- Submit Button -->
                     <div class="text-center pt-6 sm:pt-8">
                         {% if project %}
-                            <button type="submit" class="inline-flex items-center px-8 sm:px-12 py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-base sm:text-lg font-semibold rounded-xl hover:from-blue-700 hover:to-blue-800 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl">
-                                <i class="fas fa-save mr-2 sm:mr-3 text-lg sm:text-xl"></i>
-                                Update Project
+                            <button type="submit" id="submitBtn" class="inline-flex items-center px-8 sm:px-12 py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-base sm:text-lg font-semibold rounded-xl hover:from-blue-700 hover:to-blue-800 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:from-blue-600 disabled:hover:to-blue-700">
+                                <i class="fas fa-save mr-2 sm:mr-3 text-lg sm:text-xl" id="submitIcon"></i>
+                                <span id="submitText">Update Project</span>
                             </button>
                         {% else %}
-                            <button type="submit" class="inline-flex items-center px-8 sm:px-12 py-3 sm:py-4 bg-gradient-to-r from-neutral-900 to-neutral-800 text-white text-base sm:text-lg font-semibold rounded-xl hover:from-neutral-800 hover:to-neutral-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl">
-                                <i class="fas fa-magic mr-2 sm:mr-3 text-lg sm:text-xl"></i>
-                                Create Project
+                            <button type="submit" id="submitBtn" class="inline-flex items-center px-8 sm:px-12 py-3 sm:py-4 bg-gradient-to-r from-neutral-900 to-neutral-800 text-white text-base sm:text-lg font-semibold rounded-xl hover:from-neutral-800 hover:to-neutral-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:from-neutral-900 disabled:hover:to-neutral-800">
+                                <i class="fas fa-magic mr-2 sm:mr-3 text-lg sm:text-xl" id="submitIcon"></i>
+                                <span id="submitText">Create Project</span>
                             </button>
                         {% endif %}
                     </div>
@@ -111,4 +111,53 @@
         </div>
     </div>
 </section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const submitBtn = document.getElementById('submitBtn');
+    const submitIcon = document.getElementById('submitIcon');
+    const submitText = document.getElementById('submitText');
+    
+    // Store original button text
+    const originalText = submitText.textContent;
+    const isUpdate = originalText.includes('Update');
+    
+    form.addEventListener('submit', function(e) {
+        // Prevent multiple submissions
+        if (submitBtn.disabled) {
+            e.preventDefault();
+            return false;
+        }
+        
+        // Disable the button immediately
+        submitBtn.disabled = true;
+        
+        // Change icon to spinner
+        submitIcon.className = 'fas fa-spinner fa-spin mr-2 sm:mr-3 text-lg sm:text-xl';
+        
+        // Update button text
+        if (isUpdate) {
+            submitText.textContent = 'Updating Project...';
+        } else {
+            submitText.textContent = 'Creating Project...';
+        }
+        
+        // Allow form submission to continue
+        return true;
+    });
+    
+    // Handle browser back button - re-enable button if user comes back
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted || performance.navigation.type === 2) {
+            // Page was loaded from cache (back button)
+            submitBtn.disabled = false;
+            submitIcon.className = isUpdate ? 
+                'fas fa-save mr-2 sm:mr-3 text-lg sm:text-xl' : 
+                'fas fa-magic mr-2 sm:mr-3 text-lg sm:text-xl';
+            submitText.textContent = originalText;
+        }
+    });
+});
+</script>
 {% endblock %} 
