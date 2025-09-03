@@ -20,6 +20,7 @@ from routes.flags import flags
 from routes.notifications import notifications
 from routes.language_server import language_server
 from routes.export import export_bp
+from routes.analytics import analytics
 from ai.bot import Chatbot
 
 
@@ -48,7 +49,7 @@ def create_app():
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['X-XSS-Protection'] = '1; mode=block'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' cdn.tailwindcss.com cdnjs.cloudflare.com cloud.umami.is; style-src 'self' 'unsafe-inline' cdn.tailwindcss.com cdnjs.cloudflare.com fonts.googleapis.com; font-src 'self' fonts.gstatic.com cdnjs.cloudflare.com; img-src 'self' data:; media-src 'self' *.digitaloceanspaces.com; connect-src 'self' cloud.umami.is api-gateway.umami.dev;"
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' cdn.tailwindcss.com cdnjs.cloudflare.com cdn.jsdelivr.net cloud.umami.is; style-src 'self' 'unsafe-inline' cdn.tailwindcss.com cdnjs.cloudflare.com fonts.googleapis.com; font-src 'self' fonts.gstatic.com cdnjs.cloudflare.com; img-src 'self' data:; media-src 'self' *.digitaloceanspaces.com; connect-src 'self' cloud.umami.is api-gateway.umami.dev;"
         return response
     
     # Error handlers to prevent information disclosure
@@ -89,6 +90,7 @@ def create_app():
     app.register_blueprint(notifications)
     app.register_blueprint(language_server)
     app.register_blueprint(export_bp)
+    app.register_blueprint(analytics)
     
     # Static file serving routes
     @app.route('/static/<path:filename>')

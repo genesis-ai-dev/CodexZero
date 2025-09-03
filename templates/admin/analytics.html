@@ -1,0 +1,496 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50">
+  <!-- Header -->
+  <div class="bg-white shadow-sm border-b">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center py-6">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900">A/B Test Analytics</h1>
+          <p class="text-gray-600 mt-1">Track experiment performance and statistical significance</p>
+        </div>
+        
+        <!-- Filters -->
+        <form method="get" class="flex items-center gap-4">
+          <select name="range" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <option value="7d" {% if active_filters.range == '7d' %}selected{% endif %}>Last 7 days</option>
+            <option value="30d" {% if active_filters.range == '30d' %}selected{% endif %}>Last 30 days</option>
+            <option value="90d" {% if active_filters.range == '90d' %}selected{% endif %}>Last 90 days</option>
+          </select>
+          
+          <input type="text" name="category" value="{{ active_filters.category }}" 
+                 placeholder="Filter tests..." 
+                 class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-48">
+          
+          <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            Apply
+          </button>
+          
+          <a href="/admin/analytics" class="text-gray-600 hover:text-gray-800 text-sm">Reset</a>
+          
+          <button type="button" onclick="generateSampleData()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            Generate Sample Data
+          </button>
+          
+          <button type="button" onclick="clearData()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            Clear All Data
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- Overview Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-600">Total Events</p>
+            <p class="text-2xl font-bold text-gray-900">{{ "{:,}".format(overview.total_events) }}</p>
+          </div>
+          <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-600">Active Tests</p>
+            <p class="text-2xl font-bold text-gray-900">{{ overview.total_tests }}</p>
+          </div>
+          <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Test Results Grid -->
+    {% if test_summaries %}
+    <div class="grid grid-cols-1 gap-6 mb-8">
+      {% for test_name, test_data in test_summaries.items() %}
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-6 border-b border-gray-200">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-gray-900">{{ test_name }}</h3>
+            {% if test_data.significance and test_data.significance.significant %}
+              <span class="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                Statistically Significant
+              </span>
+            {% else %}
+              <span class="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                Inconclusive
+              </span>
+            {% endif %}
+          </div>
+          <div class="mt-2 flex items-center gap-4 text-sm text-gray-600">
+            <span>{{ "{:,}".format(test_data.sample_size) }} total events</span>
+            <span>{{ "{:,}".format(test_data.total_conversions) }} conversions</span>
+          </div>
+        </div>
+        
+        <!-- Variant Performance -->
+        <div class="p-6 border-b border-gray-200">
+          <div class="space-y-4">
+            {% for variant in test_data.variants %}
+            <div class="relative">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-3">
+                  <span class="font-medium text-gray-900">{{ variant.variant }}</span>
+                  {% if variant.status == 'Winner' %}
+                    <span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Winner</span>
+                  {% elif variant.status == 'Leading' %}
+                    <span class="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Leading</span>
+                  {% else %}
+                    <span class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">{{ variant.status }}</span>
+                  {% endif %}
+                </div>
+                <div class="text-right">
+                  <div class="text-lg font-bold text-gray-900">{{ (variant.rate * 100) | round(2) }}%</div>
+                  <div class="text-xs text-gray-500">{{ variant.wins }}/{{ variant.total }}</div>
+                </div>
+              </div>
+              
+              <!-- Progress bar -->
+              <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
+                <div class="h-2 rounded-full transition-all duration-300 {% if variant.status == 'Winner' %}bg-green-500{% elif variant.status == 'Leading' %}bg-blue-500{% else %}bg-gray-400{% endif %}" 
+                     style="width: {{ (variant.rate * 100) | round(2) }}%"></div>
+              </div>
+              
+              <!-- Confidence interval -->
+              {% if variant.ci_low != variant.ci_high %}
+              <div class="text-xs text-gray-500">
+                95% CI: {{ (variant.ci_low * 100) | round(2) }}% - {{ (variant.ci_high * 100) | round(2) }}%
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        
+        <!-- Chart Tabs -->
+        {% if chart_data[test_name] %}
+        <div class="p-6">
+          <div class="border-b border-gray-200 mb-4">
+            <nav class="-mb-px flex space-x-8">
+              <button class="chart-tab-btn active border-b-2 border-blue-500 py-2 px-1 text-sm font-medium text-blue-600" 
+                      data-tab="line" data-test="{{ test_name }}">
+                Trend Chart
+              </button>
+              <button class="chart-tab-btn border-b-2 border-transparent py-2 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300" 
+                      data-tab="pie" data-test="{{ test_name }}">
+                Distribution
+              </button>
+            </nav>
+          </div>
+          
+          <!-- Tab Content -->
+          <div class="chart-tab-content" data-tab="line" data-test="{{ test_name }}">
+            <div class="h-64">
+              <canvas id="line_{{ test_name | replace(' ', '_') | replace('/', '_') }}"></canvas>
+            </div>
+          </div>
+          
+          <div class="chart-tab-content hidden" data-tab="pie" data-test="{{ test_name }}">
+            <div class="h-64 flex items-center justify-center">
+              <div class="w-64 h-64">
+                <canvas id="pie_{{ test_name | replace(' ', '_') | replace('/', '_') }}"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Empty State -->
+    {% if not test_summaries %}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+      <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+      </svg>
+      <h3 class="text-lg font-medium text-gray-900 mb-2">No A/B test data yet</h3>
+      <p class="text-gray-600 mb-6">Start running experiments to see analytics here</p>
+      <div class="bg-gray-50 rounded-lg p-4 text-left max-w-md mx-auto">
+        <h4 class="font-medium text-gray-900 mb-2">Quick Start:</h4>
+        <code class="text-sm text-gray-700 block">
+          POST /analytics/event<br>
+          { "test_name": "Button Color", "variant": "Blue", "outcome": true }
+        </code>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+
+<script>
+let chartInstances = {};
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize default line charts for all tests
+  {% for test_name in test_summaries.keys() %}
+  initLineChart('{{ test_name }}');
+  {% endfor %}
+  
+  // Tab functionality
+  document.querySelectorAll('.chart-tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const testName = this.dataset.test;
+      const tabName = this.dataset.tab;
+      
+      // Update tab buttons
+      document.querySelectorAll(`[data-test="${testName}"].chart-tab-btn`).forEach(b => {
+        b.classList.remove('active', 'border-blue-500', 'text-blue-600');
+        b.classList.add('border-transparent', 'text-gray-500');
+      });
+      this.classList.add('active', 'border-blue-500', 'text-blue-600');
+      this.classList.remove('border-transparent', 'text-gray-500');
+      
+      // Update tab content
+      document.querySelectorAll(`[data-test="${testName}"].chart-tab-content`).forEach(content => {
+        content.classList.add('hidden');
+      });
+      document.querySelector(`[data-tab="${tabName}"][data-test="${testName}"].chart-tab-content`).classList.remove('hidden');
+      
+      // Initialize chart if needed
+      if (tabName === 'line') {
+        initLineChart(testName);
+      } else if (tabName === 'pie') {
+        initPieChart(testName);
+      }
+    });
+  });
+
+  // Add smooth animations to progress bars
+  setTimeout(() => {
+    const progressBars = document.querySelectorAll('[style*="width"]');
+    progressBars.forEach(bar => {
+      const width = bar.style.width;
+      bar.style.width = '0%';
+      setTimeout(() => {
+        bar.style.width = width;
+      }, 100);
+    });
+  }, 100);
+});
+
+function initLineChart(testName) {
+  const chartId = 'line_' + testName.replace(/\s/g, '_').replace(/\//g, '_');
+  const canvas = document.getElementById(chartId);
+  
+  if (!canvas || chartInstances[chartId]) return;
+  
+  const chartData = {{ chart_data | tojson }};
+  const testData = chartData[testName];
+  
+  if (!testData || !testData.line) return;
+  
+  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+  
+  const datasets = testData.line.datasets.map((dataset, index) => ({
+    label: dataset.label,
+    data: dataset.data,
+    borderColor: colors[index % colors.length],
+    backgroundColor: colors[index % colors.length] + '20',
+    tension: 0.4,
+    fill: false
+  }));
+  
+  chartInstances[chartId] = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: testData.line.dates,
+      datasets: datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          align: 'end'
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          titleColor: 'white',
+          bodyColor: 'white',
+          borderColor: 'rgba(0, 0, 0, 0.1)',
+          borderWidth: 1,
+          cornerRadius: 8,
+          callbacks: {
+            label: function(context) {
+              return context.dataset.label + ': ' + context.parsed.y + '%';
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          display: true,
+          grid: {
+            display: false
+          },
+          border: {
+            display: false
+          }
+        },
+        y: {
+          display: true,
+          title: {
+            display: true,
+            text: 'Conversion Rate (%)'
+          },
+          grid: {
+            color: 'rgba(0, 0, 0, 0.05)'
+          },
+          border: {
+            display: false
+          }
+        }
+      }
+    }
+  });
+}
+
+function initPieChart(testName) {
+  const chartId = 'pie_' + testName.replace(/\s/g, '_').replace(/\//g, '_');
+  const canvas = document.getElementById(chartId);
+  
+  if (!canvas || chartInstances[chartId]) return;
+  
+  const chartData = {{ chart_data | tojson }};
+  const testData = chartData[testName];
+  
+  if (!testData || !testData.pie) return;
+  
+  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+  
+  chartInstances[chartId] = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: testData.pie.labels,
+      datasets: [{
+        data: testData.pie.data,
+        backgroundColor: colors.slice(0, testData.pie.labels.length),
+        borderWidth: 2,
+        borderColor: '#ffffff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right'
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          titleColor: 'white',
+          bodyColor: 'white',
+          borderColor: 'rgba(0, 0, 0, 0.1)',
+          borderWidth: 1,
+          cornerRadius: 8,
+          callbacks: {
+            label: function(context) {
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const percentage = ((context.parsed / total) * 100).toFixed(1);
+              return context.label + ': ' + context.parsed + ' (' + percentage + '%)';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// Sample data generation
+function generateSampleData() {
+  const button = event.target;
+  const originalText = button.textContent;
+  
+  button.textContent = 'Generating...';
+  button.disabled = true;
+  
+  fetch('/analytics/generate-sample-data', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showAlert('Sample data generated! Refreshing page...', 'success');
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      showAlert('Error: ' + (data.error || 'Failed to generate sample data'), 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showAlert('Error generating sample data', 'error');
+  })
+  .finally(() => {
+    button.textContent = originalText;
+    button.disabled = false;
+  });
+}
+
+// Clear data
+function clearData() {
+  if (!confirm('Are you sure you want to clear all A/B test data? This cannot be undone.')) {
+    return;
+  }
+  
+  const button = event.target;
+  const originalText = button.textContent;
+  
+  button.textContent = 'Clearing...';
+  button.disabled = true;
+  
+  fetch('/analytics/clear-data', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showAlert(data.message + ' Refreshing page...', 'success');
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      showAlert('Error: ' + (data.error || 'Failed to clear data'), 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showAlert('Error clearing data', 'error');
+  })
+  .finally(() => {
+    button.textContent = originalText;
+    button.disabled = false;
+  });
+}
+
+// Helper function to show alerts
+function showAlert(message, type = 'success') {
+  const alert = document.createElement('div');
+  const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
+  alert.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50`;
+  alert.textContent = message;
+  document.body.appendChild(alert);
+  
+  setTimeout(() => {
+    alert.remove();
+  }, 5000);
+}
+</script>
+
+<style>
+  /* Custom scrollbar for webkit browsers */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  /* Progress bar animations */
+  .bg-green-500, .bg-blue-500, .bg-gray-400 {
+    transition: width 0.8s ease-out;
+  }
+  
+  /* Tab styling */
+  .chart-tab-btn.active {
+    border-bottom-color: #3B82F6 !important;
+    color: #3B82F6 !important;
+  }
+</style>
+{% endblock %}

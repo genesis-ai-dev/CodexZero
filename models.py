@@ -584,3 +584,56 @@ class UserNotification(db.Model):
     
     def __repr__(self):
         return f'<UserNotification {self.id} for user {self.user_id}>'
+
+
+class AbTestEvent(db.Model):
+    __tablename__ = 'ab_test_events'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    test_name = db.Column(db.String(100), nullable=False)
+    variant = db.Column(db.String(100), nullable=False)
+    outcome = db.Column(db.Boolean, nullable=False, default=False)
+    
+    # Optional associations
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', foreign_keys=[user_id])
+    project = db.relationship('Project', foreign_keys=[project_id])
+    
+    __table_args__ = (
+        db.Index('idx_abtest_test_variant', 'test_name', 'variant'),
+        db.Index('idx_abtest_created', 'created_at'),
+    )
+    
+    def __repr__(self):
+        return f'<AbTestEvent {self.test_name}:{self.variant} outcome={self.outcome}>'
+
+
+class AbTestResult(db.Model):
+    __tablename__ = 'ab_test_results'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    category = db.Column(db.String(100), nullable=False)
+    options_json = db.Column(db.Text, nullable=False)  # JSON array of option names
+    winner_index = db.Column(db.Integer, nullable=False)
+    winner_name = db.Column(db.String(255), nullable=False)
+    
+    # Optional associations
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', foreign_keys=[user_id])
+    project = db.relationship('Project', foreign_keys=[project_id])
+    
+    __table_args__ = (
+        db.Index('idx_abtest_results_category', 'category'),
+        db.Index('idx_abtest_results_created', 'created_at'),
+    )
+    
+    def __repr__(self):
+        return f'<AbTestResult {self.category} winner={self.winner_name}>'
