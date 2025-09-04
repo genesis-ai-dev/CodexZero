@@ -105,3 +105,28 @@ def record_result():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@analytics.route('/analytics/clear-category', methods=['POST'])
+@admin_required
+def clear_category():
+    """Clear all results for a specific category"""
+    data = request.get_json() or {}
+    category = (data.get('category') or '').strip()
+    
+    if not category:
+        return jsonify({'success': False, 'error': 'category is required'}), 400
+    
+    try:
+        deleted_count = db.session.query(AbTestResult).filter(
+            AbTestResult.category == category
+        ).delete()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Cleared {deleted_count} results from category "{category}"'
+        })
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+

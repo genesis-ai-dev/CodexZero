@@ -98,9 +98,15 @@
         <div class="p-6 border-b border-gray-200">
           <div class="flex items-center justify-between">
             <h3 class="text-lg font-semibold text-gray-900">{{ category }}</h3>
-            <span class="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-              {{ data.total }} tests
-            </span>
+            <div class="flex items-center gap-3">
+              <span class="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                {{ data.total }} tests
+              </span>
+              <button onclick="clearCategory('{{ category }}')" 
+                      class="px-3 py-1 text-xs font-medium text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors">
+                Clear
+              </button>
+            </div>
           </div>
         </div>
         
@@ -243,5 +249,46 @@ document.addEventListener('DOMContentLoaded', function() {
     bar.style.setProperty('--target-width', width);
   });
 });
+
+// Clear category function
+function clearCategory(category) {
+  if (!confirm(`Are you sure you want to clear all data for "${category}"? This cannot be undone.`)) {
+    return;
+  }
+  
+  fetch('/analytics/clear-category', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ category: category })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showAlert(data.message + ' Refreshing page...', 'success');
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      showAlert('Error: ' + (data.error || 'Failed to clear category'), 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showAlert('Error clearing category data', 'error');
+  });
+}
+
+// Helper function to show alerts
+function showAlert(message, type = 'success') {
+  const alert = document.createElement('div');
+  const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
+  alert.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50`;
+  alert.textContent = message;
+  document.body.appendChild(alert);
+  
+  setTimeout(() => {
+    alert.remove();
+  }, 5000);
+}
 </script>
 {% endblock %}
